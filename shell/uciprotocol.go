@@ -230,7 +230,7 @@ func MoveCommand(uci *UciProtocol, args []string) {
 	newPos = newPos.MakeMoveIfLegal(searchResult.MainLine.Move)
 	if newPos != nil {
 		uci.positions = append(uci.positions, newPos)
-		//PrintPosition(newPos)
+		PrintPosition(newPos)
 		fmt.Println(newPos)
 	}
 }
@@ -242,7 +242,7 @@ func EpdCommand(uci *UciProtocol, args []string) {
 }
 
 func ArenaCommand(uci *UciProtocol, args []string) {
-
+	RunTournament(uci.searchServiceFactory)
 }
 
 func StatusCommand(uci *UciProtocol, args []string) {

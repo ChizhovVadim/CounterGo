@@ -281,8 +281,19 @@ func Evaluate(p *Position) int {
 	score += MinorOnStrongField * (popcount_1s_Max15(wMinorOnStrongFields) -
 		popcount_1s_Max15(bMinorOnStrongFields))
 
-	score += PawnValue*(wp-bp) + KnightValue*(wn-bn) +
+	score += /*PawnValue*(wp-bp) +*/ KnightValue*(wn-bn) +
 		BishopValue*(wb-bb) + RookValue*(wr-br) + QueenValue*(wq-bq)
+
+	var pawnBalance = wp - bp
+	switch {
+	case pawnBalance > 2:
+		score += 2*PawnValue + (pawnBalance-2)*PawnValue/2
+	case pawnBalance < -2:
+		score += -2*PawnValue + (pawnBalance+2)*PawnValue/2
+	default:
+		score += pawnBalance * PawnValue
+	}
+
 	endgame += PawnEndgameBonus * (wp - bp)
 	if wb >= 2 {
 		endgame += BishopPairEndgame
@@ -499,5 +510,21 @@ func init() {
 			var fd = FileDistance(i, j)
 			dist[i][j] = int(math.Sqrt(float64(rd*rd + fd*fd)))
 		}
+	}
+
+	for sq := 0; sq < 64; sq++ {
+		var x = UpFill(squareMask[sq])
+		for j := 0; j < Rank(FlipSquare(sq)); j++ {
+			x |= Left(x) | Right(x)
+		}
+		BB_WPAWN_SQUARE[sq] = x
+	}
+
+	for sq := 0; sq < 64; sq++ {
+		var x = DownFill(squareMask[sq])
+		for j := 0; j < Rank(sq); j++ {
+			x |= Left(x) | Right(x)
+		}
+		BB_BPAWN_SQUARE[sq] = x
 	}
 }

@@ -28,8 +28,13 @@ var chessSymbols = [2][7]string{
 func PrintPosition(p *engine.Position) {
 	for i := 0; i < 64; i++ {
 		sq := engine.FlipSquare(i)
-		piece := p.WhatPiece(sq)
-		fmt.Print(chessSymbols[0][piece])
+		piece, side := p.GetPieceTypeAndSide(sq)
+		if side {
+			fmt.Print(chessSymbols[0][piece])
+		} else {
+			fmt.Print(chessSymbols[1][piece])
+		}
+		fmt.Print(" ")
 		if engine.File(sq) == engine.FileH {
 			fmt.Println()
 		}

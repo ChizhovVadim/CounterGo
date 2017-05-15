@@ -25,7 +25,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	}
 
 	this.nodes = 0
-	this.maxNodes = 0 //750000
+	this.maxNodes = int64(searchParams.Limits.Nodes)
 	this.MoveOrderService.Clear()
 	if this.TTable != nil {
 		this.TTable.ClearStatistics()
@@ -116,7 +116,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		return this.Quiescence(ss, alpha, beta, 1)
 	}
 
-	if this.isCancelRequest /*|| this.nodes >= this.maxNodes*/ {
+	if this.isCancelRequest || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
 		panic(searchTimeout)
 	}
 
@@ -253,7 +253,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 }
 
 func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) int {
-	if this.isCancelRequest /*|| this.nodes >= this.maxNodes*/ {
+	if this.isCancelRequest || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
 		panic(searchTimeout)
 	}
 	ss.PrincipalVariation = nil

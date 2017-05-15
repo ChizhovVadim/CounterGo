@@ -163,6 +163,20 @@ func pieceToChar(pieceType int, side bool) string {
 	return result
 }
 
+func (p *Position) GetPieceTypeAndSide(sq int) (pieceType int, side bool) {
+	var bb = squareMask[sq]
+	if (p.White & bb) != 0 {
+		side = true
+	} else if (p.Black & bb) != 0 {
+		side = false
+	} else {
+		pieceType = Empty
+		return
+	}
+	pieceType = p.WhatPiece(sq)
+	return
+}
+
 func (p *Position) WhatPiece(sq int) int {
 	var bb = squareMask[sq]
 	if ((p.White | p.Black) & bb) == 0 {
@@ -417,6 +431,20 @@ func (p *Position) MakeMoveIfLegal(move Move) *Position {
 		}
 	}
 	return nil
+}
+
+func (this *Position) IsRepetition(other *Position) bool {
+	return this.White == other.White &&
+		this.Black == other.Black &&
+		this.Pawns == other.Pawns &&
+		this.Knights == other.Knights &&
+		this.Bishops == other.Bishops &&
+		this.Rooks == other.Rooks &&
+		this.Queens == other.Queens &&
+		this.Kings == other.Kings &&
+		this.WhiteMove == other.WhiteMove &&
+		this.CastleRights == other.CastleRights &&
+		this.EpSquare == other.EpSquare
 }
 
 func init() {

@@ -38,6 +38,10 @@ func Rank(sq int) int {
 	return sq >> 3
 }
 
+func IsDarkSquare(sq int) bool {
+	return (File(sq) & 1) == (Rank(sq) & 1)
+}
+
 func AbsDelta(x, y int) int {
 	if x > y {
 		return x - y

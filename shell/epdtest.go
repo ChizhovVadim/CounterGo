@@ -86,9 +86,10 @@ func ParseEpdTest(s string) *TestItem {
 	var bestMoves []engine.Move
 	for _, sBestMove := range sBestMoves {
 		var move = ParseEpdMove(p, sBestMove)
-		if move != engine.MoveEmpty {
-			bestMoves = append(bestMoves, move)
+		if move == engine.MoveEmpty {
+			return nil
 		}
+		bestMoves = append(bestMoves, move)
 	}
 	if len(bestMoves) == 0 {
 		return nil

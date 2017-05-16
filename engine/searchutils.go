@@ -52,7 +52,7 @@ func ComputeThinkTime(limits LimitsType, side bool) int {
 
 func ComputeTimePerMove(mainTime, incTime, movesToGo int) int {
 	if movesToGo == 0 || movesToGo > 35 {
-		movesToGo = 0
+		movesToGo = 35
 	}
 	var moveTime = (mainTime + incTime*(movesToGo-1)) / movesToGo
 	moveTime = min(moveTime, mainTime)

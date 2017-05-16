@@ -2,7 +2,39 @@ package engine
 
 import (
 	"fmt"
+	"sync"
 )
+
+func ParallelSearch(searchStacks []*SearchStack,
+	searchMove func(ss *SearchStack) bool) {
+	defer func() {
+		var r = recover()
+		if r != nil && r != searchTimeout {
+			panic(r)
+		}
+	}()
+	var ss = searchStacks[0]
+	searchMove(ss)
+	var wg sync.WaitGroup
+	var degreeOfParallelism = len(searchStacks)
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(ss *SearchStack) {
+			defer func() {
+				wg.Done()
+				var r = recover()
+				if r != nil && r != searchTimeout {
+					panic(r)
+				}
+			}()
+			for searchMove(ss) {
+			}
+		}(searchStacks[i])
+	}
+	for searchMove(ss) {
+	}
+	wg.Wait()
+}
 
 func ComputeThinkTime(limits LimitsType, side bool) int {
 	if limits.MoveTime != 0 {

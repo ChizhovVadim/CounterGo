@@ -237,6 +237,9 @@ func MoveCommand(uci *UciProtocol, args []string) {
 
 func EpdCommand(uci *UciProtocol, args []string) {
 	var filePath = "tests.epd"
+	if len(args) > 0 {
+		filePath = args[0]
+	}
 	var searchService = uci.searchServiceFactory("")
 	RunEpdTest(filePath, searchService)
 }

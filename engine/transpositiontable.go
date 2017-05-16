@@ -3,12 +3,14 @@ package engine
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 )
 
 type TranspositionTable struct {
 	items      []TTEntry
 	readNumber int
 	readHit    int
+	gates      []sync.Mutex
 }
 
 type TTEntry struct {
@@ -28,13 +30,15 @@ const (
 func NewTranspositionTable(megabytes int) *TranspositionTable {
 	return &TranspositionTable{
 		items: make([]TTEntry, 1024*1024*megabytes/16),
+		gates: make([]sync.Mutex, 128),
 	}
 }
 
 func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var key = p.Key
-	var index = key % uint64(len(tt.items))
-
+	var index = int(key % uint64(len(tt.items)))
+	var gate = &tt.gates[index%len(tt.gates)]
+	gate.Lock()
 	tt.readNumber++
 	if tt.items[index].Key == key {
 		tt.readHit++
@@ -45,14 +49,15 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 		entryType = int(item.Type)
 		ok = true
 	}
-
+	gate.Unlock()
 	return
 }
 
 func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, move Move) {
 	var key = p.Key
-	var index = key % uint64(len(tt.items))
-
+	var index = int(key % uint64(len(tt.items)))
+	var gate = &tt.gates[index%len(tt.gates)]
+	gate.Lock()
 	tt.items[index] = TTEntry{
 		Key:   key,
 		Move:  move,
@@ -60,6 +65,7 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 		Depth: int8(depth),
 		Type:  int8(entryType),
 	}
+	gate.Unlock()
 }
 
 func (tt *TranspositionTable) ClearStatistics() {

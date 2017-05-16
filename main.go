@@ -3,13 +3,15 @@ package main
 import (
 	"counter/engine"
 	"counter/shell"
+	"runtime"
 )
 
 func ResolveSearchService(name string) shell.SearchService {
 	return &engine.SearchService{
-		MoveOrderService: engine.NewMoveOrderService(),
-		TTable:           engine.NewTranspositionTable(4),
-		Evaluate:         engine.Evaluate,
+		MoveOrderService:    engine.NewMoveOrderService(),
+		TTable:              engine.NewTranspositionTable(4),
+		Evaluate:            engine.Evaluate,
+		DegreeOfParallelism: runtime.NumCPU(),
 	}
 }
 

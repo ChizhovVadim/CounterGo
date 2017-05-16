@@ -1,15 +1,18 @@
 package engine
 
 import (
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type SearchService struct {
-	MoveOrderService *MoveOrderService
-	TTable           *TranspositionTable
-	Evaluate         EvaluationFunc
-	nodes, maxNodes  int64
-	isCancelRequest  bool
+	MoveOrderService    *MoveOrderService
+	TTable              *TranspositionTable
+	Evaluate            EvaluationFunc
+	DegreeOfParallelism int
+	nodes, maxNodes     int64
+	isCancelRequest     bool
 }
 
 func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo) {
@@ -35,7 +38,12 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		}
 	}
 
-	var ss = CreateStack(searchParams.Positions)
+	var stacks = make([]*SearchStack, this.DegreeOfParallelism)
+	for i := 0; i < len(stacks); i++ {
+		stacks[i] = CreateStack(searchParams.Positions)
+	}
+
+	var ss = stacks[0]
 	var p = ss.Position
 	ss.MoveList.GenerateMoves(p)
 	ss.MoveList.FilterLegalMoves(p)
@@ -50,42 +58,42 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		return
 	}
 
-	defer func() {
-		var r = recover()
-		if r == nil || r == searchTimeout {
-			result.Time = int64(time.Since(start) / time.Millisecond)
-			result.Nodes = this.nodes
-		} else {
-			panic(r)
-		}
-	}()
-
 	this.MoveOrderService.NoteMoves(ss, MoveEmpty)
 	ss.MoveList.SortMoves()
 
 	const beta = VALUE_INFINITE
+	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
 		var alpha = -VALUE_INFINITE
-		for i := 0; i < ss.MoveList.Count; i++ {
-			var move = ss.MoveList.Items[i].Move
+		var i = 0
+		var bestMoveIndex = 0
+		ParallelSearch(stacks,
+			func(ss2 *SearchStack) bool {
+				gate.Lock()
+				var local_alpha = alpha
+				var local_i = i
+				i++
+				gate.Unlock()
+				if local_i >= ss.MoveList.Count {
+					return false
+				}
+				var move = ss.MoveList.Items[local_i].Move
+				p.MakeMove(move, ss2.Next.Position)
+				atomic.AddInt64(&this.nodes, 1)
+				ss2.Next.SkipNullMove = false
+				ss2.Next.Move = move
+				var newDepth = NewDepth(depth, ss2)
 
-			if p.MakeMove(move, ss.Next.Position) {
-				this.nodes++
-
-				ss.Next.SkipNullMove = false
-				ss.Next.Move = move
-
-				var newDepth = NewDepth(depth, ss)
-
-				if alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(ss.Next, -(alpha+1), -alpha, newDepth) <= alpha {
-					continue
+				if local_alpha > VALUE_MATED_IN_MAX_HEIGHT &&
+					-this.AlphaBeta(ss2.Next, -(local_alpha+1), -local_alpha, newDepth) <= local_alpha {
+					return true
 				}
 
-				var score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth)
+				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth)
+				gate.Lock()
 				if score > alpha {
 					alpha = score
-					result.MainLine = &PrincipalVariation{move, ss.Next.PrincipalVariation}
+					result.MainLine = &PrincipalVariation{move, ss2.Next.PrincipalVariation}
 					result.Depth = depth
 					result.Score = score
 					result.Time = int64(time.Since(start) / time.Millisecond)
@@ -93,14 +101,19 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 					if searchParams.Progress != nil {
 						searchParams.Progress(result)
 					}
-					ss.MoveList.MoveToBegin(i)
+					bestMoveIndex = local_i
 				}
-			}
-		}
+				gate.Unlock()
+				return true
+			})
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
+		ss.MoveList.MoveToBegin(bestMoveIndex)
 	}
+
+	result.Time = int64(time.Since(start) / time.Millisecond)
+	result.Nodes = this.nodes
 
 	return
 }
@@ -184,7 +197,8 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		var move = ss.MoveList.ElementAt(i)
 
 		if position.MakeMove(move, ss.Next.Position) {
-			this.nodes++
+			//this.nodes++
+			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
 
 			ss.Next.SkipNullMove = false
@@ -291,7 +305,8 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 			continue
 		}
 		if position.MakeMove(move, ss.Next.Position) {
-			this.nodes++
+			//this.nodes++
+			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
 			if score > alpha {

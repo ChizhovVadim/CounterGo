@@ -4,6 +4,30 @@ import (
 	"fmt"
 )
 
+func ComputeThinkTime(limits LimitsType, side bool) int {
+	if limits.MoveTime != 0 {
+		return limits.MoveTime
+	}
+	if limits.Infinite || limits.Ponder {
+		return 0
+	}
+	if side {
+		return ComputeTimePerMove(limits.WhiteTime, limits.WhiteIncrement, limits.MovesToGo)
+	} else {
+		return ComputeTimePerMove(limits.BlackTime, limits.BlackIncrement, limits.MovesToGo)
+	}
+}
+
+func ComputeTimePerMove(mainTime, incTime, movesToGo int) int {
+	if movesToGo == 0 || movesToGo > 35 {
+		movesToGo = 0
+	}
+	var moveTime = (mainTime + incTime*(movesToGo-1)) / movesToGo
+	moveTime = min(moveTime, mainTime)
+	moveTime = max(0, moveTime-200)
+	return moveTime
+}
+
 func MateIn(height int) int {
 	return VALUE_MATE - height
 }

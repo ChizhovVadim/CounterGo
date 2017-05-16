@@ -16,7 +16,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	var start = time.Now()
 	this.isCancelRequest = false
 
-	var moveTime = searchParams.Limits.MoveTime
+	var moveTime = ComputeThinkTime(searchParams.Limits,
+		searchParams.Positions[len(searchParams.Positions)-1].WhiteMove)
 	if moveTime > 0 {
 		var timer = time.AfterFunc(time.Duration(moveTime)*time.Millisecond, func() {
 			this.isCancelRequest = true

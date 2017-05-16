@@ -1,13 +1,15 @@
 package engine
 
+import "sync/atomic"
+
 type MoveOrderService struct {
-	histSuccess, histTry []int
+	histSuccess, histTry []int32
 }
 
 func NewMoveOrderService() *MoveOrderService {
 	var result = &MoveOrderService{
-		histSuccess: make([]int, 7*2*64),
-		histTry:     make([]int, 7*2*64),
+		histSuccess: make([]int32, 7*2*64),
+		histTry:     make([]int32, 7*2*64),
 	}
 	return result
 }
@@ -26,9 +28,9 @@ func HistoryIndex(side bool, move Move) int {
 func (this *MoveOrderService) UpdateHistory(ss *SearchStack, bestMove Move, depth int) {
 	ss.KillerMove = bestMove
 	var side = ss.Position.WhiteMove
-	this.histSuccess[HistoryIndex(side, bestMove)] += depth
+	atomic.AddInt32(&this.histSuccess[HistoryIndex(side, bestMove)], int32(depth))
 	for _, move := range ss.QuietsSearched {
-		this.histTry[HistoryIndex(side, move)] += depth
+		atomic.AddInt32(&this.histTry[HistoryIndex(side, move)], int32(depth))
 	}
 }
 
@@ -54,7 +56,7 @@ func (this *MoveOrderService) NoteMoves(ss *SearchStack, hashMove Move) {
 			} else {
 				var index = HistoryIndex(side, move)
 				if this.histTry[index] != 0 {
-					score = 100 * this.histSuccess[index] / this.histTry[index]
+					score = int(100 * this.histSuccess[index] / this.histTry[index])
 				} else {
 					score = 0
 				}

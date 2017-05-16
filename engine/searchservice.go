@@ -197,7 +197,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		var move = ss.MoveList.ElementAt(i)
 
 		if position.MakeMove(move, ss.Next.Position) {
-			//this.nodes++
 			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
 
@@ -305,7 +304,6 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 			continue
 		}
 		if position.MakeMove(move, ss.Next.Position) {
-			//this.nodes++
 			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)

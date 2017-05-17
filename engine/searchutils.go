@@ -31,9 +31,9 @@ func ParallelSearch(searchStacks []*SearchStack,
 			}
 		}(searchStacks[i])
 	}
+	defer wg.Wait()
 	for searchMove(ss) {
 	}
-	wg.Wait()
 }
 
 func ComputeThinkTime(limits LimitsType, side bool) int {

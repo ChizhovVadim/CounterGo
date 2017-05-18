@@ -29,11 +29,44 @@ var (
 	rookAttacks                            [64][1 << 12]uint64
 	bishopAttacks                          [64][1 << 9]uint64
 	betweenMask                            [][]uint64
-
-	fileMask = [8]uint64{
-		FileAMask, FileBMask, FileCMask, FileDMask, FileEMask, FileFMask, FileGMask, FileHMask,
-	}
 )
+
+var fileMask = [8]uint64{
+	FileAMask, FileBMask, FileCMask, FileDMask, FileEMask, FileFMask, FileGMask, FileHMask,
+}
+
+var thisAndNeighboringFiles = [8]uint64{
+	FileA | FileB,
+	FileA | FileB | FileC,
+	FileB | FileC | FileD,
+	FileC | FileD | FileE,
+	FileD | FileE | FileF,
+	FileE | FileF | FileG,
+	FileF | FileG | FileH,
+	FileG | FileH,
+}
+
+var upperRanks = [8]uint64{
+	Rank2 | Rank3 | Rank4 | Rank5 | Rank6 | Rank7 | Rank8,
+	Rank3 | Rank4 | Rank5 | Rank6 | Rank7 | Rank8,
+	Rank4 | Rank5 | Rank6 | Rank7 | Rank8,
+	Rank5 | Rank6 | Rank7 | Rank8,
+	Rank6 | Rank7 | Rank8,
+	Rank7 | Rank8,
+	Rank8,
+	0,
+}
+
+var lowerRanks = [8]uint64{
+	0,
+	Rank1,
+	Rank2 | Rank1,
+	Rank3 | Rank2 | Rank1,
+	Rank4 | Rank3 | Rank2 | Rank1,
+	Rank5 | Rank4 | Rank3 | Rank2 | Rank1,
+	Rank6 | Rank5 | Rank4 | Rank3 | Rank2 | Rank1,
+	Rank7 | Rank6 | Rank5 | Rank4 | Rank3 | Rank2 | Rank1,
+}
 
 func PopCount(b uint64) int {
 	b -= (b >> 1) & 0x5555555555555555

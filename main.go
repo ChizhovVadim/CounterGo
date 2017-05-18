@@ -8,10 +8,11 @@ import (
 
 func ResolveSearchService(name string) shell.SearchService {
 	return &engine.SearchService{
-		MoveOrderService:    engine.NewMoveOrderService(),
-		TTable:              engine.NewTranspositionTable(4),
-		Evaluate:            engine.Evaluate,
-		DegreeOfParallelism: runtime.NumCPU(),
+		MoveOrderService:      engine.NewMoveOrderService(),
+		TTable:                engine.NewTranspositionTable(4),
+		Evaluate:              engine.Evaluate,
+		DegreeOfParallelism:   runtime.NumCPU(),
+		UseExperimentSettings: false,
 	}
 }
 

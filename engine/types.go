@@ -88,7 +88,7 @@ const (
 	H8 = 63
 )
 
-type Move int
+type Move int32
 
 const MoveEmpty Move = 0
 

@@ -18,6 +18,7 @@ func NewBoolOption(name string, value *bool, defaultValue bool, onChange func())
 	var option = &UciOption{
 		Name:        name,
 		Type:        "check",
+		BoolValue:   value,
 		BoolDefault: defaultValue,
 		OnChange:    onChange,
 	}
@@ -29,6 +30,7 @@ func NewIntOption(name string, value *int, defaultValue, min, max int, onChange 
 	var option = &UciOption{
 		Name:       name,
 		Type:       "spin",
+		IntValue:   value,
 		IntDefault: defaultValue,
 		IntMin:     min,
 		IntMax:     max,

@@ -20,7 +20,13 @@ var openings = []string{
 	"rnbqkb1r/pp2pppp/2p2n2/3p4/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 2 4",
 }
 
-func RunTournament(searchServiceFactory SearchServiceFactory) {
+func RunTournament() {
+	var engine1 = NewCounterEngine()
+	engine1.ParallelSearch = false
+	var engine2 = NewCounterEngine()
+	engine2.ParallelSearch = false
+	engine2.ExperimentSettings = true
+
 	fmt.Println("Tournament started...")
 	var numberOfGames = len(openings) * 2
 	var playedGames, engine1Wins, engine2Wins int
@@ -29,7 +35,7 @@ func RunTournament(searchServiceFactory SearchServiceFactory) {
 		var pos = engine.NewPositionFromFEN(opening)
 
 		if (i % 2) == 0 {
-			var res = PlayGame(searchServiceFactory("arena1"), searchServiceFactory("arena2"), pos)
+			var res = PlayGame(engine1, engine2, pos)
 			playedGames++
 			if res == GameResultWhiteWins {
 				engine1Wins++
@@ -37,7 +43,7 @@ func RunTournament(searchServiceFactory SearchServiceFactory) {
 				engine2Wins++
 			}
 		} else {
-			var res = PlayGame(searchServiceFactory("arena2"), searchServiceFactory("arena1"), pos)
+			var res = PlayGame(engine2, engine1, pos)
 			playedGames++
 			if res == GameResultWhiteWins {
 				engine2Wins++
@@ -52,7 +58,7 @@ func RunTournament(searchServiceFactory SearchServiceFactory) {
 	fmt.Println("Tournament finished.")
 }
 
-func PlayGame(engine1, engine2 SearchService, position *engine.Position) int {
+func PlayGame(engine1, engine2 UciEngine, position *engine.Position) int {
 	var positions = []*engine.Position{position}
 	for {
 		var gameResult = ComputeGameResult(positions)
@@ -65,13 +71,13 @@ func PlayGame(engine1, engine2 SearchService, position *engine.Position) int {
 				MoveTime: 1000,
 			},
 		}
-		var searchService SearchService
+		var uciEngine UciEngine
 		if position.WhiteMove {
-			searchService = engine1
+			uciEngine = engine1
 		} else {
-			searchService = engine2
+			uciEngine = engine2
 		}
-		var searchResult = searchService.Search(searchParams)
+		var searchResult = uciEngine.Search(searchParams)
 		fmt.Println(searchResult.String())
 		var move = searchResult.MainLine.Move
 		var newPos = &engine.Position{}

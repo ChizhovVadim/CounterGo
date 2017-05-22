@@ -131,7 +131,11 @@ func SendProgressToUci(si SearchInfo) {
 
 func SendResultToUci(si SearchInfo) {
 	fmt.Println(si.String())
-	fmt.Printf("bestmove %v\n", si.MainLine.Move)
+	if tail := si.MainLine.Tail; tail != nil && tail.Move != MoveEmpty {
+		fmt.Printf("bestmove %v ponder %v\n", si.MainLine.Move, tail.Move)
+	} else {
+		fmt.Printf("bestmove %v\n", si.MainLine.Move)
+	}
 }
 
 func CreateStack(positions []*Position) *SearchStack {
@@ -237,6 +241,18 @@ func IsPawnPush(move Move, side bool) bool {
 		return rank >= Rank6
 	} else {
 		return rank <= Rank3
+	}
+}
+
+func IsPawnPush7th(move Move, side bool) bool {
+	if move.MovingPiece() != Pawn {
+		return false
+	}
+	var rank = Rank(move.To())
+	if side {
+		return rank == Rank7
+	} else {
+		return rank == Rank2
 	}
 }
 

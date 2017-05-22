@@ -10,35 +10,32 @@ import (
 	"time"
 )
 
-type SearchService interface {
+type UciEngine interface {
+	GetInfo() (name, version, author string)
+	GetOptions() []*UciOption
 	Search(searchParams engine.SearchParams) engine.SearchInfo
 }
-
-type SearchServiceFactory func(name string) SearchService
 
 type commandHandler func(uci *UciProtocol, args []string)
 
 type UciProtocol struct {
-	commands             map[string]commandHandler
-	searchServiceFactory SearchServiceFactory
-	searchService        SearchService
-	positions            []*engine.Position
+	commands  map[string]commandHandler
+	engine    UciEngine
+	positions []*engine.Position
 }
 
-const (
-	Name    = "Counter"
-	Version = "1.99"
-	Author  = "Vadim Chizhov"
-)
-
 func UciCommand(uci *UciProtocol, args []string) {
-	fmt.Printf("id name %s %s\n", Name, Version)
-	fmt.Printf("id author %s\n", Author)
+	var name, version, author = uci.engine.GetInfo()
+	fmt.Printf("id name %s %s\n", name, version)
+	fmt.Printf("id author %s\n", author)
+	uci.PrintOptions()
 	fmt.Println("uciok")
 }
 
 func SetOptionCommand(uci *UciProtocol, args []string) {
-
+	if len(args) >= 4 {
+		uci.SetOption(args[1], args[3])
+	}
 }
 
 func IsReadyCommand(uci *UciProtocol, args []string) {
@@ -100,7 +97,7 @@ func GoCommand(uci *UciProtocol, args []string) {
 		Progress:  engine.SendProgressToUci,
 	}
 	go func() {
-		var searchResult = uci.searchService.Search(searchParams)
+		var searchResult = uci.engine.Search(searchParams)
 		engine.SendResultToUci(searchResult)
 	}()
 }
@@ -145,7 +142,7 @@ func ParseLimits(args []string) (result engine.LimitsType) {
 }
 
 func UciNewGameCommand(uci *UciProtocol, args []string) {
-	uci.searchService = uci.searchServiceFactory("")
+
 }
 
 func PonderhitCommand(uci *UciProtocol, args []string) {
@@ -225,7 +222,7 @@ func MoveCommand(uci *UciProtocol, args []string) {
 		IsTraceEnabled: true,
 		Progress:       engine.SendProgressToUci,
 	}
-	var searchResult = uci.searchService.Search(searchParams)
+	var searchResult = uci.engine.Search(searchParams)
 	engine.SendResultToUci(searchResult)
 	newPos = newPos.MakeMoveIfLegal(searchResult.MainLine.Move)
 	if newPos != nil {
@@ -240,20 +237,58 @@ func EpdCommand(uci *UciProtocol, args []string) {
 	if len(args) > 0 {
 		filePath = args[0]
 	}
-	var searchService = uci.searchServiceFactory("")
-	RunEpdTest(filePath, searchService)
+	RunEpdTest(filePath, uci.engine)
 }
 
 func ArenaCommand(uci *UciProtocol, args []string) {
-	RunTournament(uci.searchServiceFactory)
+	RunTournament()
 }
 
 func StatusCommand(uci *UciProtocol, args []string) {
 
 }
 
-func NewUciProtocol(searchServiceFactory SearchServiceFactory) *UciProtocol {
+func (uci *UciProtocol) PrintOptions() {
+	for _, option := range uci.engine.GetOptions() {
+		switch option.Type {
+		case "check":
+			fmt.Printf("option name %v type %v default %v\n",
+				option.Name, option.Type, option.BoolDefault)
+		case "spin":
+			fmt.Printf("option name %v type %v default %v min %v max %v\n",
+				option.Name, option.Type, option.IntDefault, option.IntMin, option.IntMax)
+		}
+	}
+}
+
+func (uci *UciProtocol) SetOption(name, value string) {
+	for _, option := range uci.engine.GetOptions() {
+		if strings.EqualFold(option.Name, name) {
+			switch option.Type {
+			case "check":
+				if v, err := strconv.ParseBool(value); err == nil {
+					*option.BoolValue = v
+					if option.OnChange != nil {
+						option.OnChange()
+					}
+				}
+			case "spin":
+				if v, err := strconv.Atoi(value); err == nil &&
+					option.IntMin <= v && v <= option.IntMax {
+					*option.IntValue = v
+					if option.OnChange != nil {
+						option.OnChange()
+					}
+				}
+			}
+			return
+		}
+	}
+}
+
+func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 	var uci = &UciProtocol{}
+	uci.engine = uciEngine
 	uci.commands = map[string]commandHandler{
 		// UCI commands
 		"uci":        UciCommand,
@@ -274,15 +309,14 @@ func NewUciProtocol(searchServiceFactory SearchServiceFactory) *UciProtocol {
 		"arena":     ArenaCommand,
 		"status":    StatusCommand,
 	}
-	uci.searchServiceFactory = searchServiceFactory
-	uci.searchService = searchServiceFactory("")
 	var p = engine.NewPositionFromFEN(engine.InitialPositionFen)
 	uci.positions = []*engine.Position{p}
 	return uci
 }
 
 func (uci *UciProtocol) Run() {
-	fmt.Printf("%v %v\n", Name, Version)
+	var name, version, _ = uci.engine.GetInfo()
+	fmt.Printf("%v %v\n", name, version)
 	var scanner = bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		var commandLine = scanner.Text()

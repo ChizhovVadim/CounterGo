@@ -15,7 +15,7 @@ type TestItem struct {
 	BestMoves []engine.Move
 }
 
-func RunEpdTest(filePath string, searchService SearchService) {
+func RunEpdTest(filePath string, uciEngine UciEngine) {
 	var epdTests = LoadEpdTests(filePath)
 	fmt.Printf("Loaded %v tests\n", len(epdTests))
 	fmt.Println("Test started...")
@@ -26,7 +26,7 @@ func RunEpdTest(filePath string, searchService SearchService) {
 			Positions: []*engine.Position{test.Position},
 			Limits:    engine.LimitsType{MoveTime: 3000},
 		}
-		var searchResult = searchService.Search(searchParams)
+		var searchResult = uciEngine.Search(searchParams)
 
 		var passed = false
 		for _, bm := range test.BestMoves {

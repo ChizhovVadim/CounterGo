@@ -352,5 +352,10 @@ func NewDepth(depth int, ss *SearchStack) int {
 		return depth
 	}
 
+	if IsPawnPush7th(ss.Next.Move, ss.Position.WhiteMove) &&
+		SEE(ss.Position, ss.Next.Move) >= 0 {
+		return depth
+	}
+
 	return depth - 1
 }

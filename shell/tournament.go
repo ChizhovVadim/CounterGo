@@ -3,6 +3,7 @@ package shell
 import (
 	"counter/engine"
 	"fmt"
+	"time"
 )
 
 const (
@@ -60,6 +61,11 @@ func RunTournament() {
 
 func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
 	var positions = []*engine.Position{initialPosition}
+	var gameTime = 3 * 60 * 1000
+	var limits = engine.LimitsType{
+		WhiteTime: gameTime,
+		BlackTime: gameTime,
+	}
 	for {
 		var gameResult = ComputeGameResult(positions)
 		if gameResult != GameResultNone {
@@ -67,17 +73,29 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 		}
 		var searchParams = engine.SearchParams{
 			Positions: positions,
-			Limits: engine.LimitsType{
-				MoveTime: 1000,
-			},
+			Limits:    limits,
 		}
+		var side = positions[len(positions)-1].WhiteMove
 		var uciEngine UciEngine
-		if positions[len(positions)-1].WhiteMove {
+		if side {
 			uciEngine = engine1
 		} else {
 			uciEngine = engine2
 		}
+		var start = time.Now()
 		var searchResult = uciEngine.Search(searchParams)
+		var elapsed = int(time.Since(start) / time.Millisecond)
+		if side {
+			limits.WhiteTime -= elapsed
+			if limits.WhiteTime < 0 {
+				return GameResultBlackWins
+			}
+		} else {
+			limits.BlackTime -= elapsed
+			if limits.BlackTime < 0 {
+				return GameResultWhiteWins
+			}
+		}
 		fmt.Println(searchResult.String())
 		var move = searchResult.MainLine.Move
 		var newPos = &engine.Position{}

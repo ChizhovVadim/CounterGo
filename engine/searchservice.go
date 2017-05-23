@@ -224,7 +224,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 				ss.QuietsSearched = append(ss.QuietsSearched, move)
 			}
 
-			if this.UseExperimentSettings &&
+			/*if this.UseExperimentSettings &&
 				depth >= 4 && !isCheck && !ss.Next.Position.IsCheck() &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT && !lateEndgame &&
 				!IsCaptureOrPromotion(move) &&
@@ -236,7 +236,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 				if score <= bound {
 					continue
 				}
-			}
+			}*/
 
 			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth)
 

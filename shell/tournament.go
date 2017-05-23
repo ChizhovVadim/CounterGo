@@ -58,8 +58,8 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func PlayGame(engine1, engine2 UciEngine, position *engine.Position) int {
-	var positions = []*engine.Position{position}
+func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
+	var positions = []*engine.Position{initialPosition}
 	for {
 		var gameResult = ComputeGameResult(positions)
 		if gameResult != GameResultNone {
@@ -72,7 +72,7 @@ func PlayGame(engine1, engine2 UciEngine, position *engine.Position) int {
 			},
 		}
 		var uciEngine UciEngine
-		if position.WhiteMove {
+		if positions[len(positions)-1].WhiteMove {
 			uciEngine = engine1
 		} else {
 			uciEngine = engine2

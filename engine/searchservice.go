@@ -20,10 +20,10 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	var start = time.Now()
 	this.isCancelRequest = false
 
-	var moveTime = ComputeThinkTime(searchParams.Limits,
+	var softLimit, hardLimit = ComputeThinkTime(searchParams.Limits,
 		searchParams.Positions[len(searchParams.Positions)-1].WhiteMove)
-	if moveTime > 0 {
-		var timer = time.AfterFunc(time.Duration(moveTime)*time.Millisecond, func() {
+	if hardLimit > 0 {
+		var timer = time.AfterFunc(time.Duration(hardLimit)*time.Millisecond, func() {
 			this.isCancelRequest = true
 		})
 		defer timer.Stop()
@@ -108,6 +108,10 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				return true
 			})
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
+			break
+		}
+		if depth >= 5 && softLimit > 0 &&
+			time.Since(start) >= time.Duration(softLimit)*time.Millisecond {
 			break
 		}
 		ss.MoveList.MoveToBegin(bestMoveIndex)

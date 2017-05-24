@@ -36,12 +36,12 @@ func ParallelSearch(searchStacks []*SearchStack,
 	}
 }
 
-func ComputeThinkTime(limits LimitsType, side bool) int {
+func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
 	if limits.MoveTime != 0 {
-		return limits.MoveTime
+		return limits.MoveTime, limits.MoveTime
 	}
 	if limits.Infinite || limits.Ponder {
-		return 0
+		return 0, 0
 	}
 	if side {
 		return ComputeTimePerMove(limits.WhiteTime, limits.WhiteIncrement, limits.MovesToGo)
@@ -50,14 +50,13 @@ func ComputeThinkTime(limits LimitsType, side bool) int {
 	}
 }
 
-func ComputeTimePerMove(mainTime, incTime, movesToGo int) int {
-	if movesToGo == 0 || movesToGo > 35 {
-		movesToGo = 35
+func ComputeTimePerMove(mainTime, incTime, movesToGo int) (softLimit, hardLimit int) {
+	if movesToGo == 0 || movesToGo > 50 {
+		movesToGo = 50
 	}
-	var moveTime = (mainTime + incTime*(movesToGo-1)) / movesToGo
-	moveTime = min(moveTime, mainTime)
-	moveTime = max(0, moveTime-200)
-	return moveTime
+	softLimit = mainTime/movesToGo + incTime
+	hardLimit = min(mainTime/2, softLimit*2)
+	return
 }
 
 func MateIn(height int) int {

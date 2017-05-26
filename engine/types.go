@@ -137,10 +137,11 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions      []*Position
-	Limits         LimitsType
-	IsTraceEnabled bool
-	Progress       func(si SearchInfo)
+	Positions         []*Position
+	Limits            LimitsType
+	CancellationToken *CancellationToken
+	IsTraceEnabled    bool
+	Progress          func(si SearchInfo)
 }
 
 type SearchInfo struct {
@@ -149,6 +150,10 @@ type SearchInfo struct {
 	Nodes    int64
 	Time     int64
 	MainLine *PrincipalVariation
+}
+
+type CancellationToken struct {
+	active bool
 }
 
 type EvaluationFunc func(p *Position) int

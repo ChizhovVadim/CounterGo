@@ -22,6 +22,7 @@ type UciProtocol struct {
 	commands  map[string]commandHandler
 	engine    UciEngine
 	positions []*engine.Position
+	ct        *engine.CancellationToken
 }
 
 func UciCommand(uci *UciProtocol, args []string) {
@@ -92,11 +93,13 @@ func findIndexString(slice []string, value string) int {
 func GoCommand(uci *UciProtocol, args []string) {
 	var limits = ParseLimits(args)
 	var searchParams = engine.SearchParams{
-		Positions: uci.positions,
-		Limits:    limits,
-		Progress:  engine.SendProgressToUci,
+		Positions:         uci.positions,
+		Limits:            limits,
+		CancellationToken: &engine.CancellationToken{},
+		Progress:          engine.SendProgressToUci,
 	}
 	go func() {
+		uci.ct = searchParams.CancellationToken
 		var searchResult = uci.engine.Search(searchParams)
 		engine.SendResultToUci(searchResult)
 	}()
@@ -150,7 +153,9 @@ func PonderhitCommand(uci *UciProtocol, args []string) {
 }
 
 func StopCommand(uci *UciProtocol, args []string) {
-
+	if uci.ct != nil {
+		uci.ct.Cancel()
+	}
 }
 
 func BenchmarkCommand(uci *UciProtocol, args []string) {

@@ -5,6 +5,14 @@ import (
 	"sync"
 )
 
+func (ct *CancellationToken) Cancel() {
+	ct.active = true
+}
+
+func (ct *CancellationToken) IsCancellationRequested() bool {
+	return ct.active
+}
+
 func ParallelSearch(searchStacks []*SearchStack,
 	searchMove func(ss *SearchStack) bool) {
 	defer func() {

@@ -13,18 +13,22 @@ type SearchService struct {
 	DegreeOfParallelism   int
 	UseExperimentSettings bool
 	nodes, maxNodes       int64
-	isCancelRequest       bool
+	ct                    *CancellationToken
 }
 
 func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo) {
 	var start = time.Now()
-	this.isCancelRequest = false
+	if searchParams.CancellationToken != nil {
+		this.ct = searchParams.CancellationToken
+	} else {
+		this.ct = &CancellationToken{}
+	}
 
 	var softLimit, hardLimit = ComputeThinkTime(searchParams.Limits,
 		searchParams.Positions[len(searchParams.Positions)-1].WhiteMove)
 	if hardLimit > 0 {
 		var timer = time.AfterFunc(time.Duration(hardLimit)*time.Millisecond, func() {
-			this.isCancelRequest = true
+			this.ct.Cancel()
 		})
 		defer timer.Stop()
 	}
@@ -135,7 +139,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		return this.Quiescence(ss, alpha, beta, 1)
 	}
 
-	if this.isCancelRequest || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
+	if this.ct.IsCancellationRequested() || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
 		panic(searchTimeout)
 	}
 
@@ -281,7 +285,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 }
 
 func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) int {
-	if this.isCancelRequest || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
+	if this.ct.IsCancellationRequested() || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
 		panic(searchTimeout)
 	}
 	ss.PrincipalVariation = nil

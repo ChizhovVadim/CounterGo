@@ -255,6 +255,13 @@ func IsPawnPush7th(move Move, side bool) bool {
 	}
 }
 
+func HasPawnOn7th(p *Position, side bool) bool {
+	if side {
+		return (p.Pawns & p.White & Rank7Mask) != 0
+	}
+	return (p.Pawns & p.Black & Rank2Mask) != 0
+}
+
 func IsPassedPawnMove(p *Position, move Move) bool {
 	if move.MovingPiece() != Pawn {
 		return false

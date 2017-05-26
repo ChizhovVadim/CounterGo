@@ -166,6 +166,16 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 	var isCheck = position.IsCheck()
 	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
+	if depth <= 1 && !isCheck {
+		var eval = this.Evaluate(position)
+		if eval+100 <= alpha {
+			return this.Quiescence(ss, alpha, beta, 1)
+		}
+		if eval-100 >= beta && !HasPawnOn7th(position, !position.WhiteMove) {
+			return beta
+		}
+	}
+
 	if depth >= 2 && !isCheck && !ss.SkipNullMove &&
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
 		newDepth = depth - 3
@@ -196,7 +206,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 	this.MoveOrderService.NoteMoves(ss, hashMove)
 	var moveCount = 0
 	ss.QuietsSearched = ss.QuietsSearched[:0]
-	var eval = VALUE_INFINITE
 
 	for i := 0; i < ss.MoveList.Count; i++ {
 		var move = ss.MoveList.ElementAt(i)
@@ -209,20 +218,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 			ss.Next.Move = move
 
 			newDepth = NewDepth(depth, ss)
-
-			if depth <= 2 &&
-				!isCheck && !ss.Next.Position.IsCheck() &&
-				!IsCaptureOrPromotion(move) &&
-				!IsPawnPush(move, position.WhiteMove) &&
-				move != hashMove {
-				if eval == VALUE_INFINITE {
-					eval = this.Evaluate(position)
-				}
-				var margin = let(depth <= 1, 100, 400)
-				if eval+margin <= alpha {
-					continue
-				}
-			}
 
 			if !IsCaptureOrPromotion(move) {
 				ss.QuietsSearched = append(ss.QuietsSearched, move)

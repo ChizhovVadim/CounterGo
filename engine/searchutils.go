@@ -138,11 +138,7 @@ func SendProgressToUci(si SearchInfo) {
 
 func SendResultToUci(si SearchInfo) {
 	fmt.Println(si.String())
-	if tail := si.MainLine.Tail; tail != nil && tail.Move != MoveEmpty {
-		fmt.Printf("bestmove %v ponder %v\n", si.MainLine.Move, tail.Move)
-	} else {
-		fmt.Printf("bestmove %v\n", si.MainLine.Move)
-	}
+	fmt.Printf("bestmove %v\n", si.MainLine.Move)
 }
 
 func CreateStack(positions []*Position) *SearchStack {

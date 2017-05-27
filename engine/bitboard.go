@@ -295,20 +295,22 @@ func init() {
 			DownLeft(b) | Down(b) | DownRight(b) | Right(b)
 
 		// Rooks.
-		mask := rookMask[sq]
-		count := 1 << uint(PopCount(mask))
+		var mask = rookMask[sq]
+		var count = 1 << uint(PopCount(mask))
+		var shifts = []func(uint64) uint64{Up, Right, Down, Left}
 		for i := 0; i < count; i++ {
-			occ := magicify(mask, i)
-			attacks := computeSlideAttacks(sq, occ, []func(uint64) uint64{Up, Right, Down, Left})
+			var occ = magicify(mask, i)
+			var attacks = computeSlideAttacks(sq, occ, shifts)
 			rookAttacks[sq][((rookMask[sq]&occ)*rookMult[sq])>>rookShift] = attacks
 		}
 
 		// Bishops.
 		mask = bishopMask[sq]
 		count = 1 << uint(PopCount(mask))
+		shifts = []func(uint64) uint64{UpRight, UpLeft, DownRight, DownLeft}
 		for i := 0; i < count; i++ {
-			occ := magicify(mask, i)
-			attacks := computeSlideAttacks(sq, occ, []func(uint64) uint64{UpRight, UpLeft, DownRight, DownLeft})
+			var occ = magicify(mask, i)
+			var attacks = computeSlideAttacks(sq, occ, shifts)
 			bishopAttacks[sq][((bishopMask[sq]&occ)*bishopMult[sq])>>bishopShift] = attacks
 		}
 	}

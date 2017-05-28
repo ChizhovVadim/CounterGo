@@ -67,7 +67,6 @@ func PositionCommand(uci *UciProtocol, args []string) {
 	var positions = []*engine.Position{p}
 	if movesIndex >= 0 && movesIndex+1 < len(args) {
 		for _, smove := range args[movesIndex+1:] {
-			fmt.Println(smove)
 			var move = engine.ParseMove(smove)
 			var newPos = positions[len(positions)-1].MakeMoveIfLegal(move)
 			if newPos == nil {

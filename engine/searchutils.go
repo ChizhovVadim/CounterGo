@@ -51,15 +51,16 @@ func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
 	if limits.Infinite || limits.Ponder {
 		return 0, 0
 	}
+	var mainTime, incTime int
 	if side {
-		return ComputeTimePerMove(limits.WhiteTime, limits.WhiteIncrement, limits.MovesToGo)
+		mainTime, incTime = limits.WhiteTime, limits.WhiteIncrement
 	} else {
-		return ComputeTimePerMove(limits.BlackTime, limits.BlackIncrement, limits.MovesToGo)
+		mainTime, incTime = limits.BlackTime, limits.BlackIncrement
 	}
-}
-
-func ComputeTimePerMove(mainTime, incTime, movesToGo int) (softLimit, hardLimit int) {
-	if movesToGo == 0 || movesToGo > 50 {
+	var movesToGo int
+	if 0 < limits.MovesToGo && limits.MovesToGo < 50 {
+		movesToGo = limits.MovesToGo
+	} else {
 		movesToGo = 50
 	}
 	softLimit = mainTime/movesToGo + incTime
@@ -176,9 +177,12 @@ func IsDraw(ss *SearchStack) bool {
 		return true
 	}
 
-	for temp := ss.Previous; temp != nil && temp.Position.Rule50 != 0; temp = temp.Previous {
+	for temp := ss.Previous; temp != nil; temp = temp.Previous {
 		if temp.Position.Key == p.Key {
 			return true
+		}
+		if temp.Position.Rule50 == 0 {
+			break
 		}
 	}
 

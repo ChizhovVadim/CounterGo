@@ -69,6 +69,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	const beta = VALUE_INFINITE
 	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
+		var drop = false
 		var alpha = -VALUE_INFINITE
 		var i = 0
 		var bestMoveIndex = 0
@@ -97,6 +98,9 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth)
 				gate.Lock()
 				if score > alpha {
+					if score <= result.Score-50 {
+						drop = true
+					}
 					alpha = score
 					result.MainLine = &PrincipalVariation{move, ss2.Next.PrincipalVariation}
 					result.Depth = depth
@@ -114,7 +118,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
-		if depth >= 5 && softLimit > 0 &&
+		if depth >= 5 && softLimit > 0 && !drop &&
 			time.Since(start) >= time.Duration(softLimit)*time.Millisecond {
 			break
 		}

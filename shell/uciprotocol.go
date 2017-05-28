@@ -73,6 +73,9 @@ func PositionCommand(uci *UciProtocol, args []string) {
 				DebugUci("Wrong move")
 				return
 			} else {
+				if newPos.Rule50 == 0 {
+					positions = positions[:0]
+				}
 				positions = append(positions, newPos)
 			}
 		}

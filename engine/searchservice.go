@@ -297,11 +297,6 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 	var moveCount = 0
 	for i := 0; i < ss.MoveList.Count; i++ {
 		var move = ss.MoveList.ElementAt(i)
-		if !isCheck &&
-			eval+MoveValue(move)+PawnValue <= alpha &&
-			!IsDirectCheck(position, move) {
-			continue
-		}
 		if !isCheck && SEE(position, move) < 0 {
 			continue
 		}

@@ -97,7 +97,7 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 			}
 		}
 		fmt.Println(searchResult.String())
-		var move = searchResult.MainLine.Move
+		var move = searchResult.MainLine[0]
 		var newPos = &engine.Position{}
 		var ok = positions[len(positions)-1].MakeMove(move, newPos)
 		if !ok {

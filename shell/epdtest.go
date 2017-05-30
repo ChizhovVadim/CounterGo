@@ -30,7 +30,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 
 		var passed = false
 		for _, bm := range test.BestMoves {
-			if bm == searchResult.MainLine.Move {
+			if bm == searchResult.MainLine[0] {
 				passed = true
 				break
 			}

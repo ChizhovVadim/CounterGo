@@ -231,7 +231,7 @@ func MoveCommand(uci *UciProtocol, args []string) {
 	}
 	var searchResult = uci.engine.Search(searchParams)
 	engine.SendResultToUci(searchResult)
-	newPos = newPos.MakeMoveIfLegal(searchResult.MainLine.Move)
+	newPos = newPos.MakeMoveIfLegal(searchResult.MainLine[0])
 	if newPos != nil {
 		uci.positions = append(uci.positions, newPos)
 		PrintPosition(newPos)

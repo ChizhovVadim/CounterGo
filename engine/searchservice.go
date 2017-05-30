@@ -57,7 +57,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		return
 	}
 
-	result.MainLine = &PrincipalVariation{ss.MoveList.Items[0].Move, nil}
+	result.MainLine = []Move{ss.MoveList.Items[0].Move}
 
 	if ss.MoveList.Count == 1 {
 		return
@@ -69,7 +69,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	const beta = VALUE_INFINITE
 	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
-		var drop = false
+		var prevScore = result.Score
 		var alpha = -VALUE_INFINITE
 		var i = 0
 		var bestMoveIndex = 0
@@ -98,11 +98,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth)
 				gate.Lock()
 				if score > alpha {
-					if score <= result.Score-50 {
-						drop = true
-					}
 					alpha = score
-					result.MainLine = &PrincipalVariation{move, ss2.Next.PrincipalVariation}
+					result.MainLine = append([]Move{move}, ss2.Next.PrincipalVariation...)
 					result.Depth = depth
 					result.Score = score
 					result.Time = int64(time.Since(start) / time.Millisecond)
@@ -118,7 +115,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
-		if depth >= 5 && softLimit > 0 && !drop &&
+		if softLimit > 0 &&
+			AbsDelta(prevScore, alpha) <= PawnValue/2 &&
 			time.Since(start) >= time.Duration(softLimit)*time.Millisecond {
 			break
 		}
@@ -133,7 +131,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 
 func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) int {
 	var newDepth, score int
-	ss.PrincipalVariation = nil
+	ss.ClearPV()
 
 	if ss.Height >= MAX_HEIGHT || IsDraw(ss) {
 		return VALUE_DRAW
@@ -204,10 +202,8 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		newDepth = depth - 2
 		ss.SkipNullMove = true
 		this.AlphaBeta(ss, alpha, beta, newDepth)
-		if ss.PrincipalVariation != nil {
-			hashMove = ss.PrincipalVariation.Move
-			ss.PrincipalVariation = nil // !!
-		}
+		hashMove = ss.BestMove()
+		ss.ClearPV() //!
 	}
 
 	ss.MoveList.GenerateMoves(position)
@@ -234,9 +230,8 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth)
 
 			if score > alpha {
-				ss.PrincipalVariation =
-					&PrincipalVariation{move, ss.Next.PrincipalVariation}
 				alpha = score
+				ss.ComposePV(move)
 				if alpha >= beta {
 					break
 				}
@@ -251,10 +246,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 		return VALUE_DRAW
 	}
 
-	var bestMove = MoveEmpty
-	if ss.PrincipalVariation != nil {
-		bestMove = ss.PrincipalVariation.Move
-	}
+	var bestMove = ss.BestMove()
 
 	if bestMove != MoveEmpty && !IsCaptureOrPromotion(bestMove) {
 		this.MoveOrderService.UpdateHistory(ss, bestMove, depth)
@@ -278,7 +270,7 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 	if this.ct.IsCancellationRequested() || (this.maxNodes != 0 && this.nodes >= this.maxNodes) {
 		panic(searchTimeout)
 	}
-	ss.PrincipalVariation = nil
+	ss.ClearPV()
 	if ss.Height >= MAX_HEIGHT {
 		return VALUE_DRAW
 	}
@@ -317,8 +309,7 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
 			if score > alpha {
 				alpha = score
-				ss.PrincipalVariation =
-					&PrincipalVariation{move, ss.Next.PrincipalVariation}
+				ss.ComposePV(move)
 				if score >= beta {
 					break
 				}

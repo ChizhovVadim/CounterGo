@@ -102,11 +102,6 @@ type MoveList struct {
 	Count int
 }
 
-type PrincipalVariation struct {
-	Move Move
-	Tail *PrincipalVariation
-}
-
 type SearchStack struct {
 	Previous           *SearchStack
 	Next               *SearchStack
@@ -116,7 +111,7 @@ type SearchStack struct {
 	SkipNullMove       bool
 	Move               Move
 	KillerMove         Move
-	PrincipalVariation *PrincipalVariation
+	PrincipalVariation []Move
 	QuietsSearched     []Move
 }
 
@@ -149,7 +144,7 @@ type SearchInfo struct {
 	Depth    int
 	Nodes    int64
 	Time     int64
-	MainLine *PrincipalVariation
+	MainLine []Move
 }
 
 type CancellationToken struct {

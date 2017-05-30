@@ -13,6 +13,19 @@ func (ct *CancellationToken) IsCancellationRequested() bool {
 	return ct.active
 }
 
+func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
+	var wg sync.WaitGroup
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(threadIndex int) {
+			defer wg.Done()
+			body(threadIndex)
+		}(i)
+	}
+	defer wg.Wait()
+	body(0)
+}
+
 func ParallelSearch(searchStacks []*SearchStack,
 	searchMove func(ss *SearchStack) bool) {
 	defer func() {
@@ -64,7 +77,7 @@ func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
 		movesToGo = 50
 	}
 	softLimit = mainTime/movesToGo + incTime
-	hardLimit = min(mainTime/2, softLimit*2)
+	hardLimit = min(mainTime/2, softLimit*5)
 	return
 }
 
@@ -100,13 +113,13 @@ func ValueFromTT(v, height int) int {
 	return v
 }
 
-func (pv *PrincipalVariation) String() string {
+func PVToUci(pv []Move) string {
 	var s string
-	for temp := pv; temp != nil; temp = temp.Tail {
-		if s != "" {
+	for i, move := range pv {
+		if i > 0 {
 			s += " "
 		}
-		s += temp.Move.String()
+		s += move.String()
 	}
 	return s
 }
@@ -128,7 +141,7 @@ func ScoreToUci(v int) string {
 func (si *SearchInfo) String() string {
 	var nps = si.Nodes * 1000 / (si.Time + 1)
 	return fmt.Sprintf("info score %v depth %v nodes %v time %v nps %v pv %v",
-		ScoreToUci(si.Score), si.Depth, si.Nodes, si.Time, nps, si.MainLine.String())
+		ScoreToUci(si.Score), si.Depth, si.Nodes, si.Time, nps, PVToUci(si.MainLine))
 }
 
 func SendProgressToUci(si SearchInfo) {
@@ -139,7 +152,9 @@ func SendProgressToUci(si SearchInfo) {
 
 func SendResultToUci(si SearchInfo) {
 	fmt.Println(si.String())
-	fmt.Printf("bestmove %v\n", si.MainLine.Move)
+	if len(si.MainLine) > 0 {
+		fmt.Printf("bestmove %v\n", si.MainLine[0])
+	}
 }
 
 func CreateStack(positions []*Position) *SearchStack {
@@ -159,10 +174,26 @@ func CreateStack(positions []*Position) *SearchStack {
 			items[i].Position = &Position{}
 			items[i].MoveList = &MoveList{}
 			items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)
+			items[i].PrincipalVariation = make([]Move, 0, MAX_HEIGHT)
 		}
 	}
 	items[index].MoveList = &MoveList{}
 	return &items[index]
+}
+
+func (ss *SearchStack) ClearPV() {
+	ss.PrincipalVariation = ss.PrincipalVariation[:0]
+}
+
+func (ss *SearchStack) BestMove() Move {
+	if len(ss.PrincipalVariation) == 0 {
+		return MoveEmpty
+	}
+	return ss.PrincipalVariation[0]
+}
+
+func (ss *SearchStack) ComposePV(move Move) {
+	ss.PrincipalVariation = append(append(ss.PrincipalVariation[:0], move), ss.Next.PrincipalVariation...)
 }
 
 func IsDraw(ss *SearchStack) bool {

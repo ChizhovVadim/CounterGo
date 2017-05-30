@@ -51,7 +51,7 @@ type CounterEngine struct {
 func NewCounterEngine() *CounterEngine {
 	var result = &CounterEngine{}
 	var onChange = func() {
-		result.searchFunc = nil
+		result.Reset()
 	}
 	result.options = []*UciOption{
 		NewIntOption("Hash", &result.Hash, 4, 4, 512, onChange),
@@ -59,6 +59,10 @@ func NewCounterEngine() *CounterEngine {
 		NewBoolOption("ParallelSearch", &result.ParallelSearch, true, onChange),
 	}
 	return result
+}
+
+func (eng *CounterEngine) Reset() {
+	eng.searchFunc = nil
 }
 
 func (*CounterEngine) GetInfo() (name, version, author string) {

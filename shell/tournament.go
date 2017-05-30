@@ -60,6 +60,8 @@ func RunTournament() {
 }
 
 func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
+	engine1.Reset()
+	engine2.Reset()
 	var positions = []*engine.Position{initialPosition}
 	var gameTime = 3 * 60 * 1000
 	var limits = engine.LimitsType{

@@ -13,6 +13,7 @@ type SearchService struct {
 	DegreeOfParallelism   int
 	UseExperimentSettings bool
 	nodes, maxNodes       int64
+	historyKeys           []uint64
 	ct                    *CancellationToken
 }
 
@@ -35,6 +36,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 
 	this.nodes = 0
 	this.maxNodes = int64(searchParams.Limits.Nodes)
+	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	this.MoveOrderService.Clear()
 	if this.TTable != nil {
 		this.TTable.ClearStatistics()
@@ -43,13 +45,13 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		}
 	}
 
+	var p = searchParams.Positions[len(searchParams.Positions)-1]
 	var stacks = make([]*SearchStack, this.DegreeOfParallelism)
 	for i := 0; i < len(stacks); i++ {
-		stacks[i] = CreateStack(searchParams.Positions)
+		stacks[i] = CreateStack(p)
 	}
 
 	var ss = stacks[0]
-	var p = ss.Position
 	ss.MoveList.GenerateMoves(p)
 	ss.MoveList.FilterLegalMoves(p)
 
@@ -133,7 +135,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 	var newDepth, score int
 	ss.ClearPV()
 
-	if ss.Height >= MAX_HEIGHT || IsDraw(ss) {
+	if ss.Height >= MAX_HEIGHT || IsDraw(ss, this.historyKeys) {
 		return VALUE_DRAW
 	}
 

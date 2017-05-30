@@ -157,46 +157,18 @@ func SendResultToUci(si SearchInfo) {
 	}
 }
 
-func CreateStack(positions []*Position) *SearchStack {
-	var items = make([]SearchStack, len(positions)+MAX_HEIGHT+1)
-	var index = len(positions) - 1
-	for i := 0; i < len(items); i++ {
-		if i > 0 {
-			items[i].Previous = &items[i-1]
+func PositionsToHistoryKeys(positions []*Position) []uint64 {
+	var result []uint64
+	for _, p := range positions {
+		if p.Rule50 == 0 {
+			result = result[:0]
 		}
-		if i < len(items)-1 {
-			items[i].Next = &items[i+1]
-		}
-		if i <= index {
-			items[i].Position = positions[i]
-		} else {
-			items[i].Height = i - index
-			items[i].Position = &Position{}
-			items[i].MoveList = &MoveList{}
-			items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)
-			items[i].PrincipalVariation = make([]Move, 0, MAX_HEIGHT)
-		}
+		result = append(result, p.Key)
 	}
-	items[index].MoveList = &MoveList{}
-	return &items[index]
+	return result
 }
 
-func (ss *SearchStack) ClearPV() {
-	ss.PrincipalVariation = ss.PrincipalVariation[:0]
-}
-
-func (ss *SearchStack) BestMove() Move {
-	if len(ss.PrincipalVariation) == 0 {
-		return MoveEmpty
-	}
-	return ss.PrincipalVariation[0]
-}
-
-func (ss *SearchStack) ComposePV(move Move) {
-	ss.PrincipalVariation = append(append(ss.PrincipalVariation[:0], move), ss.Next.PrincipalVariation...)
-}
-
-func IsDraw(ss *SearchStack) bool {
+func IsDraw(ss *SearchStack, historyKeys []uint64) bool {
 	var p = ss.Position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
@@ -213,11 +185,54 @@ func IsDraw(ss *SearchStack) bool {
 			return true
 		}
 		if temp.Position.Rule50 == 0 {
-			break
+			return false
+		}
+	}
+
+	for i := len(historyKeys) - 1; i >= 0; i-- {
+		if historyKeys[i] == p.Key {
+			return true
 		}
 	}
 
 	return false
+}
+
+func CreateStack(p *Position) *SearchStack {
+	var items = make([]SearchStack, MAX_HEIGHT+1)
+	for i := 0; i < len(items); i++ {
+		if i > 0 {
+			items[i].Previous = &items[i-1]
+		}
+		if i < len(items)-1 {
+			items[i].Next = &items[i+1]
+		}
+		if i > 0 {
+			items[i].Height = i
+			items[i].Position = &Position{}
+			items[i].MoveList = &MoveList{}
+			items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)
+			items[i].PrincipalVariation = make([]Move, 0, MAX_HEIGHT)
+		}
+	}
+	items[0].Position = p
+	items[0].MoveList = &MoveList{}
+	return &items[0]
+}
+
+func (ss *SearchStack) ClearPV() {
+	ss.PrincipalVariation = ss.PrincipalVariation[:0]
+}
+
+func (ss *SearchStack) BestMove() Move {
+	if len(ss.PrincipalVariation) == 0 {
+		return MoveEmpty
+	}
+	return ss.PrincipalVariation[0]
+}
+
+func (ss *SearchStack) ComposePV(move Move) {
+	ss.PrincipalVariation = append(append(ss.PrincipalVariation[:0], move), ss.Next.PrincipalVariation...)
 }
 
 func IsLateEndgame(p *Position, side bool) bool {

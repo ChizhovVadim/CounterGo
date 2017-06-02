@@ -92,13 +92,11 @@ type Move int32
 
 const MoveEmpty Move = 0
 
-type MoveItem struct {
-	Move  Move
-	Score int
-}
-
 type MoveList struct {
-	Items [MAX_MOVES]MoveItem
+	Items [MAX_MOVES]struct {
+		Move  Move
+		Score int
+	}
 	Count int
 }
 

@@ -26,21 +26,18 @@ func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
 	body(0)
 }
 
-func ParallelSearch(searchStacks []*SearchStack,
-	searchMove func(ss *SearchStack) bool) {
+func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
 	defer func() {
 		var r = recover()
 		if r != nil && r != searchTimeout {
 			panic(r)
 		}
 	}()
-	var ss = searchStacks[0]
-	searchMove(ss)
+	body(0)
 	var wg sync.WaitGroup
-	var degreeOfParallelism = len(searchStacks)
 	for i := 1; i < degreeOfParallelism; i++ {
 		wg.Add(1)
-		go func(ss *SearchStack) {
+		go func(threadIndex int) {
 			defer func() {
 				wg.Done()
 				var r = recover()
@@ -48,12 +45,12 @@ func ParallelSearch(searchStacks []*SearchStack,
 					panic(r)
 				}
 			}()
-			for searchMove(ss) {
+			for body(threadIndex) {
 			}
-		}(searchStacks[i])
+		}(i)
 	}
 	defer wg.Wait()
-	for searchMove(ss) {
+	for body(0) {
 	}
 }
 

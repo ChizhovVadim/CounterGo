@@ -75,8 +75,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		var alpha = -VALUE_INFINITE
 		var i = 0
 		var bestMoveIndex = 0
-		ParallelSearch(stacks,
-			func(ss2 *SearchStack) bool {
+		ParallelSearch(this.DegreeOfParallelism,
+			func(threadIndex int) bool {
 				gate.Lock()
 				var local_alpha = alpha
 				var local_i = i
@@ -86,6 +86,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 					return false
 				}
 				var move = ss.MoveList.Items[local_i].Move
+				var ss2 = stacks[threadIndex]
 				p.MakeMove(move, ss2.Next.Position)
 				atomic.AddInt64(&this.nodes, 1)
 				ss2.Next.SkipNullMove = false
@@ -293,14 +294,17 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 	var moveCount = 0
 	for i := 0; i < ss.MoveList.Count; i++ {
 		var move = ss.MoveList.ElementAt(i)
-		var moveValue = MoveValue(move)
-		var goodMove = isCheck ||
-			moveValue > 0 && eval+moveValue+PawnValue > alpha ||
-			moveValue == 0 && SEE(position, move) >= 0
+		if !isCheck && SEE(position, move) < 0 {
+			continue
+		}
 
-		if goodMove && position.MakeMove(move, ss.Next.Position) {
+		if position.MakeMove(move, ss.Next.Position) {
 			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
+			if !isCheck && !ss.Next.Position.IsCheck() &&
+				eval+MoveValue(move)+PawnValue <= alpha {
+				continue
+			}
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
 			if score > alpha {
 				alpha = score

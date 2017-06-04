@@ -23,9 +23,9 @@ var openings = []string{
 
 func RunTournament() {
 	var engine1 = NewCounterEngine()
-	engine1.ParallelSearch = false
+	engine1.Threads = 1
 	var engine2 = NewCounterEngine()
-	engine2.ParallelSearch = false
+	engine2.Threads = 1
 	engine2.ExperimentSettings = true
 
 	fmt.Println("Tournament started...")

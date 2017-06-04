@@ -99,6 +99,8 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 			}
 		}
 		fmt.Println(searchResult.String())
+		fmt.Printf("White: %v Black: %v\n",
+			time.Duration(limits.WhiteTime)*time.Microsecond, time.Duration(limits.BlackTime)*time.Microsecond)
 		var move = searchResult.MainLine[0]
 		var newPos = &engine.Position{}
 		var ok = positions[len(positions)-1].MakeMove(move, newPos)

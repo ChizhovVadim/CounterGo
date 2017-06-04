@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"counter/engine"
+	"CounterGo/engine"
 	"fmt"
 	"strconv"
 )

@@ -294,17 +294,19 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 	var moveCount = 0
 	for i := 0; i < ss.MoveList.Count; i++ {
 		var move = ss.MoveList.ElementAt(i)
-		if !isCheck && SEE(position, move) < 0 {
-			continue
+		if !isCheck {
+			if eval+MoveValue(move)+PawnValue <= alpha &&
+				!IsDirectCheck(position, move) {
+				continue
+			}
+			if SEE(position, move) < 0 {
+				continue
+			}
 		}
 
 		if position.MakeMove(move, ss.Next.Position) {
 			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
-			if !isCheck && !ss.Next.Position.IsCheck() &&
-				eval+MoveValue(move)+PawnValue <= alpha {
-				continue
-			}
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
 			if score > alpha {
 				alpha = score

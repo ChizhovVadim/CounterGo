@@ -89,16 +89,15 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var ss2 = stacks[threadIndex]
 				p.MakeMove(move, ss2.Next.Position)
 				atomic.AddInt64(&this.nodes, 1)
-				ss2.Next.SkipNullMove = false
 				ss2.Next.Move = move
 				var newDepth = NewDepth(depth, ss2)
 
 				if local_alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(ss2.Next, -(local_alpha+1), -local_alpha, newDepth) <= local_alpha {
+					-this.AlphaBeta(ss2.Next, -(local_alpha+1), -local_alpha, newDepth, true) <= local_alpha {
 					return true
 				}
 
-				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth)
+				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth, false)
 				gate.Lock()
 				if score > alpha {
 					alpha = score
@@ -132,7 +131,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	return
 }
 
-func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) int {
+func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
+	allowPrunings bool) int {
 	var newDepth, score int
 	ss.ClearPV()
 
@@ -173,26 +173,25 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 	var isCheck = position.IsCheck()
 	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
-	if depth <= 1 && !isCheck {
+	if depth <= 1 && !isCheck && allowPrunings {
 		var eval = this.Evaluate(position)
-		if eval+100 <= alpha {
+		if eval+PawnValue <= alpha {
 			return this.Quiescence(ss, alpha, beta, 1)
 		}
-		if eval-100 >= beta && !HasPawnOn7th(position, !position.WhiteMove) {
+		if eval-PawnValue >= beta && !HasPawnOn7th(position, !position.WhiteMove) {
 			return beta
 		}
 	}
 
-	if depth >= 2 && !isCheck && !ss.SkipNullMove &&
+	if depth >= 2 && !isCheck && allowPrunings &&
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
-		newDepth = depth - 3
+		newDepth = depth - 4
 		position.MakeNullMove(ss.Next.Position)
-		ss.Next.SkipNullMove = true
 		ss.Next.Move = MoveEmpty
 		if newDepth <= 0 {
 			score = -this.Quiescence(ss.Next, -beta, -(beta - 1), 1)
 		} else {
-			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth)
+			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth, false)
 		}
 		if score >= beta {
 			return beta
@@ -201,8 +200,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 
 	if depth >= 3 && hashMove == MoveEmpty {
 		newDepth = depth - 2
-		ss.SkipNullMove = true
-		this.AlphaBeta(ss, alpha, beta, newDepth)
+		this.AlphaBeta(ss, alpha, beta, newDepth, false)
 		hashMove = ss.BestMove()
 		ss.ClearPV() //!
 	}
@@ -219,7 +217,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 			atomic.AddInt64(&this.nodes, 1)
 			moveCount++
 
-			ss.Next.SkipNullMove = false
 			ss.Next.Move = move
 
 			newDepth = NewDepth(depth, ss)
@@ -228,7 +225,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int) in
 				ss.QuietsSearched = append(ss.QuietsSearched, move)
 			}
 
-			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth)
+			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, true)
 
 			if score > alpha {
 				alpha = score

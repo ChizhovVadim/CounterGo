@@ -106,7 +106,6 @@ type SearchStack struct {
 	Height             int
 	Position           *Position
 	MoveList           *MoveList
-	SkipNullMove       bool
 	Move               Move
 	KillerMove         Move
 	PrincipalVariation []Move

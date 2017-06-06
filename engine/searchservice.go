@@ -178,7 +178,8 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		if eval+PawnValue <= alpha {
 			return this.Quiescence(ss, alpha, beta, 1)
 		}
-		if eval-PawnValue >= beta && !HasPawnOn7th(position, !position.WhiteMove) {
+		if eval-PawnValue >= beta && !lateEndgame &&
+			!HasPawnOn7th(position, !position.WhiteMove) {
 			return beta
 		}
 	}

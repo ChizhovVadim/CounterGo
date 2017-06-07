@@ -199,7 +199,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		}
 	}
 
-	if depth >= 3 && hashMove == MoveEmpty {
+	if depth >= 6 && hashMove == MoveEmpty {
 		newDepth = depth - 2
 		this.AlphaBeta(ss, alpha, beta, newDepth, false)
 		hashMove = ss.BestMove()

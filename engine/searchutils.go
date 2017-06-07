@@ -55,6 +55,10 @@ func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
 }
 
 func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
+	const (
+		MovesToGoDefault = 50
+		MoveOverhead     = 20
+	)
 	if limits.MoveTime != 0 {
 		return limits.MoveTime, limits.MoveTime
 	}
@@ -68,11 +72,15 @@ func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
 		mainTime, incTime = limits.BlackTime, limits.BlackIncrement
 	}
 	var movesToGo int
-	if 0 < limits.MovesToGo && limits.MovesToGo < 50 {
+	if 0 < limits.MovesToGo && limits.MovesToGo < MovesToGoDefault {
 		movesToGo = limits.MovesToGo
 	} else {
-		movesToGo = 50
+		movesToGo = MovesToGoDefault
 	}
+
+	var reserve = max(2*MoveOverhead, min(1000, mainTime/20))
+	mainTime = max(0, mainTime-reserve)
+
 	softLimit = mainTime/movesToGo + incTime
 	hardLimit = min(mainTime/2, softLimit*5)
 	return

@@ -302,6 +302,19 @@ func IsPawnPush(move Move, side bool) bool {
 	}
 }
 
+func IsActiveMove(p *Position, move Move) bool {
+	if IsCaptureOrPromotion(move) {
+		return true
+	}
+	if IsPawnPush(move, p.WhiteMove) {
+		return true
+	}
+	if IsPassedPawnMove(p, move) {
+		return true
+	}
+	return false
+}
+
 func IsPawnPush7th(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false

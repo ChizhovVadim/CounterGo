@@ -5,27 +5,6 @@ import (
 	"sync"
 )
 
-func (ct *CancellationToken) Cancel() {
-	ct.active = true
-}
-
-func (ct *CancellationToken) IsCancellationRequested() bool {
-	return ct.active
-}
-
-func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			defer wg.Done()
-			body(threadIndex)
-		}(i)
-	}
-	defer wg.Wait()
-	body(0)
-}
-
 func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
 	defer func() {
 		var r = recover()
@@ -52,38 +31,6 @@ func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
 	defer wg.Wait()
 	for body(0) {
 	}
-}
-
-func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
-	const (
-		MovesToGoDefault = 50
-		MoveOverhead     = 20
-	)
-	if limits.MoveTime != 0 {
-		return limits.MoveTime, limits.MoveTime
-	}
-	if limits.Infinite || limits.Ponder {
-		return 0, 0
-	}
-	var mainTime, incTime int
-	if side {
-		mainTime, incTime = limits.WhiteTime, limits.WhiteIncrement
-	} else {
-		mainTime, incTime = limits.BlackTime, limits.BlackIncrement
-	}
-	var movesToGo int
-	if 0 < limits.MovesToGo && limits.MovesToGo < MovesToGoDefault {
-		movesToGo = limits.MovesToGo
-	} else {
-		movesToGo = MovesToGoDefault
-	}
-
-	var reserve = max(2*MoveOverhead, min(1000, mainTime/20))
-	mainTime = max(0, mainTime-reserve)
-
-	softLimit = mainTime/movesToGo + incTime
-	hardLimit = min(mainTime/2, softLimit*5)
-	return
 }
 
 func MateIn(height int) int {

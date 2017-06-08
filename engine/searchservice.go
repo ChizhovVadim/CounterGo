@@ -2,8 +2,6 @@ package engine
 
 import (
 	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type SearchService struct {
@@ -12,30 +10,15 @@ type SearchService struct {
 	Evaluate              EvaluationFunc
 	DegreeOfParallelism   int
 	UseExperimentSettings bool
-	nodes, maxNodes       int64
 	historyKeys           []uint64
-	ct                    *CancellationToken
+	tm                    *TimeManagement
 }
 
 func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo) {
-	var start = time.Now()
-	if searchParams.CancellationToken != nil {
-		this.ct = searchParams.CancellationToken
-	} else {
-		this.ct = &CancellationToken{}
-	}
+	var p = searchParams.Positions[len(searchParams.Positions)-1]
+	this.tm = NewTimeManagement(searchParams.Limits, p.WhiteMove, searchParams.CancellationToken)
+	defer this.tm.Close()
 
-	var softLimit, hardLimit = ComputeThinkTime(searchParams.Limits,
-		searchParams.Positions[len(searchParams.Positions)-1].WhiteMove)
-	if hardLimit > 0 {
-		var timer = time.AfterFunc(time.Duration(hardLimit)*time.Millisecond, func() {
-			this.ct.Cancel()
-		})
-		defer timer.Stop()
-	}
-
-	this.nodes = 0
-	this.maxNodes = int64(searchParams.Limits.Nodes)
 	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	this.MoveOrderService.Clear()
 	if this.TTable != nil {
@@ -45,7 +28,6 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		}
 	}
 
-	var p = searchParams.Positions[len(searchParams.Positions)-1]
 	var stacks = make([]*SearchStack, this.DegreeOfParallelism)
 	for i := 0; i < len(stacks); i++ {
 		stacks[i] = CreateStack(p)
@@ -88,7 +70,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var move = ss.MoveList.Items[local_i].Move
 				var ss2 = stacks[threadIndex]
 				p.MakeMove(move, ss2.Next.Position)
-				atomic.AddInt64(&this.nodes, 1)
+				this.tm.IncNodes()
 				ss2.Next.Move = move
 				var newDepth = NewDepth(depth, ss2)
 
@@ -104,8 +86,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 					result.MainLine = append([]Move{move}, ss2.Next.PrincipalVariation...)
 					result.Depth = depth
 					result.Score = score
-					result.Time = int64(time.Since(start) / time.Millisecond)
-					result.Nodes = this.nodes
+					result.Time = this.tm.ElapsedMilliseconds()
+					result.Nodes = this.tm.Nodes()
 					if searchParams.Progress != nil {
 						searchParams.Progress(result)
 					}
@@ -117,16 +99,14 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
-		if softLimit > 0 &&
-			AbsDelta(prevScore, alpha) <= PawnValue/2 &&
-			time.Since(start) >= time.Duration(softLimit)*time.Millisecond {
+		if AbsDelta(prevScore, alpha) <= PawnValue/2 && this.tm.IsSoftTimeout() {
 			break
 		}
 		ss.MoveList.MoveToBegin(bestMoveIndex)
 	}
 
-	result.Time = int64(time.Since(start) / time.Millisecond)
-	result.Nodes = this.nodes
+	result.Time = this.tm.ElapsedMilliseconds()
+	result.Nodes = this.tm.Nodes()
 
 	return
 }
@@ -144,7 +124,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		return this.Quiescence(ss, alpha, beta, 1)
 	}
 
-	PanicOnTimeout(this)
+	this.tm.PanicOnHardTimeout()
 
 	beta = min(beta, MateIn(ss.Height+1))
 	if alpha >= beta {
@@ -215,7 +195,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		var move = ss.MoveList.ElementAt(i)
 
 		if position.MakeMove(move, ss.Next.Position) {
-			atomic.AddInt64(&this.nodes, 1)
+			this.tm.IncNodes()
 			moveCount++
 
 			ss.Next.Move = move
@@ -275,7 +255,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 }
 
 func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) int {
-	PanicOnTimeout(this)
+	this.tm.PanicOnHardTimeout()
 	ss.ClearPV()
 	if ss.Height >= MAX_HEIGHT {
 		return VALUE_DRAW
@@ -312,7 +292,7 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 		}
 
 		if position.MakeMove(move, ss.Next.Position) {
-			atomic.AddInt64(&this.nodes, 1)
+			this.tm.IncNodes()
 			moveCount++
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
 			if score > alpha {
@@ -328,13 +308,6 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 		return MatedIn(ss.Height)
 	}
 	return alpha
-}
-
-func PanicOnTimeout(ss *SearchService) {
-	if ss.ct.IsCancellationRequested() ||
-		(ss.maxNodes != 0 && ss.nodes >= ss.maxNodes) {
-		panic(searchTimeout)
-	}
 }
 
 func NewDepth(depth int, ss *SearchStack) int {

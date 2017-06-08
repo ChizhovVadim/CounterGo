@@ -1,13 +1,5 @@
 package engine
 
-import (
-	"errors"
-)
-
-var (
-	searchTimeout = errors.New("search timeout")
-)
-
 const (
 	WhiteKingSide = 1 << iota
 	WhiteQueenSide
@@ -126,6 +118,9 @@ type LimitsType struct {
 	Depth     int
 	Nodes     int
 	Mate      int
+
+	WhiteNodesPerGame int
+	BlackNodesPerGame int
 }
 
 type SearchParams struct {
@@ -142,10 +137,6 @@ type SearchInfo struct {
 	Nodes    int64
 	Time     int64
 	MainLine []Move
-}
-
-type CancellationToken struct {
-	active bool
 }
 
 type EvaluationFunc func(p *Position) int

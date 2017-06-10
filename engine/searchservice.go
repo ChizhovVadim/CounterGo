@@ -8,6 +8,7 @@ type SearchService struct {
 	MoveOrderService      *MoveOrderService
 	TTable                *TranspositionTable
 	Evaluate              EvaluationFunc
+	TimeControlStrategy   TimeControlStrategy
 	DegreeOfParallelism   int
 	UseExperimentSettings bool
 	historyKeys           []uint64
@@ -16,7 +17,8 @@ type SearchService struct {
 
 func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo) {
 	var p = searchParams.Positions[len(searchParams.Positions)-1]
-	this.tm = NewTimeManagement(searchParams.Limits, p.WhiteMove, searchParams.CancellationToken)
+	this.tm = NewTimeManagement(searchParams.Limits, this.TimeControlStrategy,
+		p.WhiteMove, searchParams.CancellationToken)
 	defer this.tm.Close()
 
 	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)

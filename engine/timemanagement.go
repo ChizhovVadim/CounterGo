@@ -20,6 +20,8 @@ func (ct *CancellationToken) IsCancellationRequested() bool {
 
 var searchTimeout = errors.New("search timeout")
 
+type TimeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
+
 type TimeManagement struct {
 	start                       time.Time
 	softTime                    time.Duration
@@ -58,22 +60,36 @@ func (tm *TimeManagement) Close() {
 	}
 }
 
-func NewTimeManagement(limits LimitsType, side bool, ct *CancellationToken) *TimeManagement {
+func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrategy,
+	side bool, ct *CancellationToken) *TimeManagement {
 	var start = time.Now()
+
+	if timeControlStrategy == nil {
+		timeControlStrategy = TimeControlBasic
+	}
+
 	if ct == nil {
 		ct = &CancellationToken{}
 	}
-	var hardNodes, softNodes int
-	if limits.Nodes > 0 {
-		hardNodes = limits.Nodes
+
+	var main, increment int
+	if side {
+		main, increment = limits.WhiteTime, limits.WhiteIncrement
 	} else {
-		var nodesPerGame = let(side, limits.WhiteNodesPerGame, limits.BlackNodesPerGame)
-		if nodesPerGame > 0 {
-			softNodes = nodesPerGame / 50
-			hardNodes = min(nodesPerGame/2, 5*softNodes)
-		}
+		main, increment = limits.BlackTime, limits.BlackIncrement
 	}
-	var softTime, hardTime = ComputeThinkTime(limits, side)
+
+	var softTime, hardTime, softNodes, hardNodes int
+	if limits.MoveTime > 0 {
+		hardTime = limits.MoveTime
+	} else if limits.Nodes > 0 {
+		hardNodes = limits.Nodes
+	} else if main > 0 {
+		const TimeReserve = 1000
+		main = max(0, main-min(TimeReserve, main/20))
+		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
+	}
+
 	var timer *time.Timer
 	if hardTime > 0 {
 		timer = time.AfterFunc(time.Duration(hardTime)*time.Millisecond, func() {
@@ -90,34 +106,14 @@ func NewTimeManagement(limits LimitsType, side bool, ct *CancellationToken) *Tim
 	}
 }
 
-func ComputeThinkTime(limits LimitsType, side bool) (softLimit, hardLimit int) {
-	const (
-		MovesToGoDefault = 50
-		MoveOverhead     = 20
-	)
-	if limits.MoveTime != 0 {
-		return limits.MoveTime, limits.MoveTime
-	}
-	if limits.Infinite || limits.Ponder {
-		return 0, 0
-	}
-	var mainTime, incTime int
-	if side {
-		mainTime, incTime = limits.WhiteTime, limits.WhiteIncrement
-	} else {
-		mainTime, incTime = limits.BlackTime, limits.BlackIncrement
-	}
-	var movesToGo int
-	if 0 < limits.MovesToGo && limits.MovesToGo < MovesToGoDefault {
-		movesToGo = limits.MovesToGo
-	} else {
-		movesToGo = MovesToGoDefault
+func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
+	const MovesToGoDefault = 50
+
+	if moves == 0 || moves > MovesToGoDefault {
+		moves = MovesToGoDefault
 	}
 
-	var reserve = max(2*MoveOverhead, min(1000, mainTime/20))
-	mainTime = max(0, mainTime-reserve)
-
-	softLimit = mainTime/movesToGo + incTime
-	hardLimit = min(mainTime/2, softLimit*5)
+	softLimit = main/moves + inc
+	hardLimit = min(main/2, softLimit*5)
 	return
 }

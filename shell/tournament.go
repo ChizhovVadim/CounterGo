@@ -6,6 +6,32 @@ import (
 	"time"
 )
 
+type TournamentEngine interface {
+	Search(searchParams engine.SearchParams) engine.SearchInfo
+}
+
+func NewEngineA() TournamentEngine {
+	return &engine.SearchService{
+		MoveOrderService:      engine.NewMoveOrderService(),
+		Evaluate:              engine.Evaluate,
+		TimeControlStrategy:   engine.TimeControlBasic,
+		DegreeOfParallelism:   1,
+		TTable:                engine.NewTranspositionTable(4),
+		UseExperimentSettings: false,
+	}
+}
+
+func NewEngineB() TournamentEngine {
+	return &engine.SearchService{
+		MoveOrderService:      engine.NewMoveOrderService(),
+		Evaluate:              engine.Evaluate,
+		TimeControlStrategy:   engine.TimeControlBasic,
+		DegreeOfParallelism:   1,
+		TTable:                engine.NewTranspositionTable(4),
+		UseExperimentSettings: true,
+	}
+}
+
 const (
 	GameResultNone = iota
 	GameResultWhiteWins
@@ -22,12 +48,6 @@ var openings = []string{
 }
 
 func RunTournament() {
-	var engine1 = NewCounterEngine()
-	engine1.Threads = 1
-	var engine2 = NewCounterEngine()
-	engine2.Threads = 1
-	engine2.ExperimentSettings = true
-
 	fmt.Println("Tournament started...")
 	var numberOfGames = len(openings) * 2
 	var playedGames, engine1Wins, engine2Wins int
@@ -36,7 +56,7 @@ func RunTournament() {
 		var pos = engine.NewPositionFromFEN(opening)
 
 		if (i % 2) == 0 {
-			var res = PlayGame(engine1, engine2, pos)
+			var res = PlayGame(NewEngineA(), NewEngineB(), pos)
 			playedGames++
 			if res == GameResultWhiteWins {
 				engine1Wins++
@@ -44,7 +64,7 @@ func RunTournament() {
 				engine2Wins++
 			}
 		} else {
-			var res = PlayGame(engine2, engine1, pos)
+			var res = PlayGame(NewEngineB(), NewEngineA(), pos)
 			playedGames++
 			if res == GameResultWhiteWins {
 				engine2Wins++
@@ -59,9 +79,7 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
-	engine1.Reset()
-	engine2.Reset()
+func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Position) int {
 	var positions = []*engine.Position{initialPosition}
 	var gameTime = 3 * 60 * 1000
 	var limits = engine.LimitsType{
@@ -78,7 +96,7 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 			Limits:    limits,
 		}
 		var side = positions[len(positions)-1].WhiteMove
-		var uciEngine UciEngine
+		var uciEngine TournamentEngine
 		if side {
 			uciEngine = engine1
 		} else {

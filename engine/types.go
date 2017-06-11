@@ -12,6 +12,7 @@ type Position struct {
 	WhiteMove                                                             bool
 	CastleRights, Rule50, EpSquare                                        int
 	Key                                                                   uint64
+	LastMove                                                              Move
 }
 
 const InitialPositionFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -98,7 +99,6 @@ type SearchStack struct {
 	Height             int
 	Position           *Position
 	MoveList           *MoveList
-	Move               Move
 	KillerMove         Move
 	PrincipalVariation []Move
 	QuietsSearched     []Move

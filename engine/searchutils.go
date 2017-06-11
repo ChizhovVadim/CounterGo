@@ -136,7 +136,7 @@ func IsDraw(ss *SearchStack, historyKeys []uint64) bool {
 		if temp.Position.Key == p.Key {
 			return true
 		}
-		if temp.Position.Rule50 == 0 {
+		if temp.Position.Rule50 == 0 || temp.Position.LastMove == MoveEmpty {
 			return false
 		}
 	}

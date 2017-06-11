@@ -26,6 +26,7 @@ func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Posit
 	p.Rule50 = fifty
 	p.Key = p.ComputeKey()
 	p.Checkers = p.computeCheckers()
+	p.LastMove = MoveEmpty
 
 	if !p.isLegal() {
 		return nil
@@ -288,6 +289,7 @@ func (src *Position) MakeMove(move Move, result *Position) bool {
 		return false
 	}
 	result.Checkers = result.computeCheckers()
+	result.LastMove = move
 	return true
 }
 
@@ -312,6 +314,7 @@ func (src *Position) MakeNullMove(result *Position) {
 	}
 
 	result.Checkers = 0
+	result.LastMove = MoveEmpty
 }
 
 func (p *Position) piecesByColor(side bool) uint64 {

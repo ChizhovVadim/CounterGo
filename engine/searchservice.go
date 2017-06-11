@@ -73,7 +73,6 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var ss2 = stacks[threadIndex]
 				p.MakeMove(move, ss2.Next.Position)
 				this.tm.IncNodes()
-				ss2.Next.Move = move
 				var newDepth = NewDepth(depth, ss2)
 
 				if local_alpha > VALUE_MATED_IN_MAX_HEIGHT &&
@@ -170,7 +169,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
 		newDepth = depth - 4
 		position.MakeNullMove(ss.Next.Position)
-		ss.Next.Move = MoveEmpty
 		if newDepth <= 0 {
 			score = -this.Quiescence(ss.Next, -beta, -(beta - 1), 1)
 		} else {
@@ -199,8 +197,6 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		if position.MakeMove(move, ss.Next.Position) {
 			this.tm.IncNodes()
 			moveCount++
-
-			ss.Next.Move = move
 
 			newDepth = NewDepth(depth, ss)
 
@@ -313,21 +309,24 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 }
 
 func NewDepth(depth int, ss *SearchStack) int {
-	if ss.Move != MoveEmpty &&
-		ss.Move.To() == ss.Next.Move.To() &&
-		ss.Next.Move.CapturedPiece() > Pawn &&
-		ss.Move.CapturedPiece() > Pawn &&
-		SEE(ss.Position, ss.Next.Move) >= 0 {
+	var prevMove = ss.Position.LastMove
+	var move = ss.Next.Position.LastMove
+
+	if prevMove != MoveEmpty &&
+		prevMove.To() == move.To() &&
+		move.CapturedPiece() > Pawn &&
+		prevMove.CapturedPiece() > Pawn &&
+		SEE(ss.Position, move) >= 0 {
 		return depth
 	}
 
 	if ss.Next.Position.IsCheck() &&
-		(depth <= 1 || SEE(ss.Position, ss.Next.Move) >= 0) {
+		(depth <= 1 || SEE(ss.Position, move) >= 0) {
 		return depth
 	}
 
-	if IsPawnPush7th(ss.Next.Move, ss.Position.WhiteMove) &&
-		SEE(ss.Position, ss.Next.Move) >= 0 {
+	if IsPawnPush7th(move, ss.Position.WhiteMove) &&
+		SEE(ss.Position, move) >= 0 {
 		return depth
 	}
 

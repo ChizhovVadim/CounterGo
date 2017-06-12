@@ -10,6 +10,7 @@ type TranspositionTable struct {
 	items      []TTEntry
 	readNumber int
 	readHit    int
+	age        uint8
 	gates      []sync.Mutex
 }
 
@@ -18,13 +19,12 @@ type TTEntry struct {
 	Move  Move
 	Score int16
 	Depth int8
-	Type  int8
+	Data  uint8 //bits 0-1: entry type, bits 2-7: age
 }
 
 const (
-	Lower = 1
-	Upper = 2
-	Exact = Lower | Upper
+	Lower = 1 << iota
+	Upper
 )
 
 func NewTranspositionTable(megabytes int) *TranspositionTable {
@@ -38,15 +38,16 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 	var key = p.Key
 	var index = int(key % uint64(len(tt.items)))
 	var gate = &tt.gates[index%len(tt.gates)]
+	var item = &tt.items[index]
 	gate.Lock()
 	tt.readNumber++
-	if tt.items[index].Key == key {
+	if item.Key == key {
 		tt.readHit++
-		var item = &tt.items[index]
+		item.Data = (item.Data & 3) | (tt.age << 2)
 		score = int(item.Score)
 		move = item.Move
 		depth = int(item.Depth)
-		entryType = int(item.Type)
+		entryType = int(item.Data & 3)
 		ok = true
 	}
 	gate.Unlock()
@@ -57,13 +58,16 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 	var key = p.Key
 	var index = int(key % uint64(len(tt.items)))
 	var gate = &tt.gates[index%len(tt.gates)]
+	var item = &tt.items[index]
 	gate.Lock()
-	tt.items[index] = TTEntry{
-		Key:   key,
-		Move:  move,
-		Score: int16(score),
-		Depth: int8(depth),
-		Type:  int8(entryType),
+	if depth >= int(item.Depth) || tt.age != (item.Data>>2) {
+		*item = TTEntry{
+			Key:   key,
+			Move:  move,
+			Score: int16(score),
+			Depth: int8(depth),
+			Data:  uint8(entryType) | (tt.age << 2),
+		}
 	}
 	gate.Unlock()
 }
@@ -71,6 +75,7 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 func (tt *TranspositionTable) ClearStatistics() {
 	tt.readNumber = 0
 	tt.readHit = 0
+	tt.age = (tt.age + 1) & 63
 }
 
 func (tt *TranspositionTable) PrintStatistics() {

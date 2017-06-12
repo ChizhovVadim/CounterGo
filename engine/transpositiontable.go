@@ -36,9 +36,9 @@ func NewTranspositionTable(megabytes int) *TranspositionTable {
 
 func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var key = p.Key
-	var index = int(key % uint64(len(tt.items)))
-	var gate = &tt.gates[index%len(tt.gates)]
+	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
+	var gate = &tt.gates[index&(len(tt.gates)-1)]
 	gate.Lock()
 	tt.readNumber++
 	if item.Key == key {
@@ -56,9 +56,9 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 
 func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, move Move) {
 	var key = p.Key
-	var index = int(key % uint64(len(tt.items)))
-	var gate = &tt.gates[index%len(tt.gates)]
+	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
+	var gate = &tt.gates[index&(len(tt.gates)-1)]
 	gate.Lock()
 	if depth >= int(item.Depth) || tt.age != (item.Data>>2) {
 		*item = TTEntry{

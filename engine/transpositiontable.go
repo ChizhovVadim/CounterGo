@@ -1,17 +1,14 @@
 package engine
 
 import (
-	"fmt"
 	"math/rand"
-	"sync"
+	"sync/atomic"
 )
 
 type TranspositionTable struct {
-	items      []TTEntry
-	readNumber int
-	readHit    int
-	age        uint8
-	gates      []sync.Mutex
+	items []TTEntry
+	gates []int32
+	age   uint8
 }
 
 type TTEntry struct {
@@ -30,8 +27,12 @@ const (
 func NewTranspositionTable(megabytes int) *TranspositionTable {
 	return &TranspositionTable{
 		items: make([]TTEntry, 1024*1024*megabytes/16),
-		gates: make([]sync.Mutex, 128),
+		gates: make([]int32, 1024),
 	}
+}
+
+func (tt *TranspositionTable) PrepareNewSearch() {
+	tt.age = (tt.age + 1) & 63
 }
 
 func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
@@ -39,18 +40,17 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
 	var gate = &tt.gates[index&(len(tt.gates)-1)]
-	gate.Lock()
-	tt.readNumber++
-	if item.Key == key {
-		tt.readHit++
-		item.Data = (item.Data & 3) | (tt.age << 2)
-		score = int(item.Score)
-		move = item.Move
-		depth = int(item.Depth)
-		entryType = int(item.Data & 3)
-		ok = true
+	if atomic.CompareAndSwapInt32(gate, 0, 1) {
+		if item.Key == key {
+			item.Data = (item.Data & 3) | (tt.age << 2)
+			score = int(item.Score)
+			move = item.Move
+			depth = int(item.Depth)
+			entryType = int(item.Data & 3)
+			ok = true
+		}
+		atomic.StoreInt32(gate, 0)
 	}
-	gate.Unlock()
 	return
 }
 
@@ -59,28 +59,18 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
 	var gate = &tt.gates[index&(len(tt.gates)-1)]
-	gate.Lock()
-	if depth >= int(item.Depth) || tt.age != (item.Data>>2) {
-		*item = TTEntry{
-			Key:   key,
-			Move:  move,
-			Score: int16(score),
-			Depth: int8(depth),
-			Data:  uint8(entryType) | (tt.age << 2),
+	if atomic.CompareAndSwapInt32(gate, 0, 1) {
+		if depth >= int(item.Depth) || tt.age != (item.Data>>2) {
+			*item = TTEntry{
+				Key:   key,
+				Move:  move,
+				Score: int16(score),
+				Depth: int8(depth),
+				Data:  uint8(entryType) | (tt.age << 2),
+			}
 		}
+		atomic.StoreInt32(gate, 0)
 	}
-	gate.Unlock()
-}
-
-func (tt *TranspositionTable) ClearStatistics() {
-	tt.readNumber = 0
-	tt.readHit = 0
-	tt.age = (tt.age + 1) & 63
-}
-
-func (tt *TranspositionTable) PrintStatistics() {
-	var hit = float64(tt.readHit) / float64(tt.readNumber)
-	fmt.Printf("info string Transposition table hit: %v\n", hit)
 }
 
 var (

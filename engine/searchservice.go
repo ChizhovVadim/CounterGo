@@ -24,10 +24,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	this.MoveOrderService.Clear()
 	if this.TTable != nil {
-		this.TTable.ClearStatistics()
-		if searchParams.IsTraceEnabled {
-			defer this.TTable.PrintStatistics()
-		}
+		this.TTable.PrepareNewSearch()
 	}
 
 	var stacks = make([]*SearchStack, this.DegreeOfParallelism)

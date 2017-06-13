@@ -40,6 +40,8 @@ const (
 	MinorOnStrongField  = 10  // 32
 )
 
+const DarkSquares uint64 = 0xAA55AA55AA55AA55
+
 var (
 	center = [64]int{
 		-3, -2, -1, 0, 0, -1, -2, -3,
@@ -305,49 +307,34 @@ func Evaluate(p *Position) int {
 	var phase = matIndexWhite + matIndexBlack
 	score += (opening*phase + endgame*(64-phase)) / 64
 
-	var whiteScale = 1
-	var blackScale = 1
-
-	if wp == 0 {
-		var whiteMajor = wq*2 + wr
-		var whiteMinor = wb + wn
-		var whiteTotal = whiteMajor*2 + whiteMinor
-
-		var blackMajor = bq*2 + br
-		var blackMinor = bb + bn
-		var blackTotal = blackMajor*2 + blackMinor
-
-		if whiteTotal == 1 {
-			whiteScale = 16
-		} else if whiteTotal == 2 && wn == 2 {
-			whiteScale = 16
-		} else if whiteTotal-blackTotal <= 1 && whiteMajor <= 2 {
-			whiteScale = 8
+	if wp == 0 && score > 0 {
+		if wn <= 2 && wb+wr+wq == 0 {
+			score /= 2
+		}
+		if wn+wb <= 1 && wr+wq == 0 {
+			score /= 2
 		}
 	}
 
-	if bp == 0 {
-		var whiteMajor = wq*2 + wr
-		var whiteMinor = wb + wn
-		var whiteTotal = whiteMajor*2 + whiteMinor
-
-		var blackMajor = bq*2 + br
-		var blackMinor = bb + bn
-		var blackTotal = blackMajor*2 + blackMinor
-
-		if blackTotal == 1 {
-			blackScale = 16
-		} else if blackTotal == 2 && bn == 2 {
-			blackScale = 16
-		} else if blackTotal-whiteTotal <= 1 && blackMajor <= 2 {
-			blackScale = 8
+	if bp == 0 && score < 0 {
+		if bn <= 2 && bb+br+bq == 0 {
+			score /= 2
+		}
+		if bn+bb <= 1 && br+bq == 0 {
+			score /= 2
 		}
 	}
 
-	if score > 0 {
-		score /= whiteScale
-	} else {
-		score /= blackScale
+	if (p.Knights|p.Bishops|p.Queens) == 0 &&
+		wr == 1 && br == 1 && AbsDelta(wp, bp) <= 1 {
+		score /= 2
+	}
+
+	if (p.Knights|p.Rooks|p.Queens) == 0 &&
+		wb == 1 && bb == 1 && AbsDelta(wp, bp) <= 2 &&
+		(p.Bishops&DarkSquares) != 0 &&
+		(p.Bishops & ^DarkSquares) != 0 {
+		score /= 2
 	}
 
 	if !p.WhiteMove {

@@ -62,25 +62,25 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		ParallelSearch(this.DegreeOfParallelism,
 			func(threadIndex int) bool {
 				gate.Lock()
-				var local_alpha = alpha
-				var local_i = i
+				var localAlpha = alpha
+				var localIndex = i
 				i++
 				gate.Unlock()
-				if local_i >= ss.MoveList.Count {
+				if localIndex >= ss.MoveList.Count {
 					return false
 				}
-				var move = ss.MoveList.Items[local_i].Move
+				var move = ss.MoveList.Items[localIndex].Move
 				var ss2 = stacks[threadIndex]
 				p.MakeMove(move, ss2.Next.Position)
 				this.tm.IncNodes()
 				var newDepth = NewDepth(depth, ss2)
 
-				if local_alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(ss2.Next, -(local_alpha+1), -local_alpha, newDepth, true) <= local_alpha {
+				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT &&
+					-this.AlphaBeta(ss2.Next, -(localAlpha+1), -localAlpha, newDepth, true) <= localAlpha {
 					return true
 				}
 
-				var score = -this.AlphaBeta(ss2.Next, -beta, -local_alpha, newDepth, false)
+				var score = -this.AlphaBeta(ss2.Next, -beta, -localAlpha, newDepth, false)
 				gate.Lock()
 				if score > alpha {
 					alpha = score
@@ -92,7 +92,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 					if searchParams.Progress != nil {
 						searchParams.Progress(result)
 					}
-					bestMoveIndex = local_i
+					bestMoveIndex = localIndex
 				}
 				gate.Unlock()
 				return true
@@ -179,7 +179,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		}
 	}
 
-	if depth >= 6 && hashMove == MoveEmpty {
+	if depth >= 4 && hashMove == MoveEmpty {
 		newDepth = depth - 2
 		this.AlphaBeta(ss, alpha, beta, newDepth, false)
 		hashMove = ss.BestMove()

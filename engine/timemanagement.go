@@ -85,8 +85,6 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 	} else if limits.Nodes > 0 {
 		hardNodes = limits.Nodes
 	} else if main > 0 {
-		const TimeReserve = 1000
-		main = max(0, main-min(TimeReserve, main/20))
 		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
@@ -106,14 +104,28 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 	}
 }
 
-func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
-	const MovesToGoDefault = 50
+func computeLimit(main, inc, moves int) int {
+	return (main + inc*(moves-1)) / moves
+}
 
-	if moves == 0 || moves > MovesToGoDefault {
-		moves = MovesToGoDefault
+func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
+	const (
+		SoftMovesToGo   = 50
+		HardMovesToGo   = 10
+		LastMoveReserve = 300
+		MoveReserve     = 20
+	)
+
+	if moves == 0 {
+		moves = SoftMovesToGo
 	}
 
-	softLimit = main/moves + inc
-	hardLimit = min(main/2, softLimit*5)
+	softLimit = computeLimit(main, inc, min(moves, SoftMovesToGo))
+	hardLimit = computeLimit(main, inc, min(moves, HardMovesToGo))
+
+	hardLimit -= MoveReserve
+	hardLimit = min(hardLimit, main-LastMoveReserve)
+	hardLimit = max(hardLimit, 1)
+
 	return
 }

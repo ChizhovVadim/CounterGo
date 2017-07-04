@@ -44,7 +44,6 @@ func IsReadyCommand(uci *UciProtocol, args []string) {
 }
 
 func PositionCommand(uci *UciProtocol, args []string) {
-	//TODO support no queen promotion: position fen r7/p2k1P2/1pbPp3/4B1r1/Q2P4/5P2/P2q4/1R3KR1 w - - 0 36 moves f7f8n
 	var token = args[0]
 	var fen string
 	var movesIndex = findIndexString(args, "moves")

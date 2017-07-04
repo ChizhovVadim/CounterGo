@@ -18,34 +18,6 @@ func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
 	wg.Wait()
 }
 
-func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
-	defer func() {
-		var r = recover()
-		if r != nil && r != searchTimeout {
-			panic(r)
-		}
-	}()
-	body(0)
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			defer func() {
-				wg.Done()
-				var r = recover()
-				if r != nil && r != searchTimeout {
-					panic(r)
-				}
-			}()
-			for body(threadIndex) {
-			}
-		}(i)
-	}
-	defer wg.Wait()
-	for body(0) {
-	}
-}
-
 func MateIn(height int) int {
 	return VALUE_MATE - height
 }
@@ -163,7 +135,7 @@ func IsDraw(ss *SearchStack, historyKeys []uint64) bool {
 	return false
 }
 
-func CreateStack(p *Position) *SearchStack {
+func CreateStack() *SearchStack {
 	var items = make([]SearchStack, MAX_HEIGHT+1)
 	for i := 0; i < len(items); i++ {
 		if i > 0 {
@@ -172,15 +144,11 @@ func CreateStack(p *Position) *SearchStack {
 		if i < len(items)-1 {
 			items[i].Next = &items[i+1]
 		}
-		if i > 0 {
-			items[i].Position = &Position{}
-			items[i].MoveList = &MoveList{}
-			items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)
-			items[i].PrincipalVariation = make([]Move, 0, MAX_HEIGHT)
-		}
+		items[i].Position = &Position{}
+		items[i].MoveList = &MoveList{}
+		items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)
+		items[i].PrincipalVariation = make([]Move, 0, MAX_HEIGHT)
 	}
-	items[0].Position = p
-	items[0].MoveList = &MoveList{}
 	return &items[0]
 }
 

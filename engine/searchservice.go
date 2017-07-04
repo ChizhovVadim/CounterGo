@@ -27,12 +27,8 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		this.TTable.PrepareNewSearch()
 	}
 
-	var stacks = make([]*SearchStack, this.DegreeOfParallelism)
-	for i := 0; i < len(stacks); i++ {
-		stacks[i] = CreateStack(p)
-	}
-
-	var ss = stacks[0]
+	var ss = CreateStack()
+	ss.Position = p
 	ss.MoveList.GenerateMoves(p)
 	ss.MoveList.FilterLegalMoves(p)
 
@@ -49,54 +45,115 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	this.MoveOrderService.NoteMoves(ss, MoveEmpty)
 	ss.MoveList.SortMoves()
 
+	result = this.IterateSearch(ss, searchParams.Progress)
+
+	if len(result.MainLine) == 0 {
+		result.MainLine = []Move{ss.MoveList.Items[0].Move}
+	}
+	result.Time = this.tm.ElapsedMilliseconds()
+	result.Nodes = this.tm.Nodes()
+
+	return
+}
+
+func (this *SearchService) IterateSearch(ss *SearchStack,
+	progress func(SearchInfo)) (result SearchInfo) {
+	defer func() {
+		var r = recover()
+		if r != nil && r != searchTimeout {
+			panic(r)
+		}
+	}()
+
+	var p = ss.Position
+	var ml = ss.MoveList
+
+	var stacks = make([]*SearchStack, this.DegreeOfParallelism)
+	for i := 1; i < len(stacks); i++ {
+		stacks[i] = CreateStack()
+	}
+
 	const height = 0
 	const beta = VALUE_INFINITE
 	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
 		var prevScore = result.Score
 		var alpha = -VALUE_INFINITE
-		var i = 0
 		var bestMoveIndex = 0
-		ParallelSearch(this.DegreeOfParallelism,
-			func(threadIndex int) bool {
+		{
+			var child = ss.Next
+			var move = ml.Items[0].Move
+			p.MakeMove(move, child.Position)
+			this.tm.IncNodes()
+			var newDepth = NewDepth(depth, child)
+			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false)
+			alpha = score
+			result = SearchInfo{
+				Depth:    depth,
+				Score:    score,
+				MainLine: append([]Move{move}, child.PrincipalVariation...),
+				Time:     this.tm.ElapsedMilliseconds(),
+				Nodes:    this.tm.Nodes(),
+			}
+			if progress != nil {
+				progress(result)
+			}
+		}
+		var index = 1
+		ParallelDo(this.DegreeOfParallelism, func(threadIndex int) {
+			defer func() {
+				var r = recover()
+				if r != nil && r != searchTimeout {
+					panic(r)
+				}
+			}()
+
+			var child *SearchStack
+			if threadIndex == 0 {
+				child = ss.Next
+			} else {
+				child = stacks[threadIndex]
+				child.Previous = ss
+			}
+			for {
 				gate.Lock()
 				var localAlpha = alpha
-				var localIndex = i
-				i++
+				var localIndex = index
+				index++
 				gate.Unlock()
-				if localIndex >= ss.MoveList.Count {
-					return false
+
+				if localIndex >= ml.Count {
+					return
 				}
-				var move = ss.MoveList.Items[localIndex].Move
-				var ss2 = stacks[threadIndex]
-				p.MakeMove(move, ss2.Next.Position)
+				var move = ml.Items[localIndex].Move
+				p.MakeMove(move, child.Position)
 				this.tm.IncNodes()
-				var newDepth = NewDepth(depth, ss2)
+				var newDepth = NewDepth(depth, child)
 
 				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(ss2.Next, -(localAlpha+1), -localAlpha, newDepth, height+1, true) <= localAlpha {
-					return true
+					-this.AlphaBeta(child, -(localAlpha+1), -localAlpha, newDepth, height+1, true) <= localAlpha {
+					continue
 				}
+				var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, false)
 
-				var score = -this.AlphaBeta(ss2.Next, -beta, -localAlpha, newDepth, height+1, false)
 				gate.Lock()
 				if score > alpha {
 					alpha = score
 					result = SearchInfo{
-						MainLine: append([]Move{move}, ss2.Next.PrincipalVariation...),
 						Depth:    depth,
 						Score:    score,
+						MainLine: append([]Move{move}, child.PrincipalVariation...),
 						Time:     this.tm.ElapsedMilliseconds(),
 						Nodes:    this.tm.Nodes(),
 					}
-					if searchParams.Progress != nil {
-						searchParams.Progress(result)
+					if progress != nil {
+						progress(result)
 					}
 					bestMoveIndex = localIndex
 				}
 				gate.Unlock()
-				return true
-			})
+			}
+		})
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
@@ -105,10 +162,6 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 		}
 		ss.MoveList.MoveToBegin(bestMoveIndex)
 	}
-
-	result.Time = this.tm.ElapsedMilliseconds()
-	result.Nodes = this.tm.Nodes()
-
 	return
 }
 
@@ -198,7 +251,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 			this.tm.IncNodes()
 			moveCount++
 
-			newDepth = NewDepth(depth, ss)
+			newDepth = NewDepth(depth, ss.Next)
 
 			if !IsCaptureOrPromotion(move) {
 				ss.QuietsSearched = append(ss.QuietsSearched, move)
@@ -308,25 +361,25 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth, heigh
 	return alpha
 }
 
-func NewDepth(depth int, ss *SearchStack) int {
-	var prevMove = ss.Position.LastMove
-	var move = ss.Next.Position.LastMove
+func NewDepth(depth int, child *SearchStack) int {
+	var p = child.Previous.Position
+	var prevMove = p.LastMove
+	var move = child.Position.LastMove
+	var givesCheck = child.Position.IsCheck()
 
 	if prevMove != MoveEmpty &&
 		prevMove.To() == move.To() &&
 		move.CapturedPiece() > Pawn &&
 		prevMove.CapturedPiece() > Pawn &&
-		SEE(ss.Position, move) >= 0 {
+		SEE(p, move) >= 0 {
 		return depth
 	}
 
-	if ss.Next.Position.IsCheck() &&
-		(depth <= 1 || SEE(ss.Position, move) >= 0) {
+	if givesCheck && (depth <= 1 || SEE(p, move) >= 0) {
 		return depth
 	}
 
-	if IsPawnPush7th(move, ss.Position.WhiteMove) &&
-		SEE(ss.Position, move) >= 0 {
+	if IsPawnPush7th(move, p.WhiteMove) && SEE(p, move) >= 0 {
 		return depth
 	}
 

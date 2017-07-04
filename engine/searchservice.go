@@ -49,6 +49,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	this.MoveOrderService.NoteMoves(ss, MoveEmpty)
 	ss.MoveList.SortMoves()
 
+	const height = 0
 	const beta = VALUE_INFINITE
 	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
@@ -73,19 +74,21 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 				var newDepth = NewDepth(depth, ss2)
 
 				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(ss2.Next, -(localAlpha+1), -localAlpha, newDepth, true) <= localAlpha {
+					-this.AlphaBeta(ss2.Next, -(localAlpha+1), -localAlpha, newDepth, height+1, true) <= localAlpha {
 					return true
 				}
 
-				var score = -this.AlphaBeta(ss2.Next, -beta, -localAlpha, newDepth, false)
+				var score = -this.AlphaBeta(ss2.Next, -beta, -localAlpha, newDepth, height+1, false)
 				gate.Lock()
 				if score > alpha {
 					alpha = score
-					result.MainLine = append([]Move{move}, ss2.Next.PrincipalVariation...)
-					result.Depth = depth
-					result.Score = score
-					result.Time = this.tm.ElapsedMilliseconds()
-					result.Nodes = this.tm.Nodes()
+					result = SearchInfo{
+						MainLine: append([]Move{move}, ss2.Next.PrincipalVariation...),
+						Depth:    depth,
+						Score:    score,
+						Time:     this.tm.ElapsedMilliseconds(),
+						Nodes:    this.tm.Nodes(),
+					}
 					if searchParams.Progress != nil {
 						searchParams.Progress(result)
 					}
@@ -109,22 +112,22 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	return
 }
 
-func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
+func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height int,
 	allowPrunings bool) int {
 	var newDepth, score int
 	ss.ClearPV()
 
-	if ss.Height >= MAX_HEIGHT || IsDraw(ss, this.historyKeys) {
+	if height >= MAX_HEIGHT || IsDraw(ss, this.historyKeys) {
 		return VALUE_DRAW
 	}
 
 	if depth <= 0 {
-		return this.Quiescence(ss, alpha, beta, 1)
+		return this.Quiescence(ss, alpha, beta, 1, height)
 	}
 
 	this.tm.PanicOnHardTimeout()
 
-	beta = min(beta, MateIn(ss.Height+1))
+	beta = min(beta, MateIn(height+1))
 	if alpha >= beta {
 		return alpha
 	}
@@ -137,7 +140,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		if ok {
 			hashMove = ttMove
 			if ttDepth >= depth {
-				ttScore = ValueFromTT(ttScore, ss.Height)
+				ttScore = ValueFromTT(ttScore, height)
 				if ttScore >= beta && (ttType&Lower) != 0 {
 					return beta
 				}
@@ -154,7 +157,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 	if depth <= 1 && !isCheck && allowPrunings {
 		var eval = this.Evaluate(position)
 		if eval+PawnValue <= alpha {
-			return this.Quiescence(ss, alpha, beta, 1)
+			return this.Quiescence(ss, alpha, beta, 1, height)
 		}
 		if eval-PawnValue >= beta && !lateEndgame &&
 			!HasPawnOn7th(position, !position.WhiteMove) {
@@ -167,9 +170,9 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		newDepth = depth - 4
 		position.MakeNullMove(ss.Next.Position)
 		if newDepth <= 0 {
-			score = -this.Quiescence(ss.Next, -beta, -(beta - 1), 1)
+			score = -this.Quiescence(ss.Next, -beta, -(beta - 1), 1, height+1)
 		} else {
-			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth, false)
+			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth, height+1, false)
 		}
 		if score >= beta {
 			return beta
@@ -178,7 +181,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 
 	if depth >= 4 && hashMove == MoveEmpty {
 		newDepth = depth - 2
-		this.AlphaBeta(ss, alpha, beta, newDepth, false)
+		this.AlphaBeta(ss, alpha, beta, newDepth, height, false)
 		hashMove = ss.BestMove()
 		ss.ClearPV() //!
 	}
@@ -204,13 +207,13 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 			if depth >= 4 && !isCheck && !ss.Next.Position.IsCheck() &&
 				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
 				len(ss.QuietsSearched) > 4 && !IsActiveMove(position, move) {
-				score = -this.AlphaBeta(ss.Next, -(alpha + 1), -alpha, depth-2, true)
+				score = -this.AlphaBeta(ss.Next, -(alpha + 1), -alpha, depth-2, height+1, true)
 				if score <= alpha {
 					continue
 				}
 			}
 
-			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, true)
+			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, height+1, true)
 
 			if score > alpha {
 				alpha = score
@@ -224,7 +227,7 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 
 	if moveCount == 0 {
 		if isCheck {
-			return MatedIn(ss.Height)
+			return MatedIn(height)
 		}
 		return VALUE_DRAW
 	}
@@ -243,16 +246,16 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth int,
 		if alpha < beta {
 			ttType |= Upper
 		}
-		this.TTable.Update(position, depth, ValueToTT(alpha, ss.Height), ttType, bestMove)
+		this.TTable.Update(position, depth, ValueToTT(alpha, height), ttType, bestMove)
 	}
 
 	return alpha
 }
 
-func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) int {
+func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth, height int) int {
 	this.tm.PanicOnHardTimeout()
 	ss.ClearPV()
-	if ss.Height >= MAX_HEIGHT {
+	if height >= MAX_HEIGHT {
 		return VALUE_DRAW
 	}
 	var position = ss.Position
@@ -289,7 +292,7 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 		if position.MakeMove(move, ss.Next.Position) {
 			this.tm.IncNodes()
 			moveCount++
-			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1)
+			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1, height+1)
 			if score > alpha {
 				alpha = score
 				ss.ComposePV(move)
@@ -300,7 +303,7 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth int) i
 		}
 	}
 	if isCheck && moveCount == 0 {
-		return MatedIn(ss.Height)
+		return MatedIn(height)
 	}
 	return alpha
 }

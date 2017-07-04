@@ -156,6 +156,6 @@ func ParseMove(s string) Move {
 	if len(s) <= 4 {
 		return MakeMove(from, to, Empty, Empty)
 	}
-	var promotion = strings.Index("nbrqk", s[4:5]) + Knight
+	var promotion = strings.Index("nbrqk", strings.ToLower(s[4:5])) + Knight
 	return MakePawnMove(from, to, Empty, promotion)
 }

@@ -81,10 +81,12 @@ func RunTournament() {
 
 func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Position) int {
 	var positions = []*engine.Position{initialPosition}
-	var gameTime = 3 * 60 * 1000
+	//var gameTime, isNodeLimits = 3 * 60 * 1000, false
+	var gameTime, isNodeLimits = 100 * 1000 * 1000, true
 	var limits = engine.LimitsType{
-		WhiteTime: gameTime,
-		BlackTime: gameTime,
+		WhiteTime:    gameTime,
+		BlackTime:    gameTime,
+		IsNodeLimits: isNodeLimits,
 	}
 	for {
 		var gameResult = ComputeGameResult(positions)
@@ -104,7 +106,12 @@ func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Positio
 		}
 		var start = time.Now()
 		var searchResult = uciEngine.Search(searchParams)
-		var elapsed = int(time.Since(start) / time.Millisecond)
+		var elapsed int
+		if limits.IsNodeLimits {
+			elapsed = int(searchResult.Nodes)
+		} else {
+			elapsed = int(time.Since(start) / time.Millisecond)
+		}
 		if side {
 			limits.WhiteTime -= elapsed
 			if limits.WhiteTime < 0 {
@@ -117,8 +124,7 @@ func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Positio
 			}
 		}
 		fmt.Println(searchResult.String())
-		fmt.Printf("White: %v Black: %v\n",
-			time.Duration(limits.WhiteTime)*time.Microsecond, time.Duration(limits.BlackTime)*time.Microsecond)
+		fmt.Printf("White: %v Black: %v\n", limits.WhiteTime, limits.BlackTime)
 		var move = searchResult.MainLine[0]
 		var newPos = &engine.Position{}
 		var ok = positions[len(positions)-1].MakeMove(move, newPos)

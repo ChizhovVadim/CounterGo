@@ -6,17 +6,17 @@ import (
 )
 
 type TranspositionTable struct {
-	items []TTEntry
+	items []ttEntry
 	gates []int32
 	age   uint8
 }
 
-type TTEntry struct {
-	Key   uint64
-	Move  Move
-	Score int16
-	Depth int8
-	Data  uint8 //bits 0-1: entry type, bits 2-7: age
+type ttEntry struct {
+	key   uint64
+	move  Move
+	score int16
+	depth int8
+	data  uint8 //bits 0-1: entry type, bits 2-7: age
 }
 
 const (
@@ -26,7 +26,7 @@ const (
 
 func NewTranspositionTable(megabytes int) *TranspositionTable {
 	return &TranspositionTable{
-		items: make([]TTEntry, 1024*1024*megabytes/16),
+		items: make([]ttEntry, 1024*1024*megabytes/16),
 		gates: make([]int32, 1024),
 	}
 }
@@ -41,12 +41,12 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 	var item = &tt.items[index]
 	var gate = &tt.gates[index&(len(tt.gates)-1)]
 	if atomic.CompareAndSwapInt32(gate, 0, 1) {
-		if item.Key == key {
-			item.Data = (item.Data & 3) | (tt.age << 2)
-			score = int(item.Score)
-			move = item.Move
-			depth = int(item.Depth)
-			entryType = int(item.Data & 3)
+		if item.key == key {
+			item.data = (item.data & 3) | (tt.age << 2)
+			score = int(item.score)
+			move = item.move
+			depth = int(item.depth)
+			entryType = int(item.data & 3)
 			ok = true
 		}
 		atomic.StoreInt32(gate, 0)
@@ -60,13 +60,13 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 	var item = &tt.items[index]
 	var gate = &tt.gates[index&(len(tt.gates)-1)]
 	if atomic.CompareAndSwapInt32(gate, 0, 1) {
-		if depth >= int(item.Depth) || tt.age != (item.Data>>2) {
-			*item = TTEntry{
-				Key:   key,
-				Move:  move,
-				Score: int16(score),
-				Depth: int8(depth),
-				Data:  uint8(entryType) | (tt.age << 2),
+		if depth >= int(item.depth) || tt.age != (item.data>>2) {
+			*item = ttEntry{
+				key:   key,
+				move:  move,
+				score: int16(score),
+				depth: int8(depth),
+				data:  uint8(entryType) | (tt.age << 2),
 			}
 		}
 		atomic.StoreInt32(gate, 0)

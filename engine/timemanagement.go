@@ -85,7 +85,12 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 	} else if limits.Nodes > 0 {
 		hardNodes = limits.Nodes
 	} else if main > 0 {
-		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
+		var softLimit, hardLimit = timeControlStrategy(main, increment, limits.MovesToGo)
+		if limits.IsNodeLimits {
+			softNodes, hardNodes = softLimit, hardLimit
+		} else {
+			softTime, hardTime = softLimit, hardLimit
+		}
 	}
 
 	var timer *time.Timer

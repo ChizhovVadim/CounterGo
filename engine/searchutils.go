@@ -5,6 +5,19 @@ import (
 	"sync"
 )
 
+func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
+	var wg sync.WaitGroup
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(threadIndex int) {
+			body(threadIndex)
+			wg.Done()
+		}(i)
+	}
+	body(0)
+	wg.Wait()
+}
+
 func ParallelSearch(degreeOfParallelism int, body func(threadIndex int) bool) {
 	defer func() {
 		var r = recover()
@@ -160,7 +173,6 @@ func CreateStack(p *Position) *SearchStack {
 			items[i].Next = &items[i+1]
 		}
 		if i > 0 {
-			items[i].Height = i
 			items[i].Position = &Position{}
 			items[i].MoveList = &MoveList{}
 			items[i].QuietsSearched = make([]Move, 0, MAX_MOVES)

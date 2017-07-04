@@ -96,7 +96,6 @@ type MoveList struct {
 type SearchStack struct {
 	Previous           *SearchStack
 	Next               *SearchStack
-	Height             int
 	Position           *Position
 	MoveList           *MoveList
 	KillerMove         Move
@@ -105,22 +104,18 @@ type SearchStack struct {
 }
 
 type LimitsType struct {
-	Ponder   bool
-	Infinite bool
-
+	Ponder         bool
+	Infinite       bool
+	IsNodeLimits   bool
 	WhiteTime      int
 	BlackTime      int
 	WhiteIncrement int
 	BlackIncrement int
 	MoveTime       int
-
-	MovesToGo int
-	Depth     int
-	Nodes     int
-	Mate      int
-
-	WhiteNodesPerGame int
-	BlackNodesPerGame int
+	MovesToGo      int
+	Depth          int
+	Nodes          int
+	Mate           int
 }
 
 type SearchParams struct {

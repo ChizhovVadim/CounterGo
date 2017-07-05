@@ -1,22 +1,9 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
-	"sync"
 )
-
-func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			body(threadIndex)
-			wg.Done()
-		}(i)
-	}
-	body(0)
-	wg.Wait()
-}
 
 func MateIn(height int) int {
 	return VALUE_MATE - height
@@ -51,14 +38,14 @@ func ValueFromTT(v, height int) int {
 }
 
 func PVToUci(pv []Move) string {
-	var s string
+	var sb bytes.Buffer
 	for i, move := range pv {
 		if i > 0 {
-			s += " "
+			sb.WriteString(" ")
 		}
-		s += move.String()
+		sb.WriteString(move.String())
 	}
-	return s
+	return sb.String()
 }
 
 func ScoreToUci(v int) string {

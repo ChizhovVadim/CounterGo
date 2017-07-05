@@ -16,7 +16,7 @@ func NewEngineA() TournamentEngine {
 		Evaluate:              engine.Evaluate,
 		TimeControlStrategy:   engine.TimeControlBasic,
 		DegreeOfParallelism:   1,
-		TTable:                engine.NewTranspositionTable(4),
+		TTable:                engine.NewTranspositionTable(16),
 		UseExperimentSettings: false,
 	}
 }
@@ -27,7 +27,7 @@ func NewEngineB() TournamentEngine {
 		Evaluate:              engine.Evaluate,
 		TimeControlStrategy:   engine.TimeControlBasic,
 		DegreeOfParallelism:   1,
-		TTable:                engine.NewTranspositionTable(4),
+		TTable:                engine.NewTranspositionTable(16),
 		UseExperimentSettings: true,
 	}
 }

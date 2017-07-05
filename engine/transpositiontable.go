@@ -60,6 +60,8 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 	var item = &tt.items[index]
 	var gate = &tt.gates[index&(len(tt.gates)-1)]
 	if atomic.CompareAndSwapInt32(gate, 0, 1) {
+		//TODO make slot to solve this position?
+		//position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
 		if depth >= int(item.depth) || tt.age != (item.data>>2) {
 			*item = ttEntry{
 				key:   key,

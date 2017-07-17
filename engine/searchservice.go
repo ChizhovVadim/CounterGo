@@ -15,8 +15,7 @@ type SearchService struct {
 func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo) {
 	var p = searchParams.Positions[len(searchParams.Positions)-1]
 	this.tm = NewTimeManagement(searchParams.Limits, this.TimeControlStrategy,
-		p.WhiteMove, searchParams.CancellationToken)
-	defer this.tm.Close()
+		p.WhiteMove, searchParams.Context)
 
 	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	this.MoveOrderService.Clear()

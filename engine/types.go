@@ -1,5 +1,9 @@
 package engine
 
+import (
+	"context"
+)
+
 const (
 	WhiteKingSide = 1 << iota
 	WhiteQueenSide
@@ -119,11 +123,10 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions         []*Position
-	Limits            LimitsType
-	CancellationToken *CancellationToken
-	IsTraceEnabled    bool
-	Progress          func(si SearchInfo)
+	Positions []*Position
+	Limits    LimitsType
+	Context   context.Context
+	Progress  func(si SearchInfo)
 }
 
 type SearchInfo struct {

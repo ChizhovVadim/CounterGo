@@ -3,6 +3,7 @@ package shell
 import (
 	"CounterGo/engine"
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -22,7 +23,7 @@ type UciProtocol struct {
 	commands  map[string]commandHandler
 	engine    UciEngine
 	positions []*engine.Position
-	ct        *engine.CancellationToken
+	cancel    context.CancelFunc
 }
 
 func UciCommand(uci *UciProtocol, args []string) {
@@ -91,14 +92,15 @@ func findIndexString(slice []string, value string) int {
 
 func GoCommand(uci *UciProtocol, args []string) {
 	var limits = ParseLimits(args)
+	var ct, cancel = context.WithCancel(context.Background())
 	var searchParams = engine.SearchParams{
-		Positions:         uci.positions,
-		Limits:            limits,
-		CancellationToken: &engine.CancellationToken{},
-		Progress:          engine.SendProgressToUci,
+		Positions: uci.positions,
+		Limits:    limits,
+		Context:   ct,
+		Progress:  engine.SendProgressToUci,
 	}
 	go func() {
-		uci.ct = searchParams.CancellationToken
+		uci.cancel = cancel
 		var searchResult = uci.engine.Search(searchParams)
 		engine.SendResultToUci(searchResult)
 	}()
@@ -152,8 +154,8 @@ func PonderhitCommand(uci *UciProtocol, args []string) {
 }
 
 func StopCommand(uci *UciProtocol, args []string) {
-	if uci.ct != nil {
-		uci.ct.Cancel()
+	if uci.cancel != nil {
+		uci.cancel()
 	}
 }
 
@@ -221,10 +223,9 @@ func MoveCommand(uci *UciProtocol, args []string) {
 		MoveTime: 3000,
 	}
 	var searchParams = engine.SearchParams{
-		Positions:      uci.positions,
-		Limits:         limits,
-		IsTraceEnabled: true,
-		Progress:       engine.SendProgressToUci,
+		Positions: uci.positions,
+		Limits:    limits,
+		Progress:  engine.SendProgressToUci,
 	}
 	var searchResult = uci.engine.Search(searchParams)
 	engine.SendResultToUci(searchResult)

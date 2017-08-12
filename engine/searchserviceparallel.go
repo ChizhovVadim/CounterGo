@@ -19,13 +19,6 @@ func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
 
 func (this *SearchService) IterateSearchParallel(ss *SearchStack,
 	progress func(SearchInfo)) (result SearchInfo) {
-	defer func() {
-		var r = recover()
-		if r != nil && r != searchTimeout {
-			panic(r)
-		}
-	}()
-
 	var p = ss.Position
 	var ml = ss.MoveList
 
@@ -47,7 +40,11 @@ func (this *SearchService) IterateSearchParallel(ss *SearchStack,
 			p.MakeMove(move, child.Position)
 			this.tm.IncNodes()
 			var newDepth = NewDepth(depth, child)
-			var score = -this.AlphaBetaParallel(child, -beta, -alpha, newDepth, height+1, false)
+			//var score = -this.AlphaBetaParallel(child, -beta, -alpha, newDepth, height+1, false)
+			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false)
+			if IsCancelValue(score) {
+				return
+			}
 			alpha = score
 			result = SearchInfo{
 				Depth:    depth,
@@ -62,13 +59,6 @@ func (this *SearchService) IterateSearchParallel(ss *SearchStack,
 		}
 		var index = 1
 		ParallelDo(this.DegreeOfParallelism, func(threadIndex int) {
-			defer func() {
-				var r = recover()
-				if r != nil && r != searchTimeout {
-					panic(r)
-				}
-			}()
-
 			var child *SearchStack
 			if threadIndex == 0 {
 				child = ss.Next
@@ -91,11 +81,19 @@ func (this *SearchService) IterateSearchParallel(ss *SearchStack,
 				this.tm.IncNodes()
 				var newDepth = NewDepth(depth, child)
 
-				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT &&
-					-this.AlphaBeta(child, -(localAlpha+1), -localAlpha, newDepth, height+1, true) <= localAlpha {
-					continue
+				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT {
+					var score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, newDepth, height+1, true)
+					if IsCancelValue(score) {
+						return
+					}
+					if score <= localAlpha {
+						continue
+					}
 				}
 				var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, false)
+				if IsCancelValue(score) {
+					return
+				}
 
 				gate.Lock()
 				if score > alpha {
@@ -142,7 +140,9 @@ func (this *SearchService) AlphaBetaParallel(ss *SearchStack, alpha, beta, depth
 		return this.AlphaBeta(ss, alpha, beta, depth, height, allowPrunings)
 	}
 
-	this.tm.PanicOnHardTimeout()
+	if this.tm.IsHardTimeout() {
+		return VALUE_CANCEL
+	}
 
 	beta = min(beta, MateIn(height+1))
 	if alpha >= beta {
@@ -230,6 +230,9 @@ func (this *SearchService) AlphaBetaParallel(ss *SearchStack, alpha, beta, depth
 			}
 
 			var score = -this.AlphaBetaParallel(child, -beta, -alpha, newDepth, height+1, true)
+			if IsCancelValue(score) {
+				return score
+			}
 
 			if score > alpha {
 				alpha = score
@@ -250,13 +253,6 @@ func (this *SearchService) AlphaBetaParallel(ss *SearchStack, alpha, beta, depth
 
 	var gate sync.Mutex
 	ParallelDo(this.DegreeOfParallelism, func(threadIndex int) {
-		defer func() {
-			var r = recover()
-			if r != nil && r != searchTimeout {
-				panic(r)
-			}
-		}()
-
 		var child *SearchStack
 		if threadIndex == 0 {
 			child = ss.Next
@@ -289,17 +285,21 @@ func (this *SearchService) AlphaBetaParallel(ss *SearchStack, alpha, beta, depth
 			this.tm.IncNodes()
 			var newDepth = NewDepth(depth, child)
 
-			var score int
 			if depth >= 4 && !isCheck && !child.Position.IsCheck() &&
 				!lateEndgame && localAlpha > VALUE_MATED_IN_MAX_HEIGHT &&
 				quiets > 4 && !IsActiveMove(position, move) {
-				score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, depth-2, height+1, true)
-			} else {
-				score = localAlpha + 1
+				var score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, depth-2, height+1, true)
+				if IsCancelValue(score) {
+					return
+				}
+				if score <= localAlpha {
+					continue
+				}
 			}
 
-			if score > localAlpha {
-				score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, true)
+			var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, true)
+			if IsCancelValue(score) {
+				return
 			}
 
 			gate.Lock()
@@ -313,7 +313,9 @@ func (this *SearchService) AlphaBetaParallel(ss *SearchStack, alpha, beta, depth
 			gate.Unlock()
 		}
 	})
-	this.tm.PanicOnHardTimeout() //!
+	if this.tm.IsHardTimeout() {
+		return VALUE_CANCEL
+	}
 
 	var bestMove = ss.BestMove()
 

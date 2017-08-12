@@ -2,12 +2,9 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"time"
 )
-
-var searchTimeout = errors.New("search timeout")
 
 type TimeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
@@ -39,11 +36,12 @@ func (tm *TimeManagement) IsSoftTimeout() bool {
 		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
 }
 
-func (tm *TimeManagement) PanicOnHardTimeout() {
+func (tm *TimeManagement) IsHardTimeout() bool {
 	select {
 	case <-tm.ct.Done():
-		panic(searchTimeout)
+		return true
 	default:
+		return false
 	}
 }
 

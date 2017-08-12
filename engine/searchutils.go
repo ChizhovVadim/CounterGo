@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+func IsCancelValue(v int) bool {
+	return v == VALUE_CANCEL || v == -VALUE_CANCEL
+}
+
 func MateIn(height int) int {
 	return VALUE_MATE - height
 }

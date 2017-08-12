@@ -58,13 +58,6 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 
 func (this *SearchService) IterateSearch(ss *SearchStack,
 	progress func(SearchInfo)) (result SearchInfo) {
-	defer func() {
-		var r = recover()
-		if r != nil && r != searchTimeout {
-			panic(r)
-		}
-	}()
-
 	var child = ss.Next
 
 	const height = 0
@@ -81,11 +74,19 @@ func (this *SearchService) IterateSearch(ss *SearchStack,
 			this.tm.IncNodes()
 			var newDepth = NewDepth(depth, child)
 
-			if alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-				-this.AlphaBeta(child, -(alpha+1), -alpha, newDepth, height+1, true) <= alpha {
-				continue
+			if alpha > VALUE_MATED_IN_MAX_HEIGHT {
+				var score = -this.AlphaBeta(child, -(alpha + 1), -alpha, newDepth, height+1, true)
+				if IsCancelValue(score) {
+					return
+				}
+				if score <= alpha {
+					continue
+				}
 			}
 			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false)
+			if IsCancelValue(score) {
+				return
+			}
 
 			if score > alpha {
 				alpha = score
@@ -126,7 +127,9 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 		return this.Quiescence(ss, alpha, beta, 1, height)
 	}
 
-	this.tm.PanicOnHardTimeout()
+	if this.tm.IsHardTimeout() {
+		return VALUE_CANCEL
+	}
 
 	beta = min(beta, MateIn(height+1))
 	if alpha >= beta {
@@ -209,12 +212,18 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
 				len(ss.QuietsSearched) > 4 && !IsActiveMove(position, move) {
 				score = -this.AlphaBeta(ss.Next, -(alpha + 1), -alpha, depth-2, height+1, true)
+				if IsCancelValue(score) {
+					return score
+				}
 				if score <= alpha {
 					continue
 				}
 			}
 
 			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, height+1, true)
+			if IsCancelValue(score) {
+				return score
+			}
 
 			if score > alpha {
 				alpha = score
@@ -254,7 +263,9 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 }
 
 func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth, height int) int {
-	this.tm.PanicOnHardTimeout()
+	if this.tm.IsHardTimeout() {
+		return VALUE_CANCEL
+	}
 	ss.ClearPV()
 	if height >= MAX_HEIGHT {
 		return VALUE_DRAW
@@ -294,6 +305,9 @@ func (this *SearchService) Quiescence(ss *SearchStack, alpha, beta, depth, heigh
 			this.tm.IncNodes()
 			moveCount++
 			var score = -this.Quiescence(ss.Next, -beta, -alpha, depth-1, height+1)
+			if IsCancelValue(score) {
+				return score
+			}
 			if score > alpha {
 				alpha = score
 				ss.ComposePV(move)

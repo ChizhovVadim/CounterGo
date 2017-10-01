@@ -1,8 +1,8 @@
 #
 
 NAME = Counter
-PACKAGE = CounterGo
-VERSION = v2.0.1
+PACKAGE = github.com/ChizhovVadim/CounterGo
+VERSION = v2.0.2
 
 all:
 	GOOS=linux   GOARCH=amd64 go build -o $(NAME)-$(VERSION)-linux-64       $(PACKAGE)

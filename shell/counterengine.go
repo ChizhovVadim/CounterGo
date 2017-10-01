@@ -1,8 +1,9 @@
 package shell
 
 import (
-	"CounterGo/engine"
 	"runtime"
+
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 type UciOption struct {

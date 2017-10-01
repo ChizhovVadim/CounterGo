@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"CounterGo/engine"
 	"bufio"
 	"context"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 type UciEngine interface {
@@ -17,9 +18,23 @@ type UciEngine interface {
 	Search(searchParams engine.SearchParams) engine.SearchInfo
 }
 
+type DebugMessage struct {
+	Text string
+}
+
+type CommandLineMessage struct {
+	CommandLine string
+}
+
+type SearchProgressMessage struct {
+	SearchInfo     engine.SearchInfo
+	IsSearchResult bool
+}
+
 type commandHandler func(uci *UciProtocol, args []string)
 
 type UciProtocol struct {
+	mailbox   chan interface{}
 	commands  map[string]commandHandler
 	engine    UciEngine
 	positions []*engine.Position
@@ -97,12 +112,14 @@ func GoCommand(uci *UciProtocol, args []string) {
 		Positions: uci.positions,
 		Limits:    limits,
 		Context:   ct,
-		Progress:  engine.SendProgressToUci,
+		Progress: func(si engine.SearchInfo) {
+			uci.mailbox <- SearchProgressMessage{si, false}
+		},
 	}
 	go func() {
 		uci.cancel = cancel
 		var searchResult = uci.engine.Search(searchParams)
-		engine.SendResultToUci(searchResult)
+		uci.mailbox <- SearchProgressMessage{searchResult, true}
 	}()
 }
 
@@ -293,6 +310,7 @@ func (uci *UciProtocol) SetOption(name, value string) {
 
 func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 	var uci = &UciProtocol{}
+	uci.mailbox = make(chan interface{})
 	uci.engine = uciEngine
 	uci.commands = map[string]commandHandler{
 		// UCI commands
@@ -320,6 +338,7 @@ func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 }
 
 func (uci *UciProtocol) Run() {
+	go uci.ProcessMessages()
 	var name, version, _ = uci.engine.GetInfo()
 	fmt.Printf("%v %v\n", name, version)
 	var scanner = bufio.NewScanner(os.Stdin)
@@ -328,13 +347,30 @@ func (uci *UciProtocol) Run() {
 		if commandLine == "quit" {
 			return
 		}
-		var cmdArgs = strings.Split(commandLine, " ")
-		var commandName = cmdArgs[0]
-		var cmd, ok = uci.commands[commandName]
-		if ok {
-			cmd(uci, cmdArgs[1:])
-		} else {
-			DebugUci("Command not found.")
+		uci.mailbox <- CommandLineMessage{commandLine}
+	}
+}
+
+func (uci *UciProtocol) ProcessMessages() {
+	for o := range uci.mailbox {
+		switch msg := o.(type) {
+		case DebugMessage:
+			DebugUci(msg.Text)
+		case SearchProgressMessage:
+			if msg.IsSearchResult {
+				engine.SendResultToUci(msg.SearchInfo)
+			} else {
+				engine.SendProgressToUci(msg.SearchInfo)
+			}
+		case CommandLineMessage:
+			var cmdArgs = strings.Split(msg.CommandLine, " ")
+			var commandName = cmdArgs[0]
+			var cmd, ok = uci.commands[commandName]
+			if ok {
+				cmd(uci, cmdArgs[1:])
+			} else {
+				DebugUci("Command not found.")
+			}
 		}
 	}
 }

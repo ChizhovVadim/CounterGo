@@ -1,9 +1,10 @@
 package shell
 
 import (
-	"CounterGo/engine"
 	"fmt"
 	"time"
+
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 type TournamentEngine interface {

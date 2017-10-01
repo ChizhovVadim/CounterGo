@@ -1,7 +1,7 @@
 package main
 
 import (
-	"CounterGo/shell"
+	"github.com/ChizhovVadim/CounterGo/shell"
 )
 
 func main() {

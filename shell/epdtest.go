@@ -1,12 +1,13 @@
 package shell
 
 import (
-	"CounterGo/engine"
 	"bufio"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 type TestItem struct {

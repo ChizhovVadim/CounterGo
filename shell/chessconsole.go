@@ -1,9 +1,10 @@
 package shell
 
 import (
-	"CounterGo/engine"
 	"fmt"
 	"strconv"
+
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 const (

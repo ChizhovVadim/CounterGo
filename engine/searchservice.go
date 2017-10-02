@@ -210,7 +210,9 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 
 			if depth >= 4 && !isCheck && !ss.Next.Position.IsCheck() &&
 				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-				len(ss.QuietsSearched) > 4 && !IsActiveMove(position, move) {
+				len(ss.QuietsSearched) > 4 &&
+				!IsCaptureOrPromotion(move) &&
+				!IsPawnAdvance(move, position.WhiteMove) {
 				score = -this.AlphaBeta(ss.Next, -(alpha + 1), -alpha, depth-2, height+1, true)
 				if IsCancelValue(score) {
 					return score

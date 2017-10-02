@@ -31,11 +31,15 @@ type SearchProgressMessage struct {
 	IsSearchResult bool
 }
 
-type commandHandler func(uci *UciProtocol, args []string)
+type command struct {
+	name        string
+	handler     func(uci *UciProtocol, args []string)
+	description string
+}
 
 type UciProtocol struct {
 	mailbox   chan interface{}
-	commands  map[string]commandHandler
+	commands  map[string]command
 	engine    UciEngine
 	positions []*engine.Position
 	cancel    context.CancelFunc
@@ -270,6 +274,12 @@ func StatusCommand(uci *UciProtocol, args []string) {
 
 }
 
+func HelpCommand(uci *UciProtocol, args []string) {
+	for _, v := range uci.commands {
+		fmt.Printf("%v %v\n", v.name, v.description)
+	}
+}
+
 func (uci *UciProtocol) PrintOptions() {
 	for _, option := range uci.engine.GetOptions() {
 		switch option.Type {
@@ -312,25 +322,29 @@ func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 	var uci = &UciProtocol{}
 	uci.mailbox = make(chan interface{})
 	uci.engine = uciEngine
-	uci.commands = map[string]commandHandler{
+	var commands = []command{
 		// UCI commands
-		"uci":        UciCommand,
-		"setoption":  SetOptionCommand,
-		"isready":    IsReadyCommand,
-		"position":   PositionCommand,
-		"go":         GoCommand,
-		"ucinewgame": UciNewGameCommand,
-		"ponderhit":  PonderhitCommand,
-		"stop":       StopCommand,
-
+		command{"uci", UciCommand, ""},
+		command{"setoption", SetOptionCommand, ""},
+		command{"isready", IsReadyCommand, ""},
+		command{"position", PositionCommand, ""},
+		command{"go", GoCommand, ""},
+		command{"ucinewgame", UciNewGameCommand, ""},
+		command{"ponderhit", PonderhitCommand, ""},
+		command{"stop", StopCommand, ""},
 		// My commands
-		"benchmark": BenchmarkCommand,
-		"perft":     PerftCommand,
-		"eval":      EvalCommand,
-		"move":      MoveCommand,
-		"epd":       EpdCommand,
-		"arena":     ArenaCommand,
-		"status":    StatusCommand,
+		command{"benchmark", BenchmarkCommand, ""},
+		command{"perft", PerftCommand, ""},
+		command{"eval", EvalCommand, ""},
+		command{"move", MoveCommand, ""},
+		command{"epd", EpdCommand, ""},
+		command{"arena", ArenaCommand, ""},
+		command{"status", StatusCommand, ""},
+		command{"help", HelpCommand, ""},
+	}
+	uci.commands = make(map[string]command)
+	for _, cmd := range commands {
+		uci.commands[cmd.name] = cmd
 	}
 	var p = engine.NewPositionFromFEN(engine.InitialPositionFen)
 	uci.positions = []*engine.Position{p}
@@ -367,7 +381,7 @@ func (uci *UciProtocol) ProcessMessages() {
 			var commandName = cmdArgs[0]
 			var cmd, ok = uci.commands[commandName]
 			if ok {
-				cmd(uci, cmdArgs[1:])
+				cmd.handler(uci, cmdArgs[1:])
 			} else {
 				DebugUci("Command not found.")
 			}

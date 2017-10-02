@@ -1,5 +1,7 @@
 package engine
 
+import "sync"
+
 type SearchService struct {
 	MoveOrderService      *MoveOrderService
 	TTable                *TranspositionTable
@@ -41,11 +43,7 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 	this.MoveOrderService.NoteMoves(ss, MoveEmpty)
 	ss.MoveList.SortMoves()
 
-	if this.DegreeOfParallelism <= 1 {
-		result = this.IterateSearch(ss, searchParams.Progress)
-	} else {
-		result = this.IterateSearchParallel(ss, searchParams.Progress)
-	}
+	result = this.IterateSearch(ss, searchParams.Progress)
 
 	if len(result.MainLine) == 0 {
 		result.MainLine = []Move{ss.MoveList.Items[0].Move}
@@ -58,58 +56,106 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 
 func (this *SearchService) IterateSearch(ss *SearchStack,
 	progress func(SearchInfo)) (result SearchInfo) {
-	var child = ss.Next
+	var p = ss.Position
+	var ml = ss.MoveList
+
+	this.stacks = make([]*SearchStack, this.DegreeOfParallelism)
+	for i := 1; i < len(this.stacks); i++ {
+		this.stacks[i] = CreateStack()
+	}
 
 	const height = 0
 	const beta = VALUE_INFINITE
-	var p = ss.Position
-	var ml = ss.MoveList
+	var gate sync.Mutex
 	for depth := 2; depth <= MAX_HEIGHT; depth++ {
 		var prevScore = result.Score
 		var alpha = -VALUE_INFINITE
 		var bestMoveIndex = 0
-		for i := 0; i < ml.Count; i++ {
-			var move = ml.Items[i].Move
+		{
+			var child = ss.Next
+			var move = ml.Items[0].Move
 			p.MakeMove(move, child.Position)
 			this.tm.IncNodes()
 			var newDepth = NewDepth(depth, child)
-
-			if alpha > VALUE_MATED_IN_MAX_HEIGHT {
-				var score = -this.AlphaBeta(child, -(alpha + 1), -alpha, newDepth, height+1, true)
-				if IsCancelValue(score) {
-					return
-				}
-				if score <= alpha {
-					continue
-				}
-			}
 			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false)
 			if IsCancelValue(score) {
 				return
 			}
-
-			if score > alpha {
-				alpha = score
-				result = SearchInfo{
-					Depth:    depth,
-					Score:    score,
-					MainLine: append([]Move{move}, child.PrincipalVariation...),
-					Time:     this.tm.ElapsedMilliseconds(),
-					Nodes:    this.tm.Nodes(),
-				}
-				if progress != nil {
-					progress(result)
-				}
-				bestMoveIndex = i
+			alpha = score
+			result = SearchInfo{
+				Depth:    depth,
+				Score:    score,
+				MainLine: append([]Move{move}, child.PrincipalVariation...),
+				Time:     this.tm.ElapsedMilliseconds(),
+				Nodes:    this.tm.Nodes(),
+			}
+			if progress != nil {
+				progress(result)
 			}
 		}
+		var index = 1
+		ParallelDo(this.DegreeOfParallelism, func(threadIndex int) {
+			var child *SearchStack
+			if threadIndex == 0 {
+				child = ss.Next
+			} else {
+				child = this.stacks[threadIndex]
+				child.Previous = ss
+			}
+			for {
+				gate.Lock()
+				var localAlpha = alpha
+				var localIndex = index
+				index++
+				gate.Unlock()
+
+				if localIndex >= ml.Count {
+					return
+				}
+				var move = ml.Items[localIndex].Move
+				p.MakeMove(move, child.Position)
+				this.tm.IncNodes()
+				var newDepth = NewDepth(depth, child)
+
+				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT {
+					var score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, newDepth, height+1, true)
+					if IsCancelValue(score) {
+						return
+					}
+					if score <= localAlpha {
+						continue
+					}
+				}
+				var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, false)
+				if IsCancelValue(score) {
+					return
+				}
+
+				gate.Lock()
+				if score > alpha {
+					alpha = score
+					result = SearchInfo{
+						Depth:    depth,
+						Score:    score,
+						MainLine: append([]Move{move}, child.PrincipalVariation...),
+						Time:     this.tm.ElapsedMilliseconds(),
+						Nodes:    this.tm.Nodes(),
+					}
+					if progress != nil {
+						progress(result)
+					}
+					bestMoveIndex = localIndex
+				}
+				gate.Unlock()
+			}
+		})
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
 		if AbsDelta(prevScore, alpha) <= PawnValue/2 && this.tm.IsSoftTimeout() {
 			break
 		}
-		ml.MoveToBegin(bestMoveIndex)
+		ss.MoveList.MoveToBegin(bestMoveIndex)
 	}
 	return
 }

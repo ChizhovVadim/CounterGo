@@ -1,5 +1,7 @@
 package engine
 
+import "math/bits"
+
 const (
 	FileAMask uint64 = 0x0101010101010101 << iota
 	FileBMask
@@ -69,16 +71,18 @@ var lowerRanks = [8]uint64{
 }
 
 func PopCount(b uint64) int {
-	b -= (b >> 1) & 0x5555555555555555
+	return bits.OnesCount64(b)
+	/*b -= (b >> 1) & 0x5555555555555555
 	b = ((b >> 2) & 0x3333333333333333) + (b & 0x3333333333333333)
 	b = ((b >> 4) + b) & 0x0F0F0F0F0F0F0F0F
-	return int((b * 0x0101010101010101) >> 56)
+	return int((b * 0x0101010101010101) >> 56)*/
 }
 
 func popcount_1s_Max15(b uint64) int {
-	b -= (b >> 1) & 0x5555555555555555
+	return bits.OnesCount64(b)
+	/*b -= (b >> 1) & 0x5555555555555555
 	b = ((b >> 2) & 0x3333333333333333) + (b & 0x3333333333333333)
-	return int((b * 0x1111111111111111) >> 60)
+	return int((b * 0x1111111111111111) >> 60)*/
 }
 
 func FirstOne(b uint64) int {

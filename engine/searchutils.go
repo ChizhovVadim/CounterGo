@@ -3,7 +3,21 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"sync"
 )
+
+func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
+	var wg sync.WaitGroup
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(threadIndex int) {
+			body(threadIndex)
+			wg.Done()
+		}(i)
+	}
+	body(0)
+	wg.Wait()
+}
 
 func IsCancelValue(v int) bool {
 	return v == VALUE_CANCEL || v == -VALUE_CANCEL

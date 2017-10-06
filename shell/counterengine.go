@@ -68,7 +68,7 @@ func (eng *CounterEngine) Reset() {
 }
 
 func (*CounterEngine) GetInfo() (name, version, author string) {
-	return "Counter", "2.0.2", "Vadim Chizhov"
+	return "Counter", "2.0.3", "Vadim Chizhov"
 }
 
 func (eng *CounterEngine) GetOptions() []*UciOption {

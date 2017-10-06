@@ -21,9 +21,6 @@ func (this *SearchService) Search(searchParams SearchParams) (result SearchInfo)
 
 	this.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	this.MoveOrderService.Clear()
-	if this.TTable != nil {
-		this.TTable.PrepareNewSearch()
-	}
 
 	var ss = CreateStack()
 	ss.Position = p
@@ -77,7 +74,7 @@ func (this *SearchService) IterateSearch(ss *SearchStack,
 			p.MakeMove(move, child.Position)
 			this.tm.IncNodes()
 			var newDepth = NewDepth(depth, child)
-			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false)
+			var score = -this.AlphaBeta(child, -beta, -alpha, newDepth, height+1, false, 0)
 			if IsCancelValue(score) {
 				return
 			}
@@ -118,7 +115,7 @@ func (this *SearchService) IterateSearch(ss *SearchStack,
 				var newDepth = NewDepth(depth, child)
 
 				if localAlpha > VALUE_MATED_IN_MAX_HEIGHT {
-					var score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, newDepth, height+1, true)
+					var score = -this.AlphaBeta(child, -(localAlpha + 1), -localAlpha, newDepth, height+1, true, 0)
 					if IsCancelValue(score) {
 						return
 					}
@@ -126,7 +123,7 @@ func (this *SearchService) IterateSearch(ss *SearchStack,
 						continue
 					}
 				}
-				var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, false)
+				var score = -this.AlphaBeta(child, -beta, -localAlpha, newDepth, height+1, false, 0)
 				if IsCancelValue(score) {
 					return
 				}
@@ -161,7 +158,7 @@ func (this *SearchService) IterateSearch(ss *SearchStack,
 }
 
 func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height int,
-	allowPrunings bool) int {
+	allowPrunings bool, lmrReduction int) int {
 	var newDepth, score int
 	ss.ClearPV()
 
@@ -219,19 +216,38 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
 		newDepth = depth - 4
 		position.MakeNullMove(ss.Next.Position)
+		this.tm.IncNodes()
 		if newDepth <= 0 {
 			score = -this.Quiescence(ss.Next, -beta, -(beta - 1), 1, height+1)
 		} else {
-			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth, height+1, false)
+			score = -this.AlphaBeta(ss.Next, -beta, -(beta - 1), newDepth, height+1, false, 0)
+		}
+		if IsCancelValue(score) {
+			return score
 		}
 		if score >= beta {
 			return beta
 		}
 	}
 
+	if lmrReduction > 0 {
+		var rbeta = min(VALUE_INFINITE, beta+10)
+		score = this.AlphaBeta(ss, rbeta-1, rbeta, depth-lmrReduction, height, false, 0)
+		if IsCancelValue(score) {
+			return score
+		}
+		if score >= rbeta {
+			return beta
+		}
+		ss.ClearPV()
+	}
+
 	if depth >= 4 && hashMove == MoveEmpty {
 		newDepth = depth - 2
-		this.AlphaBeta(ss, alpha, beta, newDepth, height, false)
+		score = this.AlphaBeta(ss, alpha, beta, newDepth, height, false, 0)
+		if IsCancelValue(score) {
+			return score
+		}
 		hashMove = ss.BestMove()
 		ss.ClearPV() //!
 	}
@@ -254,21 +270,16 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 				ss.QuietsSearched = append(ss.QuietsSearched, move)
 			}
 
-			if depth >= 4 && !isCheck && !ss.Next.Position.IsCheck() &&
+			var lmrReduction = 0
+			if depth >= 3 && !isCheck && !ss.Next.Position.IsCheck() &&
 				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-				len(ss.QuietsSearched) > 4 &&
+				moveCount > 1 && move != ss.KillerMove &&
 				!IsCaptureOrPromotion(move) &&
 				!IsPawnAdvance(move, position.WhiteMove) {
-				score = -this.AlphaBeta(ss.Next, -(alpha + 1), -alpha, depth-2, height+1, true)
-				if IsCancelValue(score) {
-					return score
-				}
-				if score <= alpha {
-					continue
-				}
+				lmrReduction = 1
 			}
 
-			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, height+1, true)
+			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, height+1, true, lmrReduction)
 			if IsCancelValue(score) {
 				return score
 			}

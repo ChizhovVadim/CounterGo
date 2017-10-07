@@ -1,6 +1,9 @@
 package engine
 
-import "sync"
+import (
+	"math"
+	"sync"
+)
 
 type SearchService struct {
 	MoveOrderService      *MoveOrderService
@@ -276,7 +279,8 @@ func (this *SearchService) AlphaBeta(ss *SearchStack, alpha, beta, depth, height
 				moveCount > 1 && move != ss.KillerMove &&
 				!IsCaptureOrPromotion(move) &&
 				!IsPawnAdvance(move, position.WhiteMove) {
-				lmrReduction = 1
+				//lmrReduction = 1
+				lmrReduction = lateMoveReductions[min(31, depth)][min(63, moveCount)]
 			}
 
 			score = -this.AlphaBeta(ss.Next, -beta, -alpha, newDepth, height+1, true, lmrReduction)
@@ -405,4 +409,27 @@ func NewDepth(depth int, child *SearchStack) int {
 	}
 
 	return depth - 1
+}
+
+var lateMoveReductions [32][64]int
+
+func init() {
+	// Late move reductions from Crafty
+	const (
+		LMR_rdepth = 1   /* leave 1 full ply after reductions    */
+		LMR_min    = 1   /* minimum reduction 1 ply              */
+		LMR_max    = 15  /* maximum reduction 15 plies           */
+		LMR_db     = 1.8 /* depth is 1.8x as important as        */
+		LMR_mb     = 1.0 /* moves searched in the formula.       */
+		LMR_s      = 2.0 /* smaller numbers increase reductions. */
+	)
+
+	for d := 3; d < 32; d++ {
+		for m := 1; m < 64; m++ {
+			var reduction = int(math.Log(float64(d)*LMR_db) * math.Log(float64(m)*LMR_mb) / LMR_s)
+			reduction = max(min(reduction, LMR_max), LMR_min)
+			reduction = min(reduction, max(d-1-LMR_rdepth, 0))
+			lateMoveReductions[d][m] = reduction
+		}
+	}
 }

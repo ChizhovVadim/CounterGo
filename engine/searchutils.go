@@ -3,25 +3,7 @@ package engine
 import (
 	"bytes"
 	"fmt"
-	"sync"
 )
-
-func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			body(threadIndex)
-			wg.Done()
-		}(i)
-	}
-	body(0)
-	wg.Wait()
-}
-
-func IsCancelValue(v int) bool {
-	return v == VALUE_CANCEL || v == -VALUE_CANCEL
-}
 
 func MateIn(height int) int {
 	return VALUE_MATE - height
@@ -222,16 +204,29 @@ func IsCaptureOrPromotion(move Move) bool {
 		move.Promotion() != Empty
 }
 
-func IsPawnAdvance(move Move, side bool) bool {
+func IsPawnPush(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false
 	}
 	var rank = Rank(move.To())
 	if side {
-		return rank >= Rank5
+		return rank >= Rank6
 	} else {
-		return rank <= Rank4
+		return rank <= Rank3
 	}
+}
+
+func IsActiveMove(p *Position, move Move) bool {
+	if IsCaptureOrPromotion(move) {
+		return true
+	}
+	if IsPawnPush(move, p.WhiteMove) {
+		return true
+	}
+	if IsPassedPawnMove(p, move) {
+		return true
+	}
+	return false
 }
 
 func IsPawnPush7th(move Move, side bool) bool {
@@ -251,6 +246,27 @@ func HasPawnOn7th(p *Position, side bool) bool {
 		return (p.Pawns & p.White & Rank7Mask) != 0
 	}
 	return (p.Pawns & p.Black & Rank2Mask) != 0
+}
+
+func IsPassedPawnMove(p *Position, move Move) bool {
+	if move.MovingPiece() != Pawn {
+		return false
+	}
+
+	var file = File(move.To())
+	var rank = Rank(move.To())
+
+	if p.WhiteMove {
+		if (thisAndNeighboringFiles[file] & upperRanks[rank] & p.Pawns & p.Black) == 0 {
+			return true
+		}
+	} else {
+		if (thisAndNeighboringFiles[file] & lowerRanks[rank] & p.Pawns & p.White) == 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {

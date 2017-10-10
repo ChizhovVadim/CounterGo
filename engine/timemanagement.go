@@ -1,10 +1,24 @@
 package engine
 
 import (
-	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 )
+
+type CancellationToken struct {
+	active bool
+}
+
+func (ct *CancellationToken) Cancel() {
+	ct.active = true
+}
+
+func (ct *CancellationToken) IsCancellationRequested() bool {
+	return ct.active
+}
+
+var searchTimeout = errors.New("search timeout")
 
 type TimeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
@@ -12,8 +26,8 @@ type TimeManagement struct {
 	start                       time.Time
 	softTime                    time.Duration
 	nodes, softNodes, hardNodes int64
-	cancel                      context.CancelFunc
-	ct                          context.Context
+	ct                          *CancellationToken
+	timer                       *time.Timer
 }
 
 func (tm *TimeManagement) Nodes() int64 {
@@ -22,13 +36,17 @@ func (tm *TimeManagement) Nodes() int64 {
 
 func (tm *TimeManagement) IncNodes() {
 	atomic.AddInt64(&tm.nodes, 1)
-	if tm.hardNodes > 0 && tm.nodes >= tm.hardNodes {
-		tm.cancel()
-	}
 }
 
 func (tm *TimeManagement) ElapsedMilliseconds() int64 {
 	return int64(time.Since(tm.start) / time.Millisecond)
+}
+
+func (tm *TimeManagement) PanicOnHardTimeout() {
+	if tm.ct.IsCancellationRequested() ||
+		(tm.hardNodes > 0 && tm.nodes >= tm.hardNodes) {
+		panic(searchTimeout)
+	}
 }
 
 func (tm *TimeManagement) IsSoftTimeout() bool {
@@ -36,17 +54,14 @@ func (tm *TimeManagement) IsSoftTimeout() bool {
 		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
 }
 
-func (tm *TimeManagement) IsHardTimeout() bool {
-	select {
-	case <-tm.ct.Done():
-		return true
-	default:
-		return false
+func (tm *TimeManagement) Close() {
+	if t := tm.timer; t != nil {
+		t.Stop()
 	}
 }
 
 func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrategy,
-	side bool, ct context.Context) *TimeManagement {
+	side bool, ct *CancellationToken) *TimeManagement {
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
@@ -54,7 +69,7 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 	}
 
 	if ct == nil {
-		ct = context.Background()
+		ct = &CancellationToken{}
 	}
 
 	var main, increment int
@@ -78,20 +93,19 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 		}
 	}
 
-	var cancel context.CancelFunc
+	var timer *time.Timer
 	if hardTime > 0 {
-		ct, cancel = context.WithTimeout(ct, time.Duration(hardTime)*time.Millisecond)
-	} else if hardNodes > 0 {
-		ct, cancel = context.WithCancel(ct)
+		timer = time.AfterFunc(time.Duration(hardTime)*time.Millisecond, func() {
+			ct.Cancel()
+		})
 	}
-
 	return &TimeManagement{
 		start:     start,
+		timer:     timer,
+		ct:        ct,
 		hardNodes: int64(hardNodes),
 		softNodes: int64(softNodes),
 		softTime:  time.Duration(softTime) * time.Millisecond,
-		cancel:    cancel,
-		ct:        ct,
 	}
 }
 

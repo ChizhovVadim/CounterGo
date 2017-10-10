@@ -1,9 +1,5 @@
 package engine
 
-import (
-	"context"
-)
-
 const (
 	WhiteKingSide = 1 << iota
 	WhiteQueenSide
@@ -37,7 +33,6 @@ const (
 	VALUE_DRAW                = 0
 	VALUE_MATE                = 30000
 	VALUE_INFINITE            = 30001
-	VALUE_CANCEL              = 30002
 	VALUE_MATE_IN_MAX_HEIGHT  = VALUE_MATE - MAX_HEIGHT
 	VALUE_MATED_IN_MAX_HEIGHT = -VALUE_MATE + MAX_HEIGHT
 )
@@ -124,10 +119,11 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions []*Position
-	Limits    LimitsType
-	Context   context.Context
-	Progress  func(si SearchInfo)
+	Positions         []*Position
+	Limits            LimitsType
+	CancellationToken *CancellationToken
+	IsTraceEnabled    bool
+	Progress          func(si SearchInfo)
 }
 
 type SearchInfo struct {

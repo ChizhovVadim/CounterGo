@@ -352,6 +352,7 @@ func GetIsolatedPawns(pawns uint64) uint64 {
 }
 
 func GetWhitePassedPawns(p *Position) uint64 {
+	//TODO only frontmost passed pawns if doubled
 	var allFrontSpans = DownFill(Down(p.Black & p.Pawns))
 	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
 	return p.White & p.Pawns &^ allFrontSpans

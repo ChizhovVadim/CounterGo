@@ -2,7 +2,6 @@ package shell
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -18,31 +17,13 @@ type UciEngine interface {
 	Search(searchParams engine.SearchParams) engine.SearchInfo
 }
 
-type DebugMessage struct {
-	Text string
-}
-
-type CommandLineMessage struct {
-	CommandLine string
-}
-
-type SearchProgressMessage struct {
-	SearchInfo     engine.SearchInfo
-	IsSearchResult bool
-}
-
-type command struct {
-	name        string
-	handler     func(uci *UciProtocol, args []string)
-	description string
-}
+type commandHandler func(uci *UciProtocol, args []string)
 
 type UciProtocol struct {
-	mailbox   chan interface{}
-	commands  map[string]command
+	commands  map[string]commandHandler
 	engine    UciEngine
 	positions []*engine.Position
-	cancel    context.CancelFunc
+	ct        *engine.CancellationToken
 }
 
 func UciCommand(uci *UciProtocol, args []string) {
@@ -111,19 +92,16 @@ func findIndexString(slice []string, value string) int {
 
 func GoCommand(uci *UciProtocol, args []string) {
 	var limits = ParseLimits(args)
-	var ct, cancel = context.WithCancel(context.Background())
 	var searchParams = engine.SearchParams{
-		Positions: uci.positions,
-		Limits:    limits,
-		Context:   ct,
-		Progress: func(si engine.SearchInfo) {
-			uci.mailbox <- SearchProgressMessage{si, false}
-		},
+		Positions:         uci.positions,
+		Limits:            limits,
+		CancellationToken: &engine.CancellationToken{},
+		Progress:          engine.SendProgressToUci,
 	}
 	go func() {
-		uci.cancel = cancel
+		uci.ct = searchParams.CancellationToken
 		var searchResult = uci.engine.Search(searchParams)
-		uci.mailbox <- SearchProgressMessage{searchResult, true}
+		engine.SendResultToUci(searchResult)
 	}()
 }
 
@@ -175,8 +153,8 @@ func PonderhitCommand(uci *UciProtocol, args []string) {
 }
 
 func StopCommand(uci *UciProtocol, args []string) {
-	if uci.cancel != nil {
-		uci.cancel()
+	if uci.ct != nil {
+		uci.ct.Cancel()
 	}
 }
 
@@ -244,9 +222,10 @@ func MoveCommand(uci *UciProtocol, args []string) {
 		MoveTime: 3000,
 	}
 	var searchParams = engine.SearchParams{
-		Positions: uci.positions,
-		Limits:    limits,
-		Progress:  engine.SendProgressToUci,
+		Positions:      uci.positions,
+		Limits:         limits,
+		IsTraceEnabled: true,
+		Progress:       engine.SendProgressToUci,
 	}
 	var searchResult = uci.engine.Search(searchParams)
 	engine.SendResultToUci(searchResult)
@@ -272,12 +251,6 @@ func ArenaCommand(uci *UciProtocol, args []string) {
 
 func StatusCommand(uci *UciProtocol, args []string) {
 
-}
-
-func HelpCommand(uci *UciProtocol, args []string) {
-	for _, v := range uci.commands {
-		fmt.Printf("%v %v\n", v.name, v.description)
-	}
 }
 
 func (uci *UciProtocol) PrintOptions() {
@@ -320,31 +293,26 @@ func (uci *UciProtocol) SetOption(name, value string) {
 
 func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 	var uci = &UciProtocol{}
-	uci.mailbox = make(chan interface{})
 	uci.engine = uciEngine
-	var commands = []command{
+	uci.commands = map[string]commandHandler{
 		// UCI commands
-		command{"uci", UciCommand, ""},
-		command{"setoption", SetOptionCommand, ""},
-		command{"isready", IsReadyCommand, ""},
-		command{"position", PositionCommand, ""},
-		command{"go", GoCommand, ""},
-		command{"ucinewgame", UciNewGameCommand, ""},
-		command{"ponderhit", PonderhitCommand, ""},
-		command{"stop", StopCommand, ""},
+		"uci":        UciCommand,
+		"setoption":  SetOptionCommand,
+		"isready":    IsReadyCommand,
+		"position":   PositionCommand,
+		"go":         GoCommand,
+		"ucinewgame": UciNewGameCommand,
+		"ponderhit":  PonderhitCommand,
+		"stop":       StopCommand,
+
 		// My commands
-		command{"benchmark", BenchmarkCommand, ""},
-		command{"perft", PerftCommand, ""},
-		command{"eval", EvalCommand, ""},
-		command{"move", MoveCommand, ""},
-		command{"epd", EpdCommand, ""},
-		command{"arena", ArenaCommand, ""},
-		command{"status", StatusCommand, ""},
-		command{"help", HelpCommand, ""},
-	}
-	uci.commands = make(map[string]command)
-	for _, cmd := range commands {
-		uci.commands[cmd.name] = cmd
+		"benchmark": BenchmarkCommand,
+		"perft":     PerftCommand,
+		"eval":      EvalCommand,
+		"move":      MoveCommand,
+		"epd":       EpdCommand,
+		"arena":     ArenaCommand,
+		"status":    StatusCommand,
 	}
 	var p = engine.NewPositionFromFEN(engine.InitialPositionFen)
 	uci.positions = []*engine.Position{p}
@@ -352,7 +320,6 @@ func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 }
 
 func (uci *UciProtocol) Run() {
-	go uci.ProcessMessages()
 	var name, version, _ = uci.engine.GetInfo()
 	fmt.Printf("%v %v\n", name, version)
 	var scanner = bufio.NewScanner(os.Stdin)
@@ -361,30 +328,13 @@ func (uci *UciProtocol) Run() {
 		if commandLine == "quit" {
 			return
 		}
-		uci.mailbox <- CommandLineMessage{commandLine}
-	}
-}
-
-func (uci *UciProtocol) ProcessMessages() {
-	for o := range uci.mailbox {
-		switch msg := o.(type) {
-		case DebugMessage:
-			DebugUci(msg.Text)
-		case SearchProgressMessage:
-			if msg.IsSearchResult {
-				engine.SendResultToUci(msg.SearchInfo)
-			} else {
-				engine.SendProgressToUci(msg.SearchInfo)
-			}
-		case CommandLineMessage:
-			var cmdArgs = strings.Split(msg.CommandLine, " ")
-			var commandName = cmdArgs[0]
-			var cmd, ok = uci.commands[commandName]
-			if ok {
-				cmd.handler(uci, cmdArgs[1:])
-			} else {
-				DebugUci("Command not found.")
-			}
+		var cmdArgs = strings.Split(commandLine, " ")
+		var commandName = cmdArgs[0]
+		var cmd, ok = uci.commands[commandName]
+		if ok {
+			cmd(uci, cmdArgs[1:])
+		} else {
+			DebugUci("Command not found.")
 		}
 	}
 }

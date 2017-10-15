@@ -13,7 +13,7 @@ type TournamentEngine interface {
 
 func NewEngineA() TournamentEngine {
 	return &engine.SearchService{
-		MoveOrderService:      engine.NewMoveOrderService(),
+		HistoryTable:          engine.NewHistoryTable(),
 		Evaluate:              engine.Evaluate,
 		TimeControlStrategy:   engine.TimeControlBasic,
 		DegreeOfParallelism:   1,
@@ -24,7 +24,7 @@ func NewEngineA() TournamentEngine {
 
 func NewEngineB() TournamentEngine {
 	return &engine.SearchService{
-		MoveOrderService:      engine.NewMoveOrderService(),
+		HistoryTable:          engine.NewHistoryTable(),
 		Evaluate:              engine.Evaluate,
 		TimeControlStrategy:   engine.TimeControlBasic,
 		DegreeOfParallelism:   1,

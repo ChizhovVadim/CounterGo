@@ -94,10 +94,12 @@ type MoveList struct {
 }
 
 type SearchStack struct {
-	Previous           *SearchStack
-	Next               *SearchStack
+	searchService      *SearchService
+	thread             int
+	height             int
 	Position           *Position
 	MoveList           *MoveList
+	head               int
 	KillerMove         Move
 	PrincipalVariation []Move
 	QuietsSearched     []Move

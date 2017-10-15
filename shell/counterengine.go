@@ -78,7 +78,7 @@ func (eng *CounterEngine) GetOptions() []*UciOption {
 func (eng *CounterEngine) Search(searchParams engine.SearchParams) engine.SearchInfo {
 	if eng.searchFunc == nil {
 		var searchService = &engine.SearchService{
-			MoveOrderService:      engine.NewMoveOrderService(),
+			HistoryTable:          engine.NewHistoryTable(),
 			Evaluate:              engine.Evaluate,
 			DegreeOfParallelism:   eng.Threads,
 			UseExperimentSettings: eng.ExperimentSettings,

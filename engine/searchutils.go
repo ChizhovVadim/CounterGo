@@ -95,51 +95,16 @@ func SendResultToUci(si SearchInfo) {
 	}
 }
 
-func PositionsToHistoryKeys(positions []*Position) []uint64 {
-	var result []uint64
-	for _, p := range positions {
-		if p.Rule50 == 0 {
-			result = result[:0]
-		}
-		result = append(result, p.Key)
-	}
-	return result
+func (ctx *searchContext) Next() *searchContext {
+	return &ctx.Engine.tree[ctx.Thread][ctx.Height+1]
 }
 
-func NewTree(searchService *SearchService, degreeOfParallelism int) [][]SearchStack {
-	var result = make([][]SearchStack, degreeOfParallelism)
-	for i := 0; i < len(result); i++ {
-		result[i] = NewStacks(searchService, i)
-	}
-	return result
+func (ctx *searchContext) NextOnThread(thread int) *searchContext {
+	return &ctx.Engine.tree[thread][ctx.Height+1]
 }
 
-func NewStacks(searchService *SearchService, thread int) []SearchStack {
-	var result = make([]SearchStack, MAX_HEIGHT+1)
-	for i := 0; i < len(result); i++ {
-		result[i] = NewStack(searchService, thread, i)
-	}
-	return result
-}
-
-func NewStack(searchService *SearchService, thread, height int) SearchStack {
-	return SearchStack{
-		searchService:      searchService,
-		thread:             thread,
-		height:             height,
-		Position:           &Position{},
-		MoveList:           &MoveList{},
-		QuietsSearched:     make([]Move, 0, MAX_MOVES),
-		PrincipalVariation: make([]Move, 0, MAX_HEIGHT),
-	}
-}
-
-func (ss *SearchStack) Next() *SearchStack {
-	return &ss.searchService.tree[ss.thread][ss.height+1]
-}
-
-func (ss *SearchStack) IsDraw() bool {
-	var p = ss.Position
+func (ctx *searchContext) IsDraw() bool {
+	var p = ctx.Position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
 		!MoreThanOne(p.Knights|p.Bishops) {
@@ -150,8 +115,8 @@ func (ss *SearchStack) IsDraw() bool {
 		return true
 	}
 
-	var stacks = ss.searchService.tree[ss.thread]
-	for i := ss.height - 1; i >= 0; i-- {
+	var stacks = ctx.Engine.tree[ctx.Thread]
+	for i := ctx.Height - 1; i >= 0; i-- {
 		var temp = stacks[i].Position
 		if temp.Key == p.Key {
 			return true
@@ -161,7 +126,7 @@ func (ss *SearchStack) IsDraw() bool {
 		}
 	}
 
-	for _, key := range ss.searchService.historyKeys {
+	for _, key := range ctx.Engine.historyKeys {
 		if key == p.Key {
 			return true
 		}
@@ -170,19 +135,19 @@ func (ss *SearchStack) IsDraw() bool {
 	return false
 }
 
-func (ss *SearchStack) ClearPV() {
-	ss.PrincipalVariation = ss.PrincipalVariation[:0]
+func (ctx *searchContext) ClearPV() {
+	ctx.PrincipalVariation = ctx.PrincipalVariation[:0]
 }
 
-func (ss *SearchStack) BestMove() Move {
-	if len(ss.PrincipalVariation) == 0 {
+func (ctx *searchContext) BestMove() Move {
+	if len(ctx.PrincipalVariation) == 0 {
 		return MoveEmpty
 	}
-	return ss.PrincipalVariation[0]
+	return ctx.PrincipalVariation[0]
 }
 
-func (ss *SearchStack) ComposePV(move Move, child *SearchStack) {
-	ss.PrincipalVariation = append(append(ss.PrincipalVariation[:0], move), child.PrincipalVariation...)
+func (ctx *searchContext) ComposePV(move Move, child *searchContext) {
+	ctx.PrincipalVariation = append(append(ctx.PrincipalVariation[:0], move), child.PrincipalVariation...)
 }
 
 func IsLateEndgame(p *Position, side bool) bool {

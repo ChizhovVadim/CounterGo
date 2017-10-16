@@ -35,18 +35,15 @@ func (tm *TimeManagement) Nodes() int64 {
 }
 
 func (tm *TimeManagement) IncNodes() {
-	atomic.AddInt64(&tm.nodes, 1)
+	var nodes = atomic.AddInt64(&tm.nodes, 1)
+	if tm.ct.IsCancellationRequested() ||
+		(tm.hardNodes > 0 && nodes >= tm.hardNodes) {
+		panic(searchTimeout)
+	}
 }
 
 func (tm *TimeManagement) ElapsedMilliseconds() int64 {
 	return int64(time.Since(tm.start) / time.Millisecond)
-}
-
-func (tm *TimeManagement) PanicOnHardTimeout() {
-	if tm.ct.IsCancellationRequested() ||
-		(tm.hardNodes > 0 && tm.nodes >= tm.hardNodes) {
-		panic(searchTimeout)
-	}
 }
 
 func (tm *TimeManagement) IsSoftTimeout() bool {

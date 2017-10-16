@@ -6,9 +6,10 @@ import (
 )
 
 type TranspositionTable struct {
-	items []ttEntry
-	gates []int32
-	age   uint8
+	megabytes int
+	items     []ttEntry
+	gates     []int32
+	age       uint8
 }
 
 type ttEntry struct {
@@ -26,8 +27,9 @@ const (
 
 func NewTranspositionTable(megabytes int) *TranspositionTable {
 	return &TranspositionTable{
-		items: make([]ttEntry, 1024*1024*megabytes/16),
-		gates: make([]int32, 1024),
+		megabytes: megabytes,
+		items:     make([]ttEntry, 1024*1024*megabytes/16),
+		gates:     make([]int32, 1024),
 	}
 }
 

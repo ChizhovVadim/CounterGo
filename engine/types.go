@@ -93,14 +93,14 @@ type MoveList struct {
 	Count int
 }
 
-type SearchStack struct {
-	searchService      *SearchService
-	thread             int
-	height             int
+type searchContext struct {
+	Engine             *Engine
+	Thread             int
+	Height             int
 	Position           *Position
 	MoveList           *MoveList
-	head               int
-	KillerMove         Move
+	Head               int
+	Killer             Move
 	PrincipalVariation []Move
 	QuietsSearched     []Move
 }

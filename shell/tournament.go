@@ -7,30 +7,22 @@ import (
 	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
-type TournamentEngine interface {
-	Search(searchParams engine.SearchParams) engine.SearchInfo
+func NewEngineA() UciEngine {
+	var result = engine.NewEngine()
+	result.Hash.Value = 16
+	result.ExperimentSettings.Value = false
+	result.Threads.Value = 1
+	result.Prepare()
+	return result
 }
 
-func NewEngineA() TournamentEngine {
-	return &engine.SearchService{
-		HistoryTable:          engine.NewHistoryTable(),
-		Evaluate:              engine.Evaluate,
-		TimeControlStrategy:   engine.TimeControlBasic,
-		DegreeOfParallelism:   1,
-		TTable:                engine.NewTranspositionTable(16),
-		UseExperimentSettings: false,
-	}
-}
-
-func NewEngineB() TournamentEngine {
-	return &engine.SearchService{
-		HistoryTable:          engine.NewHistoryTable(),
-		Evaluate:              engine.Evaluate,
-		TimeControlStrategy:   engine.TimeControlBasic,
-		DegreeOfParallelism:   1,
-		TTable:                engine.NewTranspositionTable(16),
-		UseExperimentSettings: true,
-	}
+func NewEngineB() UciEngine {
+	var result = engine.NewEngine()
+	result.Hash.Value = 16
+	result.ExperimentSettings.Value = true
+	result.Threads.Value = 1
+	result.Prepare()
+	return result
 }
 
 const (
@@ -80,7 +72,7 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Position) int {
+func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
 	var positions = []*engine.Position{initialPosition}
 	//var gameTime, isNodeLimits = 3 * 60 * 1000, false
 	var gameTime, isNodeLimits = 100 * 1000 * 1000, true
@@ -99,7 +91,7 @@ func PlayGame(engine1, engine2 TournamentEngine, initialPosition *engine.Positio
 			Limits:    limits,
 		}
 		var side = positions[len(positions)-1].WhiteMove
-		var uciEngine TournamentEngine
+		var uciEngine UciEngine
 		if side {
 			uciEngine = engine1
 		} else {

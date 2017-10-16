@@ -13,7 +13,8 @@ import (
 
 type UciEngine interface {
 	GetInfo() (name, version, author string)
-	GetOptions() []*UciOption
+	GetOptions() []engine.UciOption
+	Prepare()
 	Search(searchParams engine.SearchParams) engine.SearchInfo
 }
 
@@ -41,6 +42,7 @@ func SetOptionCommand(uci *UciProtocol, args []string) {
 }
 
 func IsReadyCommand(uci *UciProtocol, args []string) {
+	uci.engine.Prepare()
 	fmt.Println("readyok")
 }
 
@@ -255,35 +257,29 @@ func StatusCommand(uci *UciProtocol, args []string) {
 
 func (uci *UciProtocol) PrintOptions() {
 	for _, option := range uci.engine.GetOptions() {
-		switch option.Type {
-		case "check":
+		switch o := option.(type) {
+		case *engine.BoolUciOption:
 			fmt.Printf("option name %v type %v default %v\n",
-				option.Name, option.Type, option.BoolDefault)
-		case "spin":
+				o.Name(), "check", o.Value)
+		case *engine.IntUciOption:
 			fmt.Printf("option name %v type %v default %v min %v max %v\n",
-				option.Name, option.Type, option.IntDefault, option.IntMin, option.IntMax)
+				o.Name(), "spin", o.Value, o.Min, o.Max)
 		}
 	}
 }
 
 func (uci *UciProtocol) SetOption(name, value string) {
 	for _, option := range uci.engine.GetOptions() {
-		if strings.EqualFold(option.Name, name) {
-			switch option.Type {
-			case "check":
+		if strings.EqualFold(option.Name(), name) {
+			switch o := option.(type) {
+			case *engine.BoolUciOption:
 				if v, err := strconv.ParseBool(value); err == nil {
-					*option.BoolValue = v
-					if option.OnChange != nil {
-						option.OnChange()
-					}
+					o.Value = v
 				}
-			case "spin":
+			case *engine.IntUciOption:
 				if v, err := strconv.Atoi(value); err == nil &&
-					option.IntMin <= v && v <= option.IntMax {
-					*option.IntValue = v
-					if option.OnChange != nil {
-						option.OnChange()
-					}
+					o.Min <= v && v <= o.Max {
+					o.Value = v
 				}
 			}
 			return

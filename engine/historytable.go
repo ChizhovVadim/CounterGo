@@ -23,8 +23,8 @@ func (ht HistoryTable) Clear() {
 	}
 }
 
-func (ht HistoryTable) Update(ss *SearchStack, bestMove Move, depth int) {
-	ss.KillerMove = bestMove
+func (ht HistoryTable) Update(ss *searchContext, bestMove Move, depth int) {
+	ss.Killer = bestMove
 	var side = ss.Position.WhiteMove
 	atomic.AddInt32(&ht.historyEntry(side, bestMove).success, int32(depth))
 	for _, move := range ss.QuietsSearched {

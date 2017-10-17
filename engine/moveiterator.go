@@ -20,13 +20,11 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 	for i := 0; i < ctx.MoveList.Count; i++ {
 		var item = &ctx.MoveList.Items[i]
 		var m = item.Move
-		var score int
 		if IsCaptureOrPromotion(m) {
 			item.Score = 29000 + MVVLVA(m)
 		} else {
 			item.Score = mos.Score(ctx.Position.WhiteMove, m)
 		}
-		item.Score = score
 	}
 }
 

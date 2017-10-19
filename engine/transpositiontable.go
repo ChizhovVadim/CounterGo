@@ -5,14 +5,14 @@ import (
 	"sync/atomic"
 )
 
-type TranspositionTable struct {
+type transTable struct {
 	megabytes int
-	items     []ttEntry
+	items     []transEntry
 	gates     []int32
 	age       uint8
 }
 
-type ttEntry struct {
+type transEntry struct {
 	key   uint64
 	move  Move
 	score int16
@@ -25,19 +25,19 @@ const (
 	Upper
 )
 
-func NewTranspositionTable(megabytes int) *TranspositionTable {
-	return &TranspositionTable{
+func NewTransTable(megabytes int) *transTable {
+	return &transTable{
 		megabytes: megabytes,
-		items:     make([]ttEntry, 1024*1024*megabytes/16),
+		items:     make([]transEntry, 1024*1024*megabytes/16),
 		gates:     make([]int32, 1024),
 	}
 }
 
-func (tt *TranspositionTable) PrepareNewSearch() {
+func (tt *transTable) PrepareNewSearch() {
 	tt.age = (tt.age + 1) & 63
 }
 
-func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
+func (tt *transTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var key = p.Key
 	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
@@ -56,7 +56,7 @@ func (tt *TranspositionTable) Read(p *Position) (depth, score, entryType int, mo
 	return
 }
 
-func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, move Move) {
+func (tt *transTable) Update(p *Position, depth, score, entryType int, move Move) {
 	var key = p.Key
 	var index = int(key & uint64(len(tt.items)-1))
 	var item = &tt.items[index]
@@ -65,7 +65,7 @@ func (tt *TranspositionTable) Update(p *Position, depth, score, entryType int, m
 		//TODO make slot to solve this position?
 		//position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
 		if depth >= int(item.depth) || tt.age != (item.data>>2) {
-			*item = ttEntry{
+			*item = transEntry{
 				key:   key,
 				move:  move,
 				score: int16(score),

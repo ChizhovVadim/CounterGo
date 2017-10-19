@@ -30,11 +30,11 @@ type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings BoolUciOption
-	historyTable       HistoryTable
-	ttable             *TranspositionTable
-	evaluate           EvaluationFunc
+	historyTable       historyTable
+	transTable         *transTable
+	evaluate           evaluate
 	historyKeys        []uint64
-	tm                 *TimeManagement
+	timeManager        *timeManager
 	tree               [][]searchContext
 }
 
@@ -58,8 +58,8 @@ func (e *Engine) GetOptions() []UciOption {
 }
 
 func (e *Engine) Prepare() {
-	if e.ttable == nil || e.ttable.megabytes != e.Hash.Value {
-		e.ttable = NewTranspositionTable(e.Hash.Value)
+	if e.transTable == nil || e.transTable.megabytes != e.Hash.Value {
+		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if len(e.tree) != e.Threads.Value {
 		e.tree = NewTree(e, e.Threads.Value)
@@ -68,20 +68,20 @@ func (e *Engine) Prepare() {
 
 func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	var p = searchParams.Positions[len(searchParams.Positions)-1]
-	e.tm = NewTimeManagement(searchParams.Limits, TimeControlBasic,
+	e.timeManager = NewTimeManager(searchParams.Limits, TimeControlBasic,
 		p.WhiteMove, searchParams.CancellationToken)
-	defer e.tm.Close()
+	defer e.timeManager.Close()
 
 	e.Prepare()
 	e.evaluate = Evaluate
 	e.historyTable.Clear()
-	e.ttable.PrepareNewSearch()
+	e.transTable.PrepareNewSearch()
 	e.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	for i := 0; i < len(e.tree); i++ {
 		e.tree[i][0].Position = p
 	}
-	var ss = &e.tree[0][0]
-	return ss.IterateSearch(searchParams.Progress)
+	var ctx = &e.tree[0][0]
+	return ctx.IterateSearch(searchParams.Progress)
 }
 
 func PositionsToHistoryKeys(positions []*Position) []uint64 {

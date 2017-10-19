@@ -20,9 +20,9 @@ func (ct *CancellationToken) IsCancellationRequested() bool {
 
 var searchTimeout = errors.New("search timeout")
 
-type TimeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
+type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
-type TimeManagement struct {
+type timeManager struct {
 	start                       time.Time
 	softTime                    time.Duration
 	nodes, softNodes, hardNodes int64
@@ -30,11 +30,11 @@ type TimeManagement struct {
 	timer                       *time.Timer
 }
 
-func (tm *TimeManagement) Nodes() int64 {
+func (tm *timeManager) Nodes() int64 {
 	return tm.nodes
 }
 
-func (tm *TimeManagement) IncNodes() {
+func (tm *timeManager) IncNodes() {
 	var nodes = atomic.AddInt64(&tm.nodes, 1)
 	if tm.ct.IsCancellationRequested() ||
 		(tm.hardNodes > 0 && nodes >= tm.hardNodes) {
@@ -42,23 +42,23 @@ func (tm *TimeManagement) IncNodes() {
 	}
 }
 
-func (tm *TimeManagement) ElapsedMilliseconds() int64 {
+func (tm *timeManager) ElapsedMilliseconds() int64 {
 	return int64(time.Since(tm.start) / time.Millisecond)
 }
 
-func (tm *TimeManagement) IsSoftTimeout() bool {
+func (tm *timeManager) IsSoftTimeout() bool {
 	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime) ||
 		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
 }
 
-func (tm *TimeManagement) Close() {
+func (tm *timeManager) Close() {
 	if t := tm.timer; t != nil {
 		t.Stop()
 	}
 }
 
-func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrategy,
-	side bool, ct *CancellationToken) *TimeManagement {
+func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
+	side bool, ct *CancellationToken) *timeManager {
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
@@ -96,7 +96,7 @@ func NewTimeManagement(limits LimitsType, timeControlStrategy TimeControlStrateg
 			ct.Cancel()
 		})
 	}
-	return &TimeManagement{
+	return &timeManager{
 		start:     start,
 		timer:     timer,
 		ct:        ct,

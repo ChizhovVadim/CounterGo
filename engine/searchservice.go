@@ -13,8 +13,8 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 	defer RecoverFromSearchTimeout()
 	var engine = ctx.Engine
 	defer func() {
-		result.Time = engine.tm.ElapsedMilliseconds()
-		result.Nodes = engine.tm.Nodes()
+		result.Time = engine.timeManager.ElapsedMilliseconds()
+		result.Nodes = engine.timeManager.Nodes()
 	}()
 
 	var p = ctx.Position
@@ -55,8 +55,8 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				Depth:    depth,
 				Score:    score,
 				MainLine: append([]Move{move}, child.PrincipalVariation...),
-				Time:     engine.tm.ElapsedMilliseconds(),
-				Nodes:    engine.tm.Nodes(),
+				Time:     engine.timeManager.ElapsedMilliseconds(),
+				Nodes:    engine.timeManager.Nodes(),
 			}
 			if progress != nil {
 				progress(result)
@@ -89,8 +89,8 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 						Depth:    depth,
 						Score:    score,
 						MainLine: append([]Move{move}, child.PrincipalVariation...),
-						Time:     engine.tm.ElapsedMilliseconds(),
-						Nodes:    engine.tm.Nodes(),
+						Time:     engine.timeManager.ElapsedMilliseconds(),
+						Nodes:    engine.timeManager.Nodes(),
 					}
 					if progress != nil {
 						progress(result)
@@ -103,7 +103,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
-		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.tm.IsSoftTimeout() {
+		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {
 			break
 		}
 		ctx.MoveList.MoveToBegin(bestMoveIndex)
@@ -124,7 +124,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 	}
 
 	var engine = ctx.Engine
-	engine.tm.IncNodes()
+	engine.timeManager.IncNodes()
 
 	beta = min(beta, MateIn(ctx.Height+1))
 	if alpha >= beta {
@@ -134,7 +134,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 	var position = ctx.Position
 	var hashMove = MoveEmpty
 
-	if ttDepth, ttScore, ttType, ttMove, ok := engine.ttable.Read(position); ok {
+	if ttDepth, ttScore, ttType, ttMove, ok := engine.transTable.Read(position); ok {
 		hashMove = ttMove
 		if ttDepth >= depth {
 			ttScore = ValueFromTT(ttScore, ctx.Height)
@@ -243,14 +243,14 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 	if alpha < beta {
 		ttType |= Upper
 	}
-	engine.ttable.Update(position, depth, ValueToTT(alpha, ctx.Height), ttType, bestMove)
+	engine.transTable.Update(position, depth, ValueToTT(alpha, ctx.Height), ttType, bestMove)
 
 	return alpha
 }
 
 func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 	var engine = ctx.Engine
-	engine.tm.IncNodes()
+	engine.timeManager.IncNodes()
 	ctx.ClearPV()
 	if ctx.Height >= MAX_HEIGHT {
 		return VALUE_DRAW

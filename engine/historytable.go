@@ -6,24 +6,24 @@ type historyEntry struct {
 	success, try int32
 }
 
-type HistoryTable []historyEntry
+type historyTable []historyEntry
 
-func NewHistoryTable() HistoryTable {
+func NewHistoryTable() historyTable {
 	return make([]historyEntry, 7*2*64)
 }
 
-func (ht HistoryTable) historyEntry(side bool, move Move) *historyEntry {
+func (ht historyTable) historyEntry(side bool, move Move) *historyEntry {
 	var index = MakePiece(move.MovingPiece(), side)*64 + move.To()
 	return &ht[index]
 }
 
-func (ht HistoryTable) Clear() {
+func (ht historyTable) Clear() {
 	for i := 0; i < len(ht); i++ {
 		ht[i] = historyEntry{0, 0}
 	}
 }
 
-func (ht HistoryTable) Update(ss *searchContext, bestMove Move, depth int) {
+func (ht historyTable) Update(ss *searchContext, bestMove Move, depth int) {
 	ss.Killer = bestMove
 	var side = ss.Position.WhiteMove
 	atomic.AddInt32(&ht.historyEntry(side, bestMove).success, int32(depth))
@@ -32,7 +32,7 @@ func (ht HistoryTable) Update(ss *searchContext, bestMove Move, depth int) {
 	}
 }
 
-func (ht HistoryTable) Score(side bool, move Move) int {
+func (ht historyTable) Score(side bool, move Move) int {
 	var entry = ht.historyEntry(side, move)
 	if entry.try == 0 {
 		return 0

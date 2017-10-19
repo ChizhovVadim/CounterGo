@@ -136,4 +136,4 @@ type SearchInfo struct {
 	MainLine []Move
 }
 
-type EvaluationFunc func(p *Position) int
+type evaluate func(p *Position) int

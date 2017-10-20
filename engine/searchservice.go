@@ -276,18 +276,15 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 			break
 		}
 
-		if !isCheck {
-			if eval+MoveValue(move)+PawnValue <= alpha &&
-				!IsDirectCheck(position, move) {
-				continue
-			}
-			if SEE(position, move) < 0 {
-				continue
-			}
+		if !isCheck && SEE(position, move) < 0 {
+			continue
 		}
-
 		if position.MakeMove(move, child.Position) {
 			moveCount++
+			if !isCheck && !child.Position.IsCheck() &&
+				eval+MoveValue(move)+PawnValue <= alpha {
+				continue
+			}
 			var score = -child.Quiescence(-beta, -alpha, depth-1)
 			if score > alpha {
 				alpha = score

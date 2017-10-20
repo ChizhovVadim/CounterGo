@@ -74,6 +74,7 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 
 	e.Prepare()
 	e.evaluate = Evaluate
+	e.clearKillers()
 	e.historyTable.Clear()
 	e.transTable.PrepareNewSearch()
 	e.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
@@ -82,6 +83,14 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	}
 	var ctx = &e.tree[0][0]
 	return ctx.IterateSearch(searchParams.Progress)
+}
+
+func (e *Engine) clearKillers() {
+	for i := 0; i < len(e.tree); i++ {
+		for j := 0; j < len(e.tree[i]); j++ {
+			e.tree[i][j].Killer = MoveEmpty
+		}
+	}
 }
 
 func PositionsToHistoryKeys(positions []*Position) []uint64 {

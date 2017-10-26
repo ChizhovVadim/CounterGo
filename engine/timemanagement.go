@@ -34,10 +34,14 @@ func (tm *timeManager) Nodes() int64 {
 	return tm.nodes
 }
 
+func (tm *timeManager) IsHardTimeout() bool {
+	return tm.ct.IsCancellationRequested() ||
+		tm.hardNodes > 0 && tm.nodes >= tm.hardNodes
+}
+
 func (tm *timeManager) IncNodes() {
-	var nodes = atomic.AddInt64(&tm.nodes, 1)
-	if tm.ct.IsCancellationRequested() ||
-		(tm.hardNodes > 0 && nodes >= tm.hardNodes) {
+	atomic.AddInt64(&tm.nodes, 1)
+	if tm.IsHardTimeout() {
 		panic(searchTimeout)
 	}
 }

@@ -49,7 +49,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 			var move = ctx.MoveList.Items[0].Move
 			p.MakeMove(move, child.Position)
 			var newDepth = ctx.NewDepth(depth, child)
-			var score = -child.AlphaBeta(-beta, -alpha, newDepth, false)
+			var score = -child.AlphaBeta(-beta, -alpha, newDepth)
 			alpha = score
 			result = SearchInfo{
 				Depth:    depth,
@@ -78,9 +78,9 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				var move = ctx.MoveList.Items[localIndex].Move
 				p.MakeMove(move, child.Position)
 				var newDepth = ctx.NewDepth(depth, child)
-				var score = -child.AlphaBeta(-(localAlpha + 1), -localAlpha, newDepth, true)
+				var score = -child.AlphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
 				if score > localAlpha {
-					score = -child.AlphaBeta(-beta, -localAlpha, newDepth, false)
+					score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
 				}
 				gate.Lock()
 				if score > alpha {
@@ -100,6 +100,9 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				gate.Unlock()
 			}
 		})
+		if engine.timeManager.IsHardTimeout() {
+			break
+		}
 		if alpha >= MateIn(depth) || alpha <= MatedIn(depth) {
 			break
 		}
@@ -107,11 +110,26 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 			break
 		}
 		ctx.MoveList.MoveToBegin(bestMoveIndex)
+		HashStorePV(ctx, result.Depth, result.Score, result.MainLine)
 	}
 	return
 }
 
-func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) int {
+func HashStorePV(ctx *searchContext, depth, score int, pv []Move) {
+	for _, move := range pv {
+		ctx.Engine.transTable.Update(ctx.Position, depth,
+			ValueToTT(score, ctx.Height), Lower|Upper, move)
+		var child = ctx.Next()
+		ctx.Position.MakeMove(move, child.Position)
+		depth = ctx.NewDepth(depth, child)
+		if depth <= 0 {
+			break
+		}
+		ctx = child
+	}
+}
+
+func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	var newDepth, score int
 	ctx.ClearPV()
 
@@ -150,7 +168,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 	var isCheck = position.IsCheck()
 	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
-	if depth <= 1 && !isCheck && allowPrunings {
+	if depth <= 1 && !isCheck && position.LastMove != MoveEmpty {
 		var eval = engine.evaluate(position)
 		if eval+PawnValue <= alpha {
 			return ctx.Quiescence(alpha, beta, 1)
@@ -162,14 +180,14 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 	}
 
 	var child = ctx.Next()
-	if depth >= 2 && !isCheck && allowPrunings &&
+	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
 		newDepth = depth - 4
 		position.MakeNullMove(child.Position)
 		if newDepth <= 0 {
 			score = -child.Quiescence(-beta, -(beta - 1), 1)
 		} else {
-			score = -child.AlphaBeta(-beta, -(beta - 1), newDepth, false)
+			score = -child.AlphaBeta(-beta, -(beta - 1), newDepth)
 		}
 		if score >= beta {
 			return beta
@@ -178,7 +196,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 
 	if depth >= 4 && hashMove == MoveEmpty {
 		newDepth = depth - 2
-		ctx.AlphaBeta(alpha, beta, newDepth, false)
+		ctx.AlphaBeta(alpha, beta, newDepth)
 		hashMove = ctx.BestMove()
 		ctx.ClearPV() //!
 	}
@@ -205,13 +223,13 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int, allowPrunings bool) 
 			if depth >= 4 && !isCheck && !child.Position.IsCheck() &&
 				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
 				len(ctx.QuietsSearched) > 4 && !IsActiveMove(position, move) {
-				score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-2, true)
+				score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-2)
 				if score <= alpha {
 					continue
 				}
 			}
 
-			score = -child.AlphaBeta(-beta, -alpha, newDepth, true)
+			score = -child.AlphaBeta(-beta, -alpha, newDepth)
 
 			if score > alpha {
 				alpha = score

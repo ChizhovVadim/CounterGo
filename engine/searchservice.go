@@ -294,7 +294,7 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 			break
 		}
 
-		if !isCheck && SEE(position, move) < 0 {
+		if !isCheck && !SEE_GE(position, move) {
 			continue
 		}
 		if position.MakeMove(move, child.Position) {
@@ -329,15 +329,15 @@ func (ctx *searchContext) NewDepth(depth int, child *searchContext) int {
 		prevMove.To() == move.To() &&
 		move.CapturedPiece() > Pawn &&
 		prevMove.CapturedPiece() > Pawn &&
-		SEE(p, move) >= 0 {
+		SEE_GE(p, move) {
 		return depth
 	}
 
-	if givesCheck && (depth <= 1 || SEE(p, move) >= 0) {
+	if givesCheck && (depth <= 1 || SEE_GE(p, move)) {
 		return depth
 	}
 
-	if IsPawnPush7th(move, p.WhiteMove) && SEE(p, move) >= 0 {
+	if IsPawnPush7th(move, p.WhiteMove) && SEE_GE(p, move) {
 		return depth
 	}
 

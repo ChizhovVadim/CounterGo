@@ -274,48 +274,61 @@ func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	return p.piecesByColor(side) & att
 }
 
-func SEE_Exchange(p *Position, to int, side bool,
-	currScore int, target int, occ uint64) int {
+func GetLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attacker, from int) {
+	attacker = Empty
+	from = SquareNone
 	var att = GetAttacks(p, to, side, occ) & occ
 	if att == 0 {
-		return currScore
+		return
 	}
-
-	var from = SquareNone
 	var newTarget = pieceValuesSEE[King] + 1
-
 	for ; att != 0; att &= att - 1 {
 		var f = FirstOne(att)
 		var piece = p.WhatPiece(f)
 		if pieceValuesSEE[piece] < newTarget {
+			attacker = piece
 			from = f
 			newTarget = pieceValuesSEE[piece]
 		}
 	}
-
-	occ ^= squareMask[from]
-	var score = -SEE_Exchange(p, to, !side, -(currScore + target), newTarget, occ)
-	if score > currScore {
-		return score
-	}
-	return currScore
+	return
 }
 
-func SEE(p *Position, move Move) int {
-	var from = move.From()
-	var to = move.To()
+func SEE_GE(p *Position, move Move) bool {
 	var piece = move.MovingPiece()
-	var captured = move.CapturedPiece()
-	var promotion = move.Promotion()
-	var side = p.WhiteMove
-
-	var score0 = pieceValuesSEE[captured]
-	if promotion != Empty {
+	var score0 = pieceValuesSEE[move.CapturedPiece()]
+	if promotion := move.Promotion(); promotion != Empty {
+		piece = move.Promotion()
 		score0 += pieceValuesSEE[promotion] - pieceValuesSEE[Pawn]
-		piece = promotion
 	}
-
-	var occ = (p.White | p.Black) ^ squareMask[from]
-	var score = -SEE_Exchange(p, to, !side, -score0, pieceValuesSEE[piece], occ)
-	return score
+	var to = move.To()
+	var occ = p.White ^ p.Black ^ squareMask[move.From()]
+	occ |= squareMask[to]
+	var side = !p.WhiteMove
+	var relativeStm = true
+	var balance = score0 - pieceValuesSEE[piece]
+	if balance >= 0 {
+		return true
+	}
+	for {
+		var nextVictim, from = GetLeastValuableAttacker(p, to, side, occ)
+		if nextVictim == Empty {
+			return relativeStm
+		}
+		if piece == King {
+			return !relativeStm
+		}
+		occ ^= squareMask[from]
+		piece = nextVictim
+		if relativeStm {
+			balance += pieceValuesSEE[nextVictim]
+		} else {
+			balance -= pieceValuesSEE[nextVictim]
+		}
+		relativeStm = !relativeStm
+		if relativeStm == (balance >= 0) {
+			return relativeStm
+		}
+		side = !side
+	}
 }

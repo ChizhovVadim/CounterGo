@@ -170,8 +170,9 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 
 	if depth <= 1 && !isCheck && position.LastMove != MoveEmpty {
 		var eval = engine.evaluate(position)
-		if eval+PawnValue <= alpha {
-			return ctx.Quiescence(alpha, beta, 1)
+		if ralpha := alpha - PawnValue; eval <= ralpha &&
+			ctx.Quiescence(ralpha, ralpha+1, 1) <= ralpha {
+			return alpha
 		}
 		if eval-PawnValue >= beta && !lateEndgame &&
 			!HasPawnOn7th(position, !position.WhiteMove) {

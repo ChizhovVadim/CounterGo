@@ -101,7 +101,7 @@ type searchContext struct {
 	Height             int
 	Position           *Position
 	MoveList           *MoveList
-	Head               int
+	mi                 moveIterator
 	Killer1            Move
 	Killer2            Move
 	PrincipalVariation []Move

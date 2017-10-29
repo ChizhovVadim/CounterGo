@@ -88,7 +88,9 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 func (e *Engine) clearKillers() {
 	for i := 0; i < len(e.tree); i++ {
 		for j := 0; j < len(e.tree[i]); j++ {
-			e.tree[i][j].Killer = MoveEmpty
+			var ctx = &e.tree[i][j]
+			ctx.Killer1 = MoveEmpty
+			ctx.Killer2 = MoveEmpty
 		}
 	}
 }

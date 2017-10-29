@@ -102,7 +102,8 @@ type searchContext struct {
 	Position           *Position
 	MoveList           *MoveList
 	Head               int
-	Killer             Move
+	Killer1            Move
+	Killer2            Move
 	PrincipalVariation []Move
 	QuietsSearched     []Move
 }

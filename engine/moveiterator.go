@@ -16,14 +16,14 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 	}
 	ctx.MoveList.GenerateCaptures(ctx.Position, genChecks)
 	ctx.Head = 0
-	var mos = ctx.Engine.historyTable
+	var ht = ctx.Engine.historyTable
 	for i := 0; i < ctx.MoveList.Count; i++ {
 		var item = &ctx.MoveList.Items[i]
 		var m = item.Move
 		if IsCaptureOrPromotion(m) {
 			item.Score = 29000 + MVVLVA(m)
 		} else {
-			item.Score = mos.Score(ctx.Position.WhiteMove, m)
+			item.Score = ht.Score(ctx.Position.WhiteMove, m)
 		}
 	}
 }
@@ -31,7 +31,7 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 func (ctx *searchContext) InitMoves(hashMove Move) {
 	ctx.MoveList.GenerateMoves(ctx.Position)
 	ctx.Head = 0
-	var mos = ctx.Engine.historyTable
+	var ht = ctx.Engine.historyTable
 	for i := 0; i < ctx.MoveList.Count; i++ {
 		var item = &ctx.MoveList.Items[i]
 		var m = item.Move
@@ -39,10 +39,12 @@ func (ctx *searchContext) InitMoves(hashMove Move) {
 			item.Score = 30000
 		} else if IsCaptureOrPromotion(m) {
 			item.Score = 29000 + MVVLVA(m)
-		} else if m == ctx.Killer {
+		} else if m == ctx.Killer1 {
 			item.Score = 28000
+		} else if m == ctx.Killer2 {
+			item.Score = 28000 - 1
 		} else {
-			item.Score = mos.Score(ctx.Position.WhiteMove, m)
+			item.Score = ht.Score(ctx.Position.WhiteMove, m)
 		}
 	}
 }

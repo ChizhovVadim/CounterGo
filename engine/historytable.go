@@ -23,11 +23,14 @@ func (ht historyTable) Clear() {
 	}
 }
 
-func (ht historyTable) Update(ss *searchContext, bestMove Move, depth int) {
-	ss.Killer = bestMove
-	var side = ss.Position.WhiteMove
+func (ht historyTable) Update(ctx *searchContext, bestMove Move, depth int) {
+	if ctx.Killer1 != bestMove {
+		ctx.Killer2 = ctx.Killer1
+		ctx.Killer1 = bestMove
+	}
+	var side = ctx.Position.WhiteMove
 	atomic.AddInt32(&ht.historyEntry(side, bestMove).success, int32(depth))
-	for _, move := range ss.QuietsSearched {
+	for _, move := range ctx.QuietsSearched {
 		atomic.AddInt32(&ht.historyEntry(side, move).try, int32(depth))
 	}
 }

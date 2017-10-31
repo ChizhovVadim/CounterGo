@@ -168,18 +168,6 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	var isCheck = position.IsCheck()
 	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
-	if depth <= 1 && !isCheck && position.LastMove != MoveEmpty {
-		var eval = engine.evaluate(position)
-		if ralpha := alpha - PawnValue; eval <= ralpha &&
-			ctx.Quiescence(ralpha, ralpha+1, 1) <= ralpha {
-			return alpha
-		}
-		if eval-PawnValue >= beta && !lateEndgame &&
-			!HasPawnOn7th(position, !position.WhiteMove) {
-			return beta
-		}
-	}
-
 	var child = ctx.Next()
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
@@ -205,6 +193,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	ctx.InitMoves(hashMove)
 	var moveCount = 0
 	ctx.QuietsSearched = ctx.QuietsSearched[:0]
+	var staticEval = VALUE_INFINITE
 
 	for {
 		var move = ctx.NextMove()
@@ -216,6 +205,18 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 			moveCount++
 
 			newDepth = ctx.NewDepth(depth, child)
+
+			if depth <= 2 && !isCheck && !child.Position.IsCheck() &&
+				!IsCaptureOrPromotion(move) &&
+				!IsPawnPush(move, position.WhiteMove) &&
+				alpha > VALUE_MATED_IN_MAX_HEIGHT {
+				if staticEval == VALUE_INFINITE {
+					staticEval = engine.evaluate(position)
+				}
+				if staticEval+PawnValue <= alpha {
+					continue
+				}
+			}
 
 			if !IsCaptureOrPromotion(move) {
 				ctx.QuietsSearched = append(ctx.QuietsSearched, move)

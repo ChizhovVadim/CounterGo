@@ -222,12 +222,15 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 				ctx.QuietsSearched = append(ctx.QuietsSearched, move)
 			}
 
-			if depth >= 4 && !isCheck && !child.Position.IsCheck() &&
-				!lateEndgame && alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-				len(ctx.QuietsSearched) > 4 && !IsActiveMove(position, move) {
-				score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-2)
-				if score <= alpha {
-					continue
+			if depth >= 3 && !isCheck && !child.Position.IsCheck() &&
+				alpha > VALUE_MATED_IN_MAX_HEIGHT &&
+				!IsActiveMove(position, move) {
+				var reduction = ctx.LateMoveReduction(depth, move)
+				if reduction > 0 {
+					score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-1-reduction)
+					if score <= alpha {
+						continue
+					}
 				}
 			}
 
@@ -344,4 +347,17 @@ func (ctx *searchContext) NewDepth(depth int, child *searchContext) int {
 	}
 
 	return depth - 1
+}
+
+func (ctx *searchContext) LateMoveReduction(depth int, move Move) int {
+	var history = ctx.Engine.historyTable.Score(ctx.Position.WhiteMove, move)
+	var reduction = 0
+	if history < 5 {
+		reduction = 3
+	} else if history < 25 {
+		reduction = 2
+	} else if history < 75 {
+		reduction = 1
+	}
+	return min(reduction, depth-2)
 }

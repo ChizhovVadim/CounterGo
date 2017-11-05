@@ -205,32 +205,40 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 			moveCount++
 
 			newDepth = ctx.NewDepth(depth, child)
+			var reduction = 0
 
-			if depth <= 2 && !isCheck && !child.Position.IsCheck() &&
-				!IsCaptureOrPromotion(move) &&
+			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
+				!isCheck && !child.Position.IsCheck() &&
 				!IsPawnPush(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
-				if staticEval == VALUE_INFINITE {
-					staticEval = engine.evaluate(position)
+
+				if depth <= 2 {
+					if staticEval == VALUE_INFINITE {
+						staticEval = engine.evaluate(position)
+					}
+					if staticEval+PawnValue <= alpha {
+						continue
+					}
 				}
-				if staticEval+PawnValue <= alpha {
-					continue
+
+				if moveCount > 16 {
+					reduction = 3
+				} else if moveCount > 9 {
+					reduction = 2
+				} else {
+					reduction = 1
 				}
+				reduction = min(depth-2, reduction)
 			}
 
 			if !IsCaptureOrPromotion(move) {
 				ctx.QuietsSearched = append(ctx.QuietsSearched, move)
 			}
 
-			if depth >= 3 && !isCheck && !child.Position.IsCheck() &&
-				alpha > VALUE_MATED_IN_MAX_HEIGHT &&
-				!IsActiveMove(position, move) {
-				var reduction = ctx.LateMoveReduction(depth, move)
-				if reduction > 0 {
-					score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-1-reduction)
-					if score <= alpha {
-						continue
-					}
+			if reduction > 0 {
+				score = -child.AlphaBeta(-(alpha + 1), -alpha, depth-1-reduction)
+				if score <= alpha {
+					continue
 				}
 			}
 
@@ -347,17 +355,4 @@ func (ctx *searchContext) NewDepth(depth int, child *searchContext) int {
 	}
 
 	return depth - 1
-}
-
-func (ctx *searchContext) LateMoveReduction(depth int, move Move) int {
-	var history = ctx.Engine.historyTable.Score(ctx.Position.WhiteMove, move)
-	var reduction = 0
-	if history < 5 {
-		reduction = 3
-	} else if history < 25 {
-		reduction = 2
-	} else if history < 75 {
-		reduction = 1
-	}
-	return min(reduction, depth-2)
 }

@@ -2,24 +2,15 @@ package engine
 
 import "sync/atomic"
 
-type historyEntry struct {
-	success, try int32
-}
-
-type historyTable []historyEntry
+type historyTable []int32
 
 func NewHistoryTable() historyTable {
-	return make([]historyEntry, 7*2*64)
-}
-
-func (ht historyTable) historyEntry(side bool, move Move) *historyEntry {
-	var index = MakePiece(move.MovingPiece(), side)*64 + move.To()
-	return &ht[index]
+	return make([]int32, 1<<10)
 }
 
 func (ht historyTable) Clear() {
 	for i := 0; i < len(ht); i++ {
-		ht[i] = historyEntry{0, 0}
+		ht[i] = 0
 	}
 }
 
@@ -29,16 +20,20 @@ func (ht historyTable) Update(ctx *searchContext, bestMove Move, depth int) {
 		ctx.Killer1 = bestMove
 	}
 	var side = ctx.Position.WhiteMove
-	atomic.AddInt32(&ht.historyEntry(side, bestMove).success, int32(depth))
+	atomic.AddInt32(&ht[pieceSquareIndex(side, bestMove)], int32(len(ctx.QuietsSearched)*depth))
 	for _, move := range ctx.QuietsSearched {
-		atomic.AddInt32(&ht.historyEntry(side, move).try, int32(depth))
+		atomic.AddInt32(&ht[pieceSquareIndex(side, move)], int32(-depth))
 	}
 }
 
 func (ht historyTable) Score(side bool, move Move) int {
-	var entry = ht.historyEntry(side, move)
-	if entry.try == 0 {
-		return 0
+	return int(ht[pieceSquareIndex(side, move)])
+}
+
+func pieceSquareIndex(side bool, move Move) int {
+	var result = (move.MovingPiece() << 6) | move.To()
+	if side {
+		result |= 1 << 9
 	}
-	return int(100 * entry.success / entry.try)
+	return result
 }

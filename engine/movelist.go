@@ -5,17 +5,17 @@ import (
 )
 
 const (
-	F1G1 = (uint64(1) << F1) | (uint64(1) << G1)
-	B1D1 = (uint64(1) << B1) | (uint64(1) << C1) | (uint64(1) << D1)
-	F8G8 = (uint64(1) << F8) | (uint64(1) << G8)
-	B8D8 = (uint64(1) << B8) | (uint64(1) << C8) | (uint64(1) << D8)
+	F1G1 = (uint64(1) << SquareF1) | (uint64(1) << SquareG1)
+	B1D1 = (uint64(1) << SquareB1) | (uint64(1) << SquareC1) | (uint64(1) << SquareD1)
+	F8G8 = (uint64(1) << SquareF8) | (uint64(1) << SquareG8)
+	B8D8 = (uint64(1) << SquareB8) | (uint64(1) << SquareC8) | (uint64(1) << SquareD8)
 )
 
 var (
-	whiteKingSideCastle  = MakeMove(E1, G1, King, Empty)
-	whiteQueenSideCastle = MakeMove(E1, C1, King, Empty)
-	blackKingSideCastle  = MakeMove(E8, G8, King, Empty)
-	blackQueenSideCastle = MakeMove(E8, C8, King, Empty)
+	whiteKingSideCastle  = MakeMove(SquareE1, SquareG1, King, Empty)
+	whiteQueenSideCastle = MakeMove(SquareE1, SquareC1, King, Empty)
+	blackKingSideCastle  = MakeMove(SquareE8, SquareG8, King, Empty)
+	blackQueenSideCastle = MakeMove(SquareE8, SquareC8, King, Empty)
 )
 
 func (ml *MoveList) GenerateMoves(p *Position) {
@@ -161,30 +161,30 @@ func (ml *MoveList) GenerateMoves(p *Position) {
 		if p.WhiteMove {
 			if (p.CastleRights&WhiteKingSide) != 0 &&
 				(allPieces&F1G1) == 0 &&
-				!p.isAttackedBySide(E1, false) &&
-				!p.isAttackedBySide(F1, false) {
+				!p.isAttackedBySide(SquareE1, false) &&
+				!p.isAttackedBySide(SquareF1, false) {
 				ml.Items[count].Move = whiteKingSideCastle
 				count++
 			}
 			if (p.CastleRights&WhiteQueenSide) != 0 &&
 				(allPieces&B1D1) == 0 &&
-				!p.isAttackedBySide(E1, false) &&
-				!p.isAttackedBySide(D1, false) {
+				!p.isAttackedBySide(SquareE1, false) &&
+				!p.isAttackedBySide(SquareD1, false) {
 				ml.Items[count].Move = whiteQueenSideCastle
 				count++
 			}
 		} else {
 			if (p.CastleRights&BlackKingSide) != 0 &&
 				(allPieces&F8G8) == 0 &&
-				!p.isAttackedBySide(E8, true) &&
-				!p.isAttackedBySide(F8, true) {
+				!p.isAttackedBySide(SquareE8, true) &&
+				!p.isAttackedBySide(SquareF8, true) {
 				ml.Items[count].Move = blackKingSideCastle
 				count++
 			}
 			if (p.CastleRights&BlackQueenSide) != 0 &&
 				(allPieces&B8D8) == 0 &&
-				!p.isAttackedBySide(E8, true) &&
-				!p.isAttackedBySide(D8, true) {
+				!p.isAttackedBySide(SquareE8, true) &&
+				!p.isAttackedBySide(SquareD8, true) {
 				ml.Items[count].Move = blackQueenSideCastle
 				count++
 			}

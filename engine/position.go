@@ -269,18 +269,18 @@ func (src *Position) MakeMove(move Move, result *Position) bool {
 		}
 	} else if movingPiece == King {
 		if src.WhiteMove {
-			if from == E1 && to == G1 {
-				movePiece(result, Rook, true, H1, F1)
+			if from == SquareE1 && to == SquareG1 {
+				movePiece(result, Rook, true, SquareH1, SquareF1)
 			}
-			if from == E1 && to == C1 {
-				movePiece(result, Rook, true, A1, D1)
+			if from == SquareE1 && to == SquareC1 {
+				movePiece(result, Rook, true, SquareA1, SquareD1)
 			}
 		} else {
-			if from == E8 && to == G8 {
-				movePiece(result, Rook, false, H8, F8)
+			if from == SquareE8 && to == SquareG8 {
+				movePiece(result, Rook, false, SquareH8, SquareF8)
 			}
-			if from == E8 && to == C8 {
-				movePiece(result, Rook, false, A8, D8)
+			if from == SquareE8 && to == SquareC8 {
+				movePiece(result, Rook, false, SquareA8, SquareD8)
 			}
 		}
 	}
@@ -454,10 +454,10 @@ func init() {
 	for i := 0; i < len(castleMask); i++ {
 		castleMask[i] = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
 	}
-	castleMask[A1] &^= WhiteQueenSide
-	castleMask[E1] &^= WhiteQueenSide | WhiteKingSide
-	castleMask[H1] &^= WhiteKingSide
-	castleMask[A8] &^= BlackQueenSide
-	castleMask[E8] &^= BlackQueenSide | BlackKingSide
-	castleMask[H8] &^= BlackKingSide
+	castleMask[SquareA1] &^= WhiteQueenSide
+	castleMask[SquareE1] &^= WhiteQueenSide | WhiteKingSide
+	castleMask[SquareH1] &^= WhiteKingSide
+	castleMask[SquareA8] &^= BlackQueenSide
+	castleMask[SquareE8] &^= BlackQueenSide | BlackKingSide
+	castleMask[SquareH8] &^= BlackKingSide
 }

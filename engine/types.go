@@ -61,24 +61,22 @@ const (
 
 const (
 	SquareNone = -1
-
-	A1 = 0
-	B1 = 1
-	C1 = 2
-	D1 = 3
-	E1 = 4
-	F1 = 5
-	G1 = 6
-	H1 = 7
-
-	A8 = 56
-	B8 = 57
-	C8 = 58
-	D8 = 59
-	E8 = 60
-	F8 = 61
-	G8 = 62
-	H8 = 63
+	SquareA1   = 0
+	SquareB1   = 1
+	SquareC1   = 2
+	SquareD1   = 3
+	SquareE1   = 4
+	SquareF1   = 5
+	SquareG1   = 6
+	SquareH1   = 7
+	SquareA8   = 56
+	SquareB8   = 57
+	SquareC8   = 58
+	SquareD8   = 59
+	SquareE8   = 60
+	SquareF8   = 61
+	SquareG8   = 62
+	SquareH8   = 63
 )
 
 type Move int32

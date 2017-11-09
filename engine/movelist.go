@@ -237,6 +237,33 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				count++
 			}
 		}
+		if genChecks {
+			var oppKing = FirstOne(p.Kings & oppPieces)
+
+			if (((p.Pawns&p.White & ^FileHMask)<<17)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing-9]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing-17, oppKing-9, Pawn, Empty)
+				count++
+			}
+			if (((p.Pawns&p.White & ^FileHMask)<<25)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing-9]&allPieces) == 0 &&
+				(squareMask[oppKing-17]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing-25, oppKing-9, Pawn, Empty)
+				count++
+			}
+
+			if (((p.Pawns&p.White & ^FileAMask)<<15)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing-7]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing-15, oppKing-7, Pawn, Empty)
+				count++
+			}
+			if (((p.Pawns&p.White & ^FileAMask)<<23)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing-7]&allPieces) == 0 &&
+				(squareMask[oppKing-15]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing-23, oppKing-7, Pawn, Empty)
+				count++
+			}
+		}
 	} else {
 		fromBB = (AllWhitePawnAttacks(oppPieces) | Rank2Mask) & p.Pawns & p.Black
 		for ; fromBB != 0; fromBB &= fromBB - 1 {
@@ -255,6 +282,33 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				count++
 			}
 		}
+		if genChecks {
+			var oppKing = FirstOne(p.Kings & oppPieces)
+
+			if (((p.Pawns&p.Black & ^FileHMask)>>15)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing+7]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing+15, oppKing+7, Pawn, Empty)
+				count++
+			}
+			if (((p.Pawns&p.Black & ^FileHMask)>>23)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing+7]&allPieces) == 0 &&
+				(squareMask[oppKing+15]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing+23, oppKing+7, Pawn, Empty)
+				count++
+			}
+
+			if (((p.Pawns&p.Black & ^FileAMask)>>17)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing+9]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing+17, oppKing+9, Pawn, Empty)
+				count++
+			}
+			if (((p.Pawns&p.Black & ^FileAMask)>>25)&p.Kings&oppPieces) != 0 &&
+				(squareMask[oppKing+9]&allPieces) == 0 &&
+				(squareMask[oppKing+17]&allPieces) == 0 {
+				ml.Items[count].Move = MakeMove(oppKing+25, oppKing+9, Pawn, Empty)
+				count++
+			}
+		}
 	}
 
 	var checksN, checksB, checksR, checksQ uint64
@@ -265,6 +319,8 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 		checksR = RookAttacks(oppKing, allPieces) &^ allPieces
 		checksQ = checksB | checksR
 	}
+
+	//TODO discovered checks
 
 	for fromBB = p.Knights & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)

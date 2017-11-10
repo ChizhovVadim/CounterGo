@@ -2,6 +2,8 @@ package engine
 
 import (
 	"errors"
+	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -233,4 +235,50 @@ func bitboardToString(bb uint64) string {
 		s += SquareName(sq)
 	}
 	return s
+}
+
+func TestGenerateChecks(t *testing.T) {
+	var tests = []string{
+		"4k3/ppp2ppp/3p4/8/8/3B3Q/P3N3/4R2K w - - 0 1",
+		"4k3/ppp2ppp/2Rp4/1Q6/8/3B4/P3N3/7K w - - 0 1",
+		"4k3/ppp2ppp/3p4/8/4B3/8/P2N4/R3Q2K w - - 0 1",
+		"r7/1p4p1/2p2kb1/3r4/3N3n/4P2P/1p2BP2/3RK1R1 w - - 0 1",
+
+		"8/8/8/3k4/8/4P3/2P5/4K3 w - - 0 1",
+		"8/8/8/3k4/8/2P5/4P3/4K3 w - - 0 1",
+		"4k3/2p5/4p3/8/3K4/8/8/8 b - - 0 1",
+		"4k3/4p3/2p5/8/3K4/8/8/8 b - - 0 1",
+	}
+	for _, test := range tests {
+		var p = NewPositionFromFEN(test)
+		var a = generateChecks(p, true)
+		var b = generateChecks(p, false)
+		//t.Log(test, a, b)
+		if !reflect.DeepEqual(a, b) {
+			t.Error(test, a, b)
+		}
+	}
+}
+
+func generateChecks(p *Position, directWay bool) []Move {
+	var result []Move
+	var ml = MoveList{}
+	var child = Position{}
+	if directWay {
+		ml.GenerateMoves(p)
+	} else {
+		ml.GenerateCaptures(p, true)
+	}
+	for i := 0; i < ml.Count; i++ {
+		var move = ml.Items[i].Move
+		if p.MakeMove(move, &child) {
+			if !directWay || IsCaptureOrPromotion(move) || child.IsCheck() {
+				result = append(result, move)
+			}
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i] < result[j]
+	})
+	return result
 }

@@ -245,7 +245,7 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				ml.Items[count].Move = MakeMove(oppKing-17, oppKing-9, Pawn, Empty)
 				count++
 			}
-			if (((p.Pawns&p.White & ^FileHMask)<<25)&p.Kings&oppPieces) != 0 &&
+			if (((p.Pawns&p.White&Rank2Mask & ^FileHMask)<<25)&p.Kings&oppPieces) != 0 &&
 				(squareMask[oppKing-9]&allPieces) == 0 &&
 				(squareMask[oppKing-17]&allPieces) == 0 {
 				ml.Items[count].Move = MakeMove(oppKing-25, oppKing-9, Pawn, Empty)
@@ -257,7 +257,7 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				ml.Items[count].Move = MakeMove(oppKing-15, oppKing-7, Pawn, Empty)
 				count++
 			}
-			if (((p.Pawns&p.White & ^FileAMask)<<23)&p.Kings&oppPieces) != 0 &&
+			if (((p.Pawns&p.White&Rank2Mask & ^FileAMask)<<23)&p.Kings&oppPieces) != 0 &&
 				(squareMask[oppKing-7]&allPieces) == 0 &&
 				(squareMask[oppKing-15]&allPieces) == 0 {
 				ml.Items[count].Move = MakeMove(oppKing-23, oppKing-7, Pawn, Empty)
@@ -290,7 +290,7 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				ml.Items[count].Move = MakeMove(oppKing+15, oppKing+7, Pawn, Empty)
 				count++
 			}
-			if (((p.Pawns&p.Black & ^FileHMask)>>23)&p.Kings&oppPieces) != 0 &&
+			if (((p.Pawns&p.Black&Rank7Mask & ^FileHMask)>>23)&p.Kings&oppPieces) != 0 &&
 				(squareMask[oppKing+7]&allPieces) == 0 &&
 				(squareMask[oppKing+15]&allPieces) == 0 {
 				ml.Items[count].Move = MakeMove(oppKing+23, oppKing+7, Pawn, Empty)
@@ -302,7 +302,7 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 				ml.Items[count].Move = MakeMove(oppKing+17, oppKing+9, Pawn, Empty)
 				count++
 			}
-			if (((p.Pawns&p.Black & ^FileAMask)>>25)&p.Kings&oppPieces) != 0 &&
+			if (((p.Pawns&p.Black&Rank7Mask & ^FileAMask)>>25)&p.Kings&oppPieces) != 0 &&
 				(squareMask[oppKing+9]&allPieces) == 0 &&
 				(squareMask[oppKing+17]&allPieces) == 0 {
 				ml.Items[count].Move = MakeMove(oppKing+25, oppKing+9, Pawn, Empty)
@@ -318,9 +318,55 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 		checksB = BishopAttacks(oppKing, allPieces) &^ allPieces
 		checksR = RookAttacks(oppKing, allPieces) &^ allPieces
 		checksQ = checksB | checksR
-	}
 
-	//TODO discovered checks
+		//discovered checks
+		//TODO pawn, king discovered checks
+		for fromBB = (p.Rooks | p.Queens) & ownPieces & rookMoves[oppKing]; fromBB != 0; fromBB &= fromBB - 1 {
+			var blockers = betweenMask[FirstOne(fromBB)][oppKing] & allPieces
+			if blockers&(blockers-1) == 0 {
+				from = FirstOne(blockers)
+				if (squareMask[from] & ownPieces) != 0 {
+					var piece = p.WhatPiece(from)
+					if piece == Knight {
+						for toBB = knightAttacks[from] & ^allPieces & ^checksN; toBB != 0; toBB &= toBB - 1 {
+							to = FirstOne(toBB)
+							ml.Items[count].Move = MakeMove(from, to, Knight, p.WhatPiece(to))
+							count++
+						}
+					} else if piece == Bishop {
+						for toBB = BishopAttacks(from, allPieces) & ^allPieces & ^checksB; toBB != 0; toBB &= toBB - 1 {
+							to = FirstOne(toBB)
+							ml.Items[count].Move = MakeMove(from, to, Bishop, p.WhatPiece(to))
+							count++
+						}
+					}
+				}
+			}
+		}
+
+		for fromBB = (p.Bishops | p.Queens) & ownPieces & bishopMoves[oppKing]; fromBB != 0; fromBB &= fromBB - 1 {
+			var blockers = betweenMask[FirstOne(fromBB)][oppKing] & allPieces
+			if blockers&(blockers-1) == 0 {
+				from = FirstOne(blockers)
+				if (squareMask[from] & ownPieces) != 0 {
+					var piece = p.WhatPiece(from)
+					if piece == Knight {
+						for toBB = knightAttacks[from] & ^allPieces & ^checksN; toBB != 0; toBB &= toBB - 1 {
+							to = FirstOne(toBB)
+							ml.Items[count].Move = MakeMove(from, to, Knight, p.WhatPiece(to))
+							count++
+						}
+					} else if piece == Rook {
+						for toBB = RookAttacks(from, allPieces) & ^allPieces & ^checksR; toBB != 0; toBB &= toBB - 1 {
+							to = FirstOne(toBB)
+							ml.Items[count].Move = MakeMove(from, to, Rook, p.WhatPiece(to))
+							count++
+						}
+					}
+				}
+			}
+		}
+	}
 
 	for fromBB = p.Knights & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)

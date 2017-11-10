@@ -31,6 +31,7 @@ var (
 	rookAttacks                            [64][1 << 12]uint64
 	bishopAttacks                          [64][1 << 9]uint64
 	betweenMask                            [][]uint64
+	bishopMoves, rookMoves                 [64]uint64
 )
 
 var fileMask = [8]uint64{
@@ -330,5 +331,10 @@ func init() {
 				}
 			}
 		}
+	}
+
+	for sq := 0; sq < 64; sq++ {
+		bishopMoves[sq] = BishopAttacks(sq, 0)
+		rookMoves[sq] = RookAttacks(sq, 0)
 	}
 }

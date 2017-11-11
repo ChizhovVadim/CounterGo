@@ -41,6 +41,12 @@ func (tt *transTable) PrepareNewSearch() {
 	tt.generation = (tt.generation + 1) & 63
 }
 
+func (tt *transTable) Clear() {
+	for i := 0; i < len(tt.entries); i++ {
+		tt.entries[i] = transEntry{}
+	}
+}
+
 func (tt *transTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var index = int(uint32(p.Key) & tt.mask)
 	for i := 0; i < ClusterSize; i++ {

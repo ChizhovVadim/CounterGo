@@ -362,6 +362,22 @@ func (ml *MoveList) GenerateCaptures(p *Position, genChecks bool) {
 							ml.Items[count].Move = MakeMove(from, to, Rook, p.WhatPiece(to))
 							count++
 						}
+					} else if piece == Pawn {
+						if p.WhiteMove {
+							if (allPieces&squareMask[from+8]) == 0 &&
+								Rank(from) != Rank7 &&
+								(squareMask[from+8]&PawnAttacks(oppKing, false)) == 0 {
+								ml.Items[count].Move = MakeMove(from, from+8, Pawn, Empty)
+								count++
+							}
+						} else {
+							if (allPieces&squareMask[from-8]) == 0 &&
+								Rank(from) != Rank2 &&
+								(squareMask[from-8]&PawnAttacks(oppKing, true)) == 0 {
+								ml.Items[count].Move = MakeMove(from, from-8, Pawn, Empty)
+								count++
+							}
+						}
 					}
 				}
 			}
@@ -466,4 +482,13 @@ func (ml *MoveList) SortMoves() {
 	sort.Slice(ml.Items[:ml.Count], func(i, j int) bool {
 		return ml.Items[i].Score > ml.Items[j].Score
 	})
+}
+
+func (ml *MoveList) Contains(m Move) bool {
+	for i := 0; i < ml.Count; i++ {
+		if ml.Items[i].Move == m {
+			return true
+		}
+	}
+	return false
 }

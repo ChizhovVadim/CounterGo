@@ -419,6 +419,10 @@ func (p *Position) IsCheck() bool {
 	return p.Checkers != 0
 }
 
+func (p *Position) IsDiscoveredCheck() bool {
+	return (p.Checkers & ^squareMask[p.LastMove.To()]) != 0
+}
+
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
 	var moveList MoveList
 	moveList.GenerateMoves(p)

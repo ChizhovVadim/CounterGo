@@ -15,6 +15,9 @@ func TestSEE(t *testing.T) {
 			if !p.MakeMove(move, child) {
 				continue
 			}
+			if child.IsDiscoveredCheck() {
+				continue
+			}
 			var eval = basicMaterial(p)
 			var directSEE = -searchSEE(child, -eval, -(eval-1)) >= eval
 			var see = SEE_GE(p, move)
@@ -210,6 +213,9 @@ func TestGenerateCapturesAndChecks(t *testing.T) {
 		if len(dA) > 0 || len(dB) > 0 {
 			t.Error(test, dA, dB)
 		}
+		if containsRepeats(b) {
+			t.Error(test, b)
+		}
 	}
 }
 
@@ -226,7 +232,7 @@ func generateCapturesAndChecks(p *Position, directWay bool) []Move {
 		var move = ml.Items[i].Move
 		if p.MakeMove(move, &child) {
 			if directWay {
-				if isMinorPromotion(move) {
+				if isMinorPromotion(move) || isCastle(move) {
 					continue
 				}
 				if !child.IsCheck() && !IsCaptureOrPromotion(move) {
@@ -244,6 +250,13 @@ func isMinorPromotion(move Move) bool {
 	return p >= Knight && p <= Rook
 }
 
+func isCastle(m Move) bool {
+	return m == whiteKingSideCastle ||
+		m == whiteQueenSideCastle ||
+		m == blackKingSideCastle ||
+		m == blackQueenSideCastle
+}
+
 func diffMoves(b, a []Move) []Move {
 	m := make(map[Move]bool)
 	for _, s := range a {
@@ -256,6 +269,18 @@ func diffMoves(b, a []Move) []Move {
 		}
 	}
 	return result
+}
+
+func containsRepeats(source []Move) bool {
+	var m = make(map[Move]bool)
+	for _, item := range source {
+		var _, contains = m[item]
+		if contains {
+			return true
+		}
+		m[item] = true
+	}
+	return false
 }
 
 var testFENs = []string{
@@ -326,4 +351,14 @@ var testFENs = []string{
 	"8/8/8/3k4/8/2P5/4P3/4K3 w - - 0 1",
 	"4k3/2p5/4p3/8/3K4/8/8/8 b - - 0 1",
 	"4k3/4p3/2p5/8/3K4/8/8/8 b - - 0 1",
+
+	"1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - -",
+	"1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - -",
+	"4k3/8/2n5/4b3/8/3N4/8/4K3 w - - 0 1",
+	"5kn1/7P/8/8/8/8/8/4K3 w - - 0 1",
+	"8/5r1p/5k2/4R3/p1p1KP2/P7/1P1p3P/8 w - - 2 2",
+	"8/8/8/1p2q3/1P2rkp1/2P5/5K1Q/8 b - - 6 4",
+	"4k3/ppp3pp/8/8/4B3/8/P3R3/1N2K3 w - - 0 1",
+	"4k3/ppp3pp/8/8/4N3/8/P3R3/4K3 w - - 0 1",
+	"rnbqk3/p7/2P5/1B6/8/8/8/4K3 w q - 0 1",
 }

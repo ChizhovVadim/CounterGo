@@ -209,7 +209,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 
 			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
 				!isCheck && !child.Position.IsCheck() &&
-				!IsPawnPush(move, position.WhiteMove) &&
+				!IsPawnAdvance(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
 
 				if depth <= 2 {
@@ -306,13 +306,13 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 		if move == MoveEmpty {
 			break
 		}
-
-		if !isCheck && !SEE_GE(position, move) {
+		var danger = IsDangerCapture(position, move)
+		if !isCheck && !danger && !SEE_GE(position, move) {
 			continue
 		}
 		if position.MakeMove(move, child.Position) {
 			moveCount++
-			if !isCheck && !child.Position.IsCheck() &&
+			if !isCheck && !danger && !child.Position.IsCheck() &&
 				eval+MoveValue(move)+PawnValue <= alpha {
 				continue
 			}

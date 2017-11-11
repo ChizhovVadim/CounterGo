@@ -212,6 +212,28 @@ func IsPawnPush(move Move, side bool) bool {
 	}
 }
 
+func IsPawnAdvance(move Move, side bool) bool {
+	if move.MovingPiece() != Pawn {
+		return false
+	}
+	var rank = Rank(move.To())
+	if side {
+		return rank >= Rank5
+	} else {
+		return rank <= Rank4
+	}
+}
+
+func IsDangerCapture(p *Position, m Move) bool {
+	if m.CapturedPiece() == Pawn {
+		var pawns = p.Pawns & p.piecesByColor(!p.WhiteMove)
+		if (pawns & (pawns - 1)) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func IsActiveMove(p *Position, move Move) bool {
 	if IsCaptureOrPromotion(move) {
 		return true

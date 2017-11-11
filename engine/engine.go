@@ -30,6 +30,7 @@ type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings BoolUciOption
+	ClearTransTable    bool
 	historyTable       historyTable
 	transTable         *transTable
 	evaluate           evaluate
@@ -77,6 +78,9 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	e.clearKillers()
 	e.historyTable.Clear()
 	e.transTable.PrepareNewSearch()
+	if e.ClearTransTable {
+		e.transTable.Clear()
+	}
 	e.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
 	for i := 0; i < len(e.tree); i++ {
 		e.tree[i][0].Position = p

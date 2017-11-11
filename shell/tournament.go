@@ -12,6 +12,7 @@ func NewEngineA() UciEngine {
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = false
 	result.Threads.Value = 1
+	result.ClearTransTable = true
 	result.Prepare()
 	return result
 }
@@ -21,6 +22,7 @@ func NewEngineB() UciEngine {
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = true
 	result.Threads.Value = 1
+	result.ClearTransTable = true
 	result.Prepare()
 	return result
 }

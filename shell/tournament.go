@@ -45,31 +45,31 @@ var openings = []string{
 func RunTournament() {
 	fmt.Println("Tournament started...")
 	var numberOfGames = len(openings) * 2
-	var playedGames, engine1Wins, engine2Wins int
+	var playedGames = 0
+	var engines = []struct {
+		engine UciEngine
+		wins   int
+	}{
+		{NewEngineA(), 0},
+		{NewEngineB(), 0},
+	}
 	for i := 0; i < numberOfGames; i++ {
 		var opening = openings[(i/2)%len(openings)]
 		var pos = engine.NewPositionFromFEN(opening)
 
-		if (i % 2) == 0 {
-			var res = PlayGame(NewEngineA(), NewEngineB(), pos)
-			playedGames++
-			if res == GameResultWhiteWins {
-				engine1Wins++
-			} else if res == GameResultBlackWins {
-				engine2Wins++
-			}
-		} else {
-			var res = PlayGame(NewEngineB(), NewEngineA(), pos)
-			playedGames++
-			if res == GameResultWhiteWins {
-				engine2Wins++
-			} else if res == GameResultBlackWins {
-				engine1Wins++
-			}
+		var whiteEngineIndex = i % 2
+		var blackEngineIndex = whiteEngineIndex ^ 1
+		var res = PlayGame(engines[whiteEngineIndex].engine,
+			engines[blackEngineIndex].engine, pos)
+		playedGames++
+		if res == GameResultWhiteWins {
+			engines[whiteEngineIndex].wins++
+		} else if res == GameResultBlackWins {
+			engines[blackEngineIndex].wins++
 		}
 
 		fmt.Printf("Engine1: %v Engine2: %v Total games: %v\n",
-			engine1Wins, engine2Wins, playedGames)
+			engines[0].wins, engines[1].wins, playedGames)
 	}
 	fmt.Println("Tournament finished.")
 }

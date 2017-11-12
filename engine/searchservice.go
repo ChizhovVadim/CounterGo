@@ -209,7 +209,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 
 			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
 				!isCheck && !child.Position.IsCheck() &&
-				!IsPawnAdvance(move, position.WhiteMove) &&
+				!IsPawnPush7th(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
 
 				if depth <= 2 {
@@ -221,14 +221,16 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 					}
 				}
 
-				if moveCount > 16 {
-					reduction = 3
-				} else if moveCount > 9 {
-					reduction = 2
-				} else {
-					reduction = 1
+				if !IsPawnAdvance(move, position.WhiteMove) {
+					if moveCount > 16 {
+						reduction = 3
+					} else if moveCount > 9 {
+						reduction = 2
+					} else {
+						reduction = 1
+					}
+					reduction = min(depth-2, reduction)
 				}
-				reduction = min(depth-2, reduction)
 			}
 
 			if !IsCaptureOrPromotion(move) {

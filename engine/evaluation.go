@@ -6,38 +6,37 @@ import (
 )
 
 const (
-	PawnValue           = 100
-	KnightValue         = 400
-	BishopValue         = 400
-	RookValue           = 600
-	QueenValue          = 1200
-	PawnEndgameBonus    = 5   // 6
-	PawnDoubled         = -10 // 7
-	PawnIsolated        = -15 // 8
-	PawnCenter          = 10  // 9
-	PawnPassed          = 130 //10
-	PawnPassedKingDist  = 10  // 11
-	PawnPassedSquare    = 200 // 12
-	PawnPassedBlocker   = 15  // 13
-	KnightCenter        = 35  // 14
-	KnightKingTropism   = 15  // 15
-	BishopPairEndgame   = 60  // 16
-	BishopMobility      = 50  // 17
-	BishopKingTropism   = 10  // 18
-	Rook7th             = 30  // 19
-	RookSemiopen        = 20  // 20
-	RookOpen            = 25  // 21
-	RookMobility        = 25  // 22
-	RookKingTropism     = 15  // 23
-	QueenKingTropism    = 80  // 24
-	QueenCenterEndgame  = 20  // 25
-	Queen7th            = 20  // 26
-	KingCenterMidgame   = -35 // 27
-	KingCenterEndgame   = 30  // 28
-	KingPawnShield      = 120 // 29
-	AttackStrongerPiece = 40  // 30
-	WeakField           = -10 // 31
-	MinorOnStrongField  = 10  // 32
+	PawnValue          = 100
+	KnightValue        = 400
+	BishopValue        = 400
+	RookValue          = 600
+	QueenValue         = 1200
+	PawnEndgameBonus   = 5
+	PawnDoubled        = -10
+	PawnIsolated       = -15
+	PawnCenter         = 10
+	PawnPassed         = 130
+	PawnPassedKingDist = 10
+	PawnPassedSquare   = 200
+	PawnPassedBlocker  = 15
+	KnightCenter       = 35
+	KnightKingTropism  = 15
+	BishopPairEndgame  = 60
+	BishopMobility     = 50
+	BishopKingTropism  = 10
+	Rook7th            = 30
+	RookSemiopen       = 20
+	RookOpen           = 25
+	RookMobility       = 25
+	RookKingTropism    = 15
+	QueenKingTropism   = 80
+	QueenCenterEndgame = 20
+	Queen7th           = 20
+	KingCenterMidgame  = -35
+	KingCenterEndgame  = 30
+	KingPawnShield     = 120
+	WeakField          = -10
+	MinorOnStrongField = 10
 )
 
 const DarkSquares uint64 = 0xAA55AA55AA55AA55
@@ -112,16 +111,12 @@ func Evaluate(p *Position) int {
 		score -= PawnCenter
 	}
 
-	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
-	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns
-
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
 		sq = FirstOne(x)
 		score += knightPst[sq]
 		score += KNIGHT_KING_TROPISM[dist[sq][bkingSq]]
 		b = knightAttacks[sq]
-		wStrongAttacks |= b & p.Black & (p.Rooks | p.Queens)
 	}
 
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
@@ -130,14 +125,12 @@ func Evaluate(p *Position) int {
 		score -= knightPst[sq]
 		score -= KNIGHT_KING_TROPISM[dist[sq][wkingSq]]
 		b = knightAttacks[sq]
-		bStrongAttacks |= b & p.White & (p.Rooks | p.Queens)
 	}
 
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		wStrongAttacks |= b & p.Black & (p.Rooks | p.Queens)
 		score += BISHOP_MOBILITY[popcount_1s_Max15(b)]
 		score += BISHOP_KING_TROPISM[dist[sq][bkingSq]]
 	}
@@ -146,7 +139,6 @@ func Evaluate(p *Position) int {
 		bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		bStrongAttacks |= b & p.White & (p.Rooks | p.Queens)
 		score -= BISHOP_MOBILITY[popcount_1s_Max15(b)]
 		score -= BISHOP_KING_TROPISM[dist[sq][wkingSq]]
 	}
@@ -158,7 +150,6 @@ func Evaluate(p *Position) int {
 			score += Rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
-		wStrongAttacks |= b & p.Black & p.Queens
 		score += ROOK_MOBILITY[popcount_1s_Max15(b)]
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
@@ -178,7 +169,6 @@ func Evaluate(p *Position) int {
 			score -= Rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
-		bStrongAttacks |= b & p.White & p.Queens
 		score -= ROOK_MOBILITY[popcount_1s_Max15(b)]
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
@@ -210,9 +200,6 @@ func Evaluate(p *Position) int {
 		endgame -= queenEndgamePst[sq]
 		score -= QUEEN_KING_TROPISM[dist[sq][wkingSq]]
 	}
-
-	score += AttackStrongerPiece * (popcount_1s_Max15(wStrongAttacks) -
-		popcount_1s_Max15(bStrongAttacks))
 
 	var matIndexWhite = min(32, (wn+wb)*3+wr*5+wq*10)
 	var matIndexBlack = min(32, (bn+bb)*3+br*5+bq*10)
@@ -283,18 +270,8 @@ func Evaluate(p *Position) int {
 	score += MinorOnStrongField * (popcount_1s_Max15(wMinorOnStrongFields) -
 		popcount_1s_Max15(bMinorOnStrongFields))
 
-	score += /*PawnValue*(wp-bp) +*/ KnightValue*(wn-bn) +
+	score += PawnValue*(wp-bp) + KnightValue*(wn-bn) +
 		BishopValue*(wb-bb) + RookValue*(wr-br) + QueenValue*(wq-bq)
-
-	var pawnBalance = wp - bp
-	switch {
-	case pawnBalance > 2:
-		score += 2*PawnValue + (pawnBalance-2)*PawnValue/2
-	case pawnBalance < -2:
-		score += -2*PawnValue + (pawnBalance+2)*PawnValue/2
-	default:
-		score += pawnBalance * PawnValue
-	}
 
 	endgame += PawnEndgameBonus * (wp - bp)
 	if wb >= 2 {
@@ -325,11 +302,6 @@ func Evaluate(p *Position) int {
 		}
 	}
 
-	if (p.Knights|p.Bishops|p.Queens) == 0 &&
-		wr == 1 && br == 1 && AbsDelta(wp, bp) <= 1 {
-		score /= 2
-	}
-
 	if (p.Knights|p.Rooks|p.Queens) == 0 &&
 		wb == 1 && bb == 1 && AbsDelta(wp, bp) <= 2 &&
 		(p.Bishops&DarkSquares) != 0 &&
@@ -352,7 +324,6 @@ func GetIsolatedPawns(pawns uint64) uint64 {
 }
 
 func GetWhitePassedPawns(p *Position) uint64 {
-	//TODO only frontmost passed pawns if doubled
 	var allFrontSpans = DownFill(Down(p.Black & p.Pawns))
 	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
 	return p.White & p.Pawns &^ allFrontSpans

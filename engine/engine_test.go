@@ -9,6 +9,7 @@ func TestSEE(t *testing.T) {
 	var child = &Position{}
 	for _, test := range testFENs {
 		var p = NewPositionFromFEN(test)
+		var eval = basicMaterial(p)
 		ml.GenerateCaptures(p, true)
 		for i := 0; i < ml.Count; i++ {
 			var move = ml.Items[i].Move
@@ -18,7 +19,6 @@ func TestSEE(t *testing.T) {
 			if child.IsDiscoveredCheck() {
 				continue
 			}
-			var eval = basicMaterial(p)
 			var directSEE = -searchSEE(child, -eval, -(eval-1)) >= eval
 			var see = SEE_GE(p, move)
 			if directSEE != see {

@@ -323,7 +323,7 @@ func (uci *UciProtocol) Run() {
 		if commandLine == "quit" {
 			return
 		}
-		var cmdArgs = strings.Split(commandLine, " ")
+		var cmdArgs = strings.Fields(commandLine)
 		var commandName = cmdArgs[0]
 		var cmd, ok = uci.commands[commandName]
 		if ok {

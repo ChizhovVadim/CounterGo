@@ -224,10 +224,9 @@ func MoveCommand(uci *UciProtocol, args []string) {
 		MoveTime: 3000,
 	}
 	var searchParams = engine.SearchParams{
-		Positions:      uci.positions,
-		Limits:         limits,
-		IsTraceEnabled: true,
-		Progress:       engine.SendProgressToUci,
+		Positions: uci.positions,
+		Limits:    limits,
+		Progress:  engine.SendProgressToUci,
 	}
 	var searchResult = uci.engine.Search(searchParams)
 	engine.SendResultToUci(searchResult)

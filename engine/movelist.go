@@ -463,32 +463,8 @@ func (ml *MoveList) MoveToBegin(index int) {
 	ml.Items[0] = item
 }
 
-func (ml *MoveList) ElementAt(index int) Move {
-	var bestIndex = index
-	for i := bestIndex + 1; i < ml.Count; i++ {
-		if ml.Items[i].Score > ml.Items[bestIndex].Score {
-			bestIndex = i
-		}
-	}
-	if bestIndex != index {
-		var temp = ml.Items[bestIndex]
-		ml.Items[bestIndex] = ml.Items[index]
-		ml.Items[index] = temp
-	}
-	return ml.Items[index].Move
-}
-
 func (ml *MoveList) SortMoves() {
 	sort.Slice(ml.Items[:ml.Count], func(i, j int) bool {
 		return ml.Items[i].Score > ml.Items[j].Score
 	})
-}
-
-func (ml *MoveList) Contains(m Move) bool {
-	for i := 0; i < ml.Count; i++ {
-		if ml.Items[i].Move == m {
-			return true
-		}
-	}
-	return false
 }

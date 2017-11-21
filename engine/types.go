@@ -125,7 +125,6 @@ type SearchParams struct {
 	Positions         []*Position
 	Limits            LimitsType
 	CancellationToken *CancellationToken
-	IsTraceEnabled    bool
 	Progress          func(si SearchInfo)
 }
 

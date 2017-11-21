@@ -151,7 +151,6 @@ func (ctx *searchContext) ComposePV(move Move, child *searchContext) {
 }
 
 func IsLateEndgame(p *Position, side bool) bool {
-	//sample: position fen 8/8/6p1/1p2pk1p/1Pp1p2P/2PbP1P1/3N1P2/4K3 w - - 12 58
 	var ownPieces = p.piecesByColor(side)
 	return ((p.Rooks|p.Queens)&ownPieces) == 0 &&
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
@@ -172,44 +171,9 @@ func MoveValue(move Move) int {
 	return result
 }
 
-func IsDirectCheck(p *Position, move Move) bool {
-	var attacks, occ uint64
-	var to = move.To()
-	switch move.MovingPiece() {
-	case Pawn:
-		attacks = PawnAttacks(to, p.WhiteMove)
-	case Knight:
-		attacks = knightAttacks[to]
-	case Bishop:
-		occ = ((p.White | p.Black) & ^squareMask[move.From()]) | squareMask[to]
-		attacks = BishopAttacks(to, occ)
-	case Rook:
-		occ = ((p.White | p.Black) & ^squareMask[move.From()]) | squareMask[to]
-		attacks = RookAttacks(to, occ)
-	case Queen:
-		occ = ((p.White | p.Black) & ^squareMask[move.From()]) | squareMask[to]
-		attacks = QueenAttacks(to, occ)
-	default:
-		attacks = 0
-	}
-	return (attacks & p.Kings & p.piecesByColor(!p.WhiteMove)) != 0
-}
-
 func IsCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||
 		move.Promotion() != Empty
-}
-
-func IsPawnPush(move Move, side bool) bool {
-	if move.MovingPiece() != Pawn {
-		return false
-	}
-	var rank = Rank(move.To())
-	if side {
-		return rank >= Rank6
-	} else {
-		return rank <= Rank3
-	}
 }
 
 func IsPawnAdvance(move Move, side bool) bool {
@@ -234,19 +198,6 @@ func IsDangerCapture(p *Position, m Move) bool {
 	return false
 }
 
-func IsActiveMove(p *Position, move Move) bool {
-	if IsCaptureOrPromotion(move) {
-		return true
-	}
-	if IsPawnPush(move, p.WhiteMove) {
-		return true
-	}
-	if IsPassedPawnMove(p, move) {
-		return true
-	}
-	return false
-}
-
 func IsPawnPush7th(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false
@@ -257,34 +208,6 @@ func IsPawnPush7th(move Move, side bool) bool {
 	} else {
 		return rank == Rank2
 	}
-}
-
-func HasPawnOn7th(p *Position, side bool) bool {
-	if side {
-		return (p.Pawns & p.White & Rank7Mask) != 0
-	}
-	return (p.Pawns & p.Black & Rank2Mask) != 0
-}
-
-func IsPassedPawnMove(p *Position, move Move) bool {
-	if move.MovingPiece() != Pawn {
-		return false
-	}
-
-	var file = File(move.To())
-	var rank = Rank(move.To())
-
-	if p.WhiteMove {
-		if (thisAndNeighboringFiles[file] & upperRanks[rank] & p.Pawns & p.Black) == 0 {
-			return true
-		}
-	} else {
-		if (thisAndNeighboringFiles[file] & lowerRanks[rank] & p.Pawns & p.White) == 0 {
-			return true
-		}
-	}
-
-	return false
 }
 
 func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {

@@ -5,6 +5,14 @@ import (
 	"unicode"
 )
 
+func initSlice(size int, f func(index int) int) []int {
+	var result = make([]int, size)
+	for i := 0; i < len(result); i++ {
+		result[i] = f(i)
+	}
+	return result
+}
+
 func min(l, r int) int {
 	if l < r {
 		return l

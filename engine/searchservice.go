@@ -166,11 +166,11 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	}
 
 	var isCheck = position.IsCheck()
-	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
 	var child = ctx.Next()
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
-		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
+		beta < VALUE_MATE_IN_MAX_HEIGHT &&
+		!IsLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
 		position.MakeNullMove(child.Position)
 		if newDepth <= 0 {

@@ -7,7 +7,7 @@ import (
 
 func initSlice(size int, f func(index int) int) []int {
 	var result = make([]int, size)
-	for i := 0; i < len(result); i++ {
+	for i := range result {
 		result[i] = f(i)
 	}
 	return result

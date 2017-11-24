@@ -66,7 +66,7 @@ func (ctx *searchContext) NextMove() Move {
 			}
 			ctx.mi.head = 0
 			ctx.mi.stage++
-			for i := 0; i < len(ctx.mi.remaining); i++ {
+			for i := range ctx.mi.remaining {
 				var item = &ctx.mi.remaining[i]
 				item.Score = ctx.Engine.historyTable.Score(ctx.Position.WhiteMove, item.Move)
 			}

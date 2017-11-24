@@ -112,7 +112,7 @@ func PositionsToHistoryKeys(positions []*Position) []uint64 {
 
 func NewTree(engine *Engine, degreeOfParallelism int) [][]searchContext {
 	var result = make([][]searchContext, degreeOfParallelism)
-	for i := 0; i < len(result); i++ {
+	for i := range result {
 		result[i] = NewSearchContexts(engine, i)
 	}
 	return result
@@ -120,7 +120,7 @@ func NewTree(engine *Engine, degreeOfParallelism int) [][]searchContext {
 
 func NewSearchContexts(engine *Engine, thread int) []searchContext {
 	var result = make([]searchContext, MAX_HEIGHT+1)
-	for i := 0; i < len(result); i++ {
+	for i := range result {
 		result[i] = NewSearchContext(engine, thread, i)
 	}
 	return result

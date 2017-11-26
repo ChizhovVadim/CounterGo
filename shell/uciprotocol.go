@@ -174,35 +174,6 @@ func BenchmarkCommand(uci *UciProtocol, args []string) {
 	fmt.Println(elapsed)
 }
 
-func PerftCommand(uci *UciProtocol, args []string) {
-	var position = engine.NewPositionFromFEN(engine.InitialPositionFen)
-	var depth = 6
-
-	var start = time.Now()
-	var n = Perft(position, depth)
-	var elapsed = time.Since(start)
-
-	var expected = []int{20, 400, 8902, 197281, 4865609, 119060324}
-	var ok = n == expected[depth-1]
-	fmt.Printf("Nodes: %v OK: %v Duration: %v\n", n, ok, elapsed)
-}
-
-func Perft(p *engine.Position, depth int) int {
-	result := 0
-	var ml [engine.MAX_MOVES]engine.Move
-	var child engine.Position
-	for _, move := range engine.GenerateMoves(p, ml[:]) {
-		if p.MakeMove(move, &child) {
-			if depth > 1 {
-				result += Perft(&child, depth-1)
-			} else {
-				result++
-			}
-		}
-	}
-	return result
-}
-
 func EvalCommand(uci *UciProtocol, args []string) {
 	engine.TraceEvalSettings()
 	var score = engine.Evaluate(uci.positions[len(uci.positions)-1])
@@ -299,7 +270,6 @@ func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 
 		// My commands
 		"benchmark": BenchmarkCommand,
-		"perft":     PerftCommand,
 		"eval":      EvalCommand,
 		"move":      MoveCommand,
 		"epd":       EpdCommand,

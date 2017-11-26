@@ -108,7 +108,7 @@ func GoCommand(uci *UciProtocol, args []string) {
 }
 
 func ParseLimits(args []string) (result engine.LimitsType) {
-	for i := range args {
+	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "ponder":
 			result.Ponder = true

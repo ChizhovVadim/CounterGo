@@ -163,12 +163,11 @@ func StopCommand(uci *UciProtocol, args []string) {
 func BenchmarkCommand(uci *UciProtocol, args []string) {
 	var fen = "r1bqk2r/pppp1ppp/2n2n2/8/1b1NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 3 6 "
 	var p = engine.NewPositionFromFEN(fen)
-	var ml = &engine.MoveList{}
+	var ml = make([]engine.Move, engine.MAX_MOVES)
 	const count = 100000000
 	var start = time.Now()
 	for i := 0; i < count; {
-		ml.GenerateMoves(p)
-		i += ml.Count
+		i += len(engine.GenerateMoves(p, ml))
 	}
 	var elapsed = time.Since(start)
 	fmt.Println(ml)
@@ -190,11 +189,9 @@ func PerftCommand(uci *UciProtocol, args []string) {
 
 func Perft(p *engine.Position, depth int) int {
 	result := 0
-	var ml engine.MoveList
+	var ml [engine.MAX_MOVES]engine.Move
 	var child engine.Position
-	ml.GenerateMoves(p)
-	for i := 0; i < ml.Count; i++ {
-		var move = ml.Items[i].Move
+	for _, move := range engine.GenerateMoves(p, ml[:]) {
 		if p.MakeMove(move, &child) {
 			if depth > 1 {
 				result += Perft(&child, depth-1)

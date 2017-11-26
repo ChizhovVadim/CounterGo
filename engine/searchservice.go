@@ -9,6 +9,23 @@ func RecoverFromSearchTimeout() {
 	}
 }
 
+func (ctx *searchContext) GenRootMoves() []Move {
+	ctx.mi.important = ctx.mi.important[:0]
+	var child = ctx.Next()
+	for _, m := range GenerateMoves(ctx.Position, ctx.mi.buffer[:]) {
+		if ctx.Position.MakeMove(m, child.Position) {
+			var score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, score})
+		}
+	}
+	sortMoves(ctx.mi.important)
+	var result = make([]Move, len(ctx.mi.important))
+	for i := range ctx.mi.important {
+		result[i] = ctx.mi.important[i].Move
+	}
+	return result
+}
+
 func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	defer RecoverFromSearchTimeout()
 	var engine = ctx.Engine
@@ -18,23 +35,13 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 	}()
 
 	var p = ctx.Position
-	ctx.MoveList.GenerateMoves(p)
-	ctx.MoveList.FilterLegalMoves(p)
-	if ctx.MoveList.Count == 0 {
+	var ml = ctx.GenRootMoves()
+	if len(ml) == 0 {
 		return
 	}
-	result.MainLine = []Move{ctx.MoveList.Items[0].Move}
-	if ctx.MoveList.Count == 1 {
+	result.MainLine = []Move{ml[0]}
+	if len(ml) == 1 {
 		return
-	}
-	{
-		var child = ctx.Next()
-		for i := 0; i < ctx.MoveList.Count; i++ {
-			var item = &ctx.MoveList.Items[i]
-			p.MakeMove(item.Move, child.Position)
-			item.Score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
-		}
-		ctx.MoveList.SortMoves()
 	}
 
 	const height = 0
@@ -46,7 +53,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 		var bestMoveIndex = 0
 		{
 			var child = ctx.Next()
-			var move = ctx.MoveList.Items[0].Move
+			var move = ml[0]
 			p.MakeMove(move, child.Position)
 			var newDepth = ctx.NewDepth(depth, child)
 			var score = -child.AlphaBeta(-beta, -alpha, newDepth)
@@ -72,10 +79,10 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				var localIndex = index
 				index++
 				gate.Unlock()
-				if localIndex >= ctx.MoveList.Count {
+				if localIndex >= len(ml) {
 					return
 				}
-				var move = ctx.MoveList.Items[localIndex].Move
+				var move = ml[localIndex]
 				p.MakeMove(move, child.Position)
 				var newDepth = ctx.NewDepth(depth, child)
 				var score = -child.AlphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
@@ -109,7 +116,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {
 			break
 		}
-		ctx.MoveList.MoveToBegin(bestMoveIndex)
+		MoveToBegin(ml, bestMoveIndex)
 		HashStorePV(ctx, result.Depth, result.Score, result.MainLine)
 	}
 	return

@@ -81,24 +81,13 @@ const (
 
 type Move int32
 
-const MoveEmpty Move = 0
-
-type MoveWithScore struct {
-	Move  Move
-	Score int
-}
-
-type MoveList struct {
-	Items [MAX_MOVES]MoveWithScore
-	Count int
-}
+const MoveEmpty = Move(0)
 
 type searchContext struct {
 	Engine             *Engine
 	Thread             int
 	Height             int
 	Position           *Position
-	MoveList           *MoveList
 	mi                 moveIterator
 	Killer1            Move
 	Killer2            Move

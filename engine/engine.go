@@ -132,7 +132,6 @@ func NewSearchContext(engine *Engine, thread, height int) searchContext {
 		Thread:             thread,
 		Height:             height,
 		Position:           &Position{},
-		MoveList:           &MoveList{},
 		QuietsSearched:     make([]Move, 0, MAX_MOVES),
 		PrincipalVariation: make([]Move, 0, MAX_HEIGHT),
 	}

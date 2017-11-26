@@ -6,9 +6,15 @@ const (
 )
 
 type moveIterator struct {
-	important   []MoveWithScore
-	remaining   []MoveWithScore
+	buffer      [MAX_MOVES]Move
+	important   []moveWithScore
+	remaining   []moveWithScore
 	stage, head int
+}
+
+type moveWithScore struct {
+	Move  Move
+	Score int
 }
 
 func (ctx *searchContext) InitQMoves(genChecks bool) {
@@ -20,13 +26,11 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 	ctx.mi.remaining = ctx.mi.remaining[:0]
 	ctx.mi.stage = StageImportant
 	ctx.mi.head = 0
-	ctx.MoveList.GenerateCaptures(ctx.Position, genChecks)
-	for i := 0; i < ctx.MoveList.Count; i++ {
-		var m = ctx.MoveList.Items[i].Move
+	for _, m := range GenerateCaptures(ctx.Position, genChecks, ctx.mi.buffer[:]) {
 		if IsCaptureOrPromotion(m) {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 29000 + MVVLVA(m)})
 		} else {
-			ctx.mi.remaining = append(ctx.mi.remaining, MoveWithScore{m, 0})
+			ctx.mi.remaining = append(ctx.mi.remaining, moveWithScore{m, 0})
 		}
 	}
 	sortMoves(ctx.mi.important)
@@ -37,19 +41,17 @@ func (ctx *searchContext) InitMoves(hashMove Move) {
 	ctx.mi.remaining = ctx.mi.remaining[:0]
 	ctx.mi.stage = StageImportant
 	ctx.mi.head = 0
-	ctx.MoveList.GenerateMoves(ctx.Position)
-	for i := 0; i < ctx.MoveList.Count; i++ {
-		var m = ctx.MoveList.Items[i].Move
+	for _, m := range GenerateMoves(ctx.Position, ctx.mi.buffer[:]) {
 		if m == hashMove {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 30000})
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 30000})
 		} else if IsCaptureOrPromotion(m) {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 29000 + MVVLVA(m)})
 		} else if m == ctx.Killer1 {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 28000})
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 28000})
 		} else if m == ctx.Killer2 {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 28000 - 1})
+			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 28000 - 1})
 		} else {
-			ctx.mi.remaining = append(ctx.mi.remaining, MoveWithScore{m, 0})
+			ctx.mi.remaining = append(ctx.mi.remaining, moveWithScore{m, 0})
 		}
 	}
 	sortMoves(ctx.mi.important)
@@ -92,7 +94,7 @@ func MVVLVA(move Move) int {
 
 var shellSortGaps = [...]int{10, 4, 1}
 
-func sortMoves(moves []MoveWithScore) {
+func sortMoves(moves []moveWithScore) {
 	for _, gap := range shellSortGaps {
 		for i := gap; i < len(moves); i++ {
 			j, t := i, moves[i]
@@ -104,7 +106,7 @@ func sortMoves(moves []MoveWithScore) {
 	}
 }
 
-func isSorted(moves []MoveWithScore) bool {
+func isSorted(moves []moveWithScore) bool {
 	for i := 1; i < len(moves); i++ {
 		if moves[i-1].Score < moves[i].Score {
 			return false

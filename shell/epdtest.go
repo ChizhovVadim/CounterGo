@@ -106,14 +106,11 @@ func ParseEpdMove(p *engine.Position, s string) engine.Move {
 	s = strings.TrimRight(s, "+")
 	var piece = 2 + strings.Index("NBRQK", s[0:1])
 	var to = engine.ParseSquare(s[len(s)-2:])
-	var ml = &engine.MoveList{}
-	ml.GenerateMoves(p)
-	ml.FilterLegalMoves(p)
 	var moves []engine.Move
-	for _, move := range ml.Items[:ml.Count] {
-		if move.Move.MovingPiece() == piece &&
-			move.Move.To() == to {
-			moves = append(moves, move.Move)
+	for _, move := range engine.GenerateLegalMoves(p) {
+		if move.MovingPiece() == piece &&
+			move.To() == to {
+			moves = append(moves, move)
 		}
 	}
 	if len(moves) == 1 {

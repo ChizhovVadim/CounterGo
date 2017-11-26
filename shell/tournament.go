@@ -134,10 +134,8 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 
 func ComputeGameResult(positions []*engine.Position) int {
 	var position = positions[len(positions)-1]
-	var ml = &engine.MoveList{}
-	ml.GenerateMoves(position)
-	ml.FilterLegalMoves(position)
-	if ml.Count == 0 {
+	var ml = engine.GenerateLegalMoves(position)
+	if len(ml) == 0 {
 		if !position.IsCheck() {
 			return GameResultDraw
 		} else if position.WhiteMove {

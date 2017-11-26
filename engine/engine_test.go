@@ -67,6 +67,35 @@ func Perft(p *Position, depth int) int {
 	return result
 }
 
+func TestEval(t *testing.T) {
+	for _, fen := range testFENs {
+		var p = NewPositionFromFEN(fen)
+		var eval = Evaluate(p)
+		var mirrorP = MirrorPosition(p)
+		var mirrorEval = Evaluate(mirrorP)
+		if eval != mirrorEval {
+			t.Error(fen, mirrorP.String(), eval, mirrorEval)
+		}
+	}
+}
+
+func MirrorPosition(p *Position) *Position {
+	var board [64]int
+	for sq := range board {
+		var pt, side = p.GetPieceTypeAndSide(FlipSquare(sq))
+		if pt == Empty {
+			board[sq] = Empty
+		} else {
+			board[sq] = MakePiece(pt, !side)
+		}
+	}
+	return createPosition(board,
+		!p.WhiteMove,
+		((p.CastleRights&3)<<2)|(p.CastleRights>>2),
+		let(p.EpSquare == SquareNone, SquareNone, FlipSquare(p.EpSquare)),
+		p.Rule50)
+}
+
 func TestSEE(t *testing.T) {
 	var buffer [MAX_MOVES]Move
 	var child = &Position{}

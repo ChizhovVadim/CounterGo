@@ -22,12 +22,10 @@ const (
 	KnightCenter       = 35
 	KnightKingTropism  = 15
 	BishopPairEndgame  = 60
-	BishopMobility     = 50
 	BishopKingTropism  = 10
 	Rook7th            = 30
 	RookSemiopen       = 20
 	RookOpen           = 25
-	RookMobility       = 25
 	RookKingTropism    = 15
 	QueenKingTropism   = 80
 	QueenCenterEndgame = 20
@@ -66,8 +64,6 @@ var (
 
 	knightPst, queenEndgamePst, kingOpeningPst, kingEndgamePst [64]int
 	BB_WPAWN_SQUARE, BB_BPAWN_SQUARE                           [64]uint64
-	BISHOP_MOBILITY                                            [13 + 1]int
-	ROOK_MOBILITY                                              [14 + 1]int
 	KNIGHT_KING_TROPISM, BISHOP_KING_TROPISM,
 	ROOK_KING_TROPISM, QUEEN_KING_TROPISM [10]int
 	KING_PAWN_SHIELD [10]int
@@ -75,7 +71,29 @@ var (
 	dist             [][]int
 )
 
-func Evaluate(p *Position) int {
+func initMobility(size, minValue, maxValue int) []int {
+	var result = make([]int, size)
+	for i := range result {
+		result[i] = int(float64(minValue) +
+			math.Sqrt(float64(i)/float64(len(result)-1))*float64(maxValue-minValue))
+	}
+	return result
+}
+
+type evaluation struct {
+	bishopMobility, rookMobility []int
+}
+
+func NewEvaluation() *evaluation {
+	var e = &evaluation{}
+
+	e.bishopMobility = initMobility(13+1, -50, 50)
+	e.rookMobility = initMobility(14+1, -25, 25)
+
+	return e
+}
+
+func (e *evaluation) Evaluate(p *Position) int {
 	var (
 		x, b                           uint64
 		sq, keySq                      int
@@ -116,7 +134,6 @@ func Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		score += knightPst[sq]
 		score += KNIGHT_KING_TROPISM[dist[sq][bkingSq]]
-		b = knightAttacks[sq]
 	}
 
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
@@ -124,14 +141,13 @@ func Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		score -= knightPst[sq]
 		score -= KNIGHT_KING_TROPISM[dist[sq][wkingSq]]
-		b = knightAttacks[sq]
 	}
 
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score += BISHOP_MOBILITY[popcount_1s_Max15(b)]
+		score += e.bishopMobility[popcount_1s_Max15(b)]
 		score += BISHOP_KING_TROPISM[dist[sq][bkingSq]]
 	}
 
@@ -139,7 +155,7 @@ func Evaluate(p *Position) int {
 		bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score -= BISHOP_MOBILITY[popcount_1s_Max15(b)]
+		score -= e.bishopMobility[popcount_1s_Max15(b)]
 		score -= BISHOP_KING_TROPISM[dist[sq][wkingSq]]
 	}
 
@@ -150,7 +166,7 @@ func Evaluate(p *Position) int {
 			score += Rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
-		score += ROOK_MOBILITY[popcount_1s_Max15(b)]
+		score += e.rookMobility[popcount_1s_Max15(b)]
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
 			if (b & p.Pawns) == 0 {
@@ -169,7 +185,7 @@ func Evaluate(p *Position) int {
 			score -= Rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
-		score -= ROOK_MOBILITY[popcount_1s_Max15(b)]
+		score -= e.rookMobility[popcount_1s_Max15(b)]
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
 			if (b & p.Pawns) == 0 {
@@ -418,9 +434,6 @@ func TraceEvalSettings() {
 	PrintPst("KingOpeningPst", kingOpeningPst)
 	PrintPst("KingEndgamePst", kingEndgamePst)
 
-	PrintVector("BISHOP_MOBILITY", BISHOP_MOBILITY[:])
-	PrintVector("ROOK_MOBILITY", ROOK_MOBILITY[:])
-
 	PrintVector("KNIGHT_KING_TROPISM", KNIGHT_KING_TROPISM[:])
 	PrintVector("BISHOP_KING_TROPISM", BISHOP_KING_TROPISM[:])
 	PrintVector("ROOK_KING_TROPISM", ROOK_KING_TROPISM[:])
@@ -435,14 +448,6 @@ func init() {
 		queenEndgamePst[sq] = center[sq] * QueenCenterEndgame / 3
 		kingOpeningPst[sq] = center_k[sq] * KingCenterMidgame / 4
 		kingEndgamePst[sq] = center[sq] * KingCenterEndgame / 3
-	}
-
-	for i := 0; i < len(BISHOP_MOBILITY); i++ {
-		BISHOP_MOBILITY[i] = int(InterpolateSquare(float64(i), 13, 1, BishopMobility, -BishopMobility))
-	}
-
-	for i := 0; i < len(ROOK_MOBILITY); i++ {
-		ROOK_MOBILITY[i] = int(InterpolateSquare(float64(i), 14, 2, RookMobility, -RookMobility))
 	}
 
 	for i := 0; i < 10; i++ {

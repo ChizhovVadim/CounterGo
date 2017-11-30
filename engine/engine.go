@@ -65,6 +65,9 @@ func (e *Engine) Prepare() {
 	if len(e.tree) != e.Threads.Value {
 		e.tree = NewTree(e, e.Threads.Value)
 	}
+	if e.evaluate == nil {
+		e.evaluate = NewEvaluation().Evaluate
+	}
 }
 
 func (e *Engine) Search(searchParams SearchParams) SearchInfo {
@@ -74,7 +77,6 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	defer e.timeManager.Close()
 
 	e.Prepare()
-	e.evaluate = Evaluate
 	e.clearKillers()
 	e.historyTable.Clear()
 	e.transTable.PrepareNewSearch()

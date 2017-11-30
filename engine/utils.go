@@ -5,12 +5,16 @@ import (
 	"unicode"
 )
 
-func initSlice(size int, f func(index int) int) []int {
+func initSliceInt(size int, f func(index int) int) []int {
 	var result = make([]int, size)
 	for i := range result {
 		result[i] = f(i)
 	}
 	return result
+}
+
+func interpolateLinearInt(x, x_min, x_max, y_min, y_max int) int {
+	return ((y_max-y_min)*(x-x_min)+(x_max-x_min)/2)/(x_max-x_min) + y_min
 }
 
 func min(l, r int) int {

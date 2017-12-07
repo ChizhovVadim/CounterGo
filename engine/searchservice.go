@@ -85,10 +85,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				var move = ml[localIndex]
 				p.MakeMove(move, child.Position)
 				var newDepth = ctx.NewDepth(depth, child)
-				var score = -child.AlphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
-				if score > localAlpha {
-					score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
-				}
+				var score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
 				gate.Lock()
 				if score > alpha {
 					alpha = score
@@ -221,7 +218,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 
 				if depth <= 2 {
 					if staticEval == VALUE_INFINITE {
-						staticEval = engine.evaluate(position)
+						staticEval = engine.evaluator.Evaluate(position)
 					}
 					if staticEval+PawnValue <= alpha {
 						continue
@@ -299,7 +296,7 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {
-		eval = engine.evaluate(position)
+		eval = engine.evaluator.Evaluate(position)
 		if eval > alpha {
 			alpha = eval
 		}
@@ -322,7 +319,7 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 		if position.MakeMove(move, child.Position) {
 			moveCount++
 			if !isCheck && !danger && !child.Position.IsCheck() &&
-				eval+MoveValue(move)+PawnValue <= alpha {
+				eval+engine.evaluator.MoveValue(move)+PawnValue <= alpha {
 				continue
 			}
 			var score = -child.Quiescence(-beta, -alpha, depth-1)

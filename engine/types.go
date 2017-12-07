@@ -124,5 +124,3 @@ type SearchInfo struct {
 	Time     int64
 	MainLine []Move
 }
-
-type evaluate func(p *Position) int

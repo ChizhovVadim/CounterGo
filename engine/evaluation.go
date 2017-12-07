@@ -7,10 +7,6 @@ import (
 
 const (
 	PawnValue          = 100
-	KnightValue        = 400
-	BishopValue        = 400
-	RookValue          = 600
-	QueenValue         = 1200
 	PawnEndgameBonus   = 5
 	PawnDoubled        = -10
 	PawnIsolated       = -15
@@ -81,16 +77,26 @@ func initMobility(size, minValue, maxValue int) []int {
 }
 
 type evaluation struct {
+	experimentSettings           bool
 	bishopMobility, rookMobility []int
+	pieceValue                   []int
 }
 
-func NewEvaluation() *evaluation {
+func NewEvaluation(experimentSettings bool) *evaluation {
 	var e = &evaluation{}
-
+	e.experimentSettings = experimentSettings
 	e.bishopMobility = initMobility(13+1, -50, 50)
 	e.rookMobility = initMobility(14+1, -25, 25)
-
+	e.pieceValue = []int{0, 100, 300, 300, 500, 1000}
 	return e
+}
+
+func (e *evaluation) MoveValue(move Move) int {
+	var result = e.pieceValue[move.CapturedPiece()]
+	if move.Promotion() != Empty {
+		result += e.pieceValue[move.Promotion()] - e.pieceValue[Pawn]
+	}
+	return result
 }
 
 func (e *evaluation) Evaluate(p *Position) int {
@@ -286,8 +292,8 @@ func (e *evaluation) Evaluate(p *Position) int {
 	score += MinorOnStrongField * (popcount_1s_Max15(wMinorOnStrongFields) -
 		popcount_1s_Max15(bMinorOnStrongFields))
 
-	score += PawnValue*(wp-bp) + KnightValue*(wn-bn) +
-		BishopValue*(wb-bb) + RookValue*(wr-br) + QueenValue*(wq-bq)
+	var minors = wn - bn + wb - bb
+	score += 100*(wp-bp) + 300*minors + 100*(minors/2) + 500*(wr-br) + 1000*(wq-bq)
 
 	endgame += PawnEndgameBonus * (wp - bp)
 	if wb >= 2 {

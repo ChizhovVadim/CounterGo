@@ -33,7 +33,7 @@ type Engine struct {
 	ClearTransTable    bool
 	historyTable       historyTable
 	transTable         *transTable
-	evaluate           evaluate
+	evaluator          *evaluation
 	historyKeys        []uint64
 	timeManager        *timeManager
 	tree               [][]searchContext
@@ -65,8 +65,9 @@ func (e *Engine) Prepare() {
 	if len(e.tree) != e.Threads.Value {
 		e.tree = NewTree(e, e.Threads.Value)
 	}
-	if e.evaluate == nil {
-		e.evaluate = NewEvaluation().Evaluate
+	if e.evaluator == nil ||
+		e.evaluator.experimentSettings != e.ExperimentSettings.Value {
+		e.evaluator = NewEvaluation(e.ExperimentSettings.Value)
 	}
 }
 

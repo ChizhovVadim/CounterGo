@@ -176,7 +176,8 @@ func BenchmarkCommand(uci *UciProtocol, args []string) {
 
 func EvalCommand(uci *UciProtocol, args []string) {
 	var p = uci.positions[len(uci.positions)-1]
-	var score = engine.NewEvaluation().Evaluate(p)
+	var e = engine.NewEvaluation(false)
+	var score = e.Evaluate(p)
 	fmt.Printf("score %v\n", score)
 }
 

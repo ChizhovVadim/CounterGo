@@ -68,11 +68,12 @@ func Perft(p *Position, depth int) int {
 }
 
 func TestEval(t *testing.T) {
+	var e = NewEvaluation(false)
 	for _, fen := range testFENs {
 		var p = NewPositionFromFEN(fen)
-		var eval = Evaluate(p)
+		var eval = e.Evaluate(p)
 		var mirrorP = MirrorPosition(p)
-		var mirrorEval = Evaluate(mirrorP)
+		var mirrorEval = e.Evaluate(mirrorP)
 		if eval != mirrorEval {
 			t.Error(fen, mirrorP.String(), eval, mirrorEval)
 		}
@@ -121,10 +122,10 @@ func TestSEE(t *testing.T) {
 func basicMaterial(p *Position) int {
 	var score = 0
 	score += PopCount(p.Pawns&p.White) - PopCount(p.Pawns&p.Black)
-	score += 4 * (PopCount(p.Knights&p.White) - PopCount(p.Knights&p.Black))
-	score += 4 * (PopCount(p.Bishops&p.White) - PopCount(p.Bishops&p.Black))
-	score += 6 * (PopCount(p.Rooks&p.White) - PopCount(p.Rooks&p.Black))
-	score += 12 * (PopCount(p.Queens&p.White) - PopCount(p.Queens&p.Black))
+	score += 3 * (PopCount(p.Knights&p.White) - PopCount(p.Knights&p.Black))
+	score += 3 * (PopCount(p.Bishops&p.White) - PopCount(p.Bishops&p.Black))
+	score += 5 * (PopCount(p.Rooks&p.White) - PopCount(p.Rooks&p.Black))
+	score += 10 * (PopCount(p.Queens&p.White) - PopCount(p.Queens&p.Black))
 	if !p.WhiteMove {
 		score = -score
 	}

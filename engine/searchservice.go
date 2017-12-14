@@ -121,8 +121,10 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 
 func HashStorePV(ctx *searchContext, depth, score int, pv []Move) {
 	for _, move := range pv {
-		ctx.Engine.transTable.Update(ctx.Position, depth,
-			ValueToTT(score, ctx.Height), Lower|Upper, move)
+		if _, _, _, _, ok := ctx.Engine.transTable.Read(ctx.Position); !ok {
+			ctx.Engine.transTable.Update(ctx.Position, depth,
+				ValueToTT(score, ctx.Height), Lower|Upper, move)
+		}
 		var child = ctx.Next()
 		ctx.Position.MakeMove(move, child.Position)
 		depth = ctx.NewDepth(depth, child)

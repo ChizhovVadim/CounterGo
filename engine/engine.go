@@ -26,6 +26,11 @@ func (o *IntUciOption) Name() string {
 	return o.name
 }
 
+type Evaluator interface {
+	Evaluate(p *Position) int
+	MoveValue(move Move) int
+}
+
 type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
@@ -33,7 +38,7 @@ type Engine struct {
 	ClearTransTable    bool
 	historyTable       historyTable
 	transTable         *transTable
-	evaluator          *evaluation
+	evaluator          Evaluator
 	historyKeys        []uint64
 	timeManager        *timeManager
 	tree               [][]searchContext
@@ -65,8 +70,7 @@ func (e *Engine) Prepare() {
 	if len(e.tree) != e.Threads.Value {
 		e.tree = NewTree(e, e.Threads.Value)
 	}
-	if e.evaluator == nil ||
-		e.evaluator.experimentSettings != e.ExperimentSettings.Value {
+	if e.evaluator == nil {
 		e.evaluator = NewEvaluation(e.ExperimentSettings.Value)
 	}
 }

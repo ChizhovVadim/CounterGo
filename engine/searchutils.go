@@ -156,7 +156,7 @@ func IsLateEndgame(p *Position, side bool) bool {
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
-var pieceValuesSEE = [...]int{0, 1, 3, 3, 5, 10, 100}
+var pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
 
 func IsCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||

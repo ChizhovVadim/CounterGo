@@ -86,6 +86,9 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				p.MakeMove(move, child.Position)
 				var newDepth = ctx.NewDepth(depth, child)
 				var score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
+				if score <= localAlpha {
+					continue
+				}
 				gate.Lock()
 				if score > alpha {
 					alpha = score
@@ -228,9 +231,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 				}
 
 				if !IsPawnAdvance(move, position.WhiteMove) {
-					if moveCount > 16 {
-						reduction = 3
-					} else if moveCount > 9 {
+					if moveCount > 9 {
 						reduction = 2
 					} else {
 						reduction = 1

@@ -16,12 +16,7 @@ const (
 	PawnPassedSquare   = 200
 	PawnPassedBlocker  = 15
 	BishopPairEndgame  = 60
-	Rook7th            = 30
-	RookSemiopen       = 20
-	RookOpen           = 25
-	Queen7th           = 20
 	WeakField          = -10
-	MinorOnStrongField = 10
 )
 
 const (
@@ -70,6 +65,11 @@ type evaluation struct {
 	kingEndgamePst     []int
 	bishopMobility     []int
 	rookMobility       []int
+	rook7th            int
+	rookSemiopen       int
+	rookOpen           int
+	queen7th           int
+	minorOnStrongField int
 }
 
 func NewEvaluation(experimentSettings bool) *evaluation {
@@ -81,13 +81,23 @@ func NewEvaluation(experimentSettings bool) *evaluation {
 		return math.Pow(1+5*x+13*y, 1.25)
 	})
 
-	e.bishopMobility = makeSlice(13, -50, 50, identity)
-	e.rookMobility = makeSlice(14, -25, 25, identity)
+	var mobilityKernel = func(x float64) float64 {
+		return math.Pow(x, 0.7)
+	}
+
+	e.bishopMobility = makeSlice(13, -50, 50, mobilityKernel)
+	e.rookMobility = makeSlice(14, -25, 25, mobilityKernel)
 
 	e.knightPst = scaleSlice(center[:], -35, 35)
 	e.queenPst = scaleSlice(center[:], -20, 20)
 	e.kingOpeningPst = scaleSlice(center_k[:], 0, -35)
 	e.kingEndgamePst = scaleSlice(center[:], -30, 30)
+
+	e.rook7th = 30
+	e.rookSemiopen = 20
+	e.rookOpen = 25
+	e.queen7th = 20
+	e.minorOnStrongField = 10
 
 	return e
 }
@@ -155,7 +165,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			wtropism += knightTropism
 		}
 		if (squareMask[sq] & wStrongFields) != 0 {
-			score += MinorOnStrongField
+			score += e.minorOnStrongField
 		}
 	}
 
@@ -167,7 +177,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			btropism += knightTropism
 		}
 		if (squareMask[sq] & bStrongFields) != 0 {
-			score -= MinorOnStrongField
+			score -= e.minorOnStrongField
 		}
 	}
 
@@ -180,7 +190,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			wtropism += bishopTropism
 		}
 		if (squareMask[sq] & wStrongFields) != 0 {
-			score += MinorOnStrongField
+			score += e.minorOnStrongField
 		}
 	}
 
@@ -193,7 +203,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			btropism += bishopTropism
 		}
 		if (squareMask[sq] & bStrongFields) != 0 {
-			score -= MinorOnStrongField
+			score -= e.minorOnStrongField
 		}
 	}
 
@@ -201,7 +211,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		wr++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank7 {
-			score += Rook7th
+			score += e.rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
 		if (b & bkingMoves) != 0 {
@@ -211,9 +221,9 @@ func (e *evaluation) Evaluate(p *Position) int {
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
 			if (b & p.Pawns) == 0 {
-				score += RookOpen
+				score += e.rookOpen
 			} else {
-				score += RookSemiopen
+				score += e.rookSemiopen
 			}
 		}
 	}
@@ -222,7 +232,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		br++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank2 {
-			score -= Rook7th
+			score -= e.rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
 		if (b & wkingMoves) != 0 {
@@ -232,9 +242,9 @@ func (e *evaluation) Evaluate(p *Position) int {
 		b = fileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
 			if (b & p.Pawns) == 0 {
-				score -= RookOpen
+				score -= e.rookOpen
 			} else {
-				score -= RookSemiopen
+				score -= e.rookSemiopen
 			}
 		}
 	}
@@ -243,7 +253,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		wq++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank7 {
-			score += Queen7th
+			score += e.queen7th
 		}
 		score += e.queenPst[sq]
 		wtropism += 7 - SquareDistance(sq, bkingSq)
@@ -253,7 +263,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		bq++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank2 {
-			score -= Queen7th
+			score -= e.queen7th
 		}
 		score -= e.queenPst[sq]
 		btropism += 7 - SquareDistance(sq, wkingSq)

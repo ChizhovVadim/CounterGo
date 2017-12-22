@@ -157,11 +157,16 @@ func (e *evaluation) Evaluate(p *Position) int {
 
 	var wtropism, btropism int
 
+	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
+	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns
+
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
 		sq = FirstOne(x)
 		score += e.knightPst[sq]
-		if (knightAttacks[sq] & bkingMoves) != 0 {
+		b = knightAttacks[sq]
+		wStrongAttacks |= b & p.Black & (p.Rooks | p.Queens)
+		if (b & bkingMoves) != 0 {
 			wtropism += knightTropism
 		}
 		if (squareMask[sq] & wStrongFields) != 0 {
@@ -173,7 +178,9 @@ func (e *evaluation) Evaluate(p *Position) int {
 		bn++
 		sq = FirstOne(x)
 		score -= e.knightPst[sq]
-		if (knightAttacks[sq] & wkingMoves) != 0 {
+		b = knightAttacks[sq]
+		bStrongAttacks |= b & p.White & (p.Rooks | p.Queens)
+		if (b & wkingMoves) != 0 {
 			btropism += knightTropism
 		}
 		if (squareMask[sq] & bStrongFields) != 0 {
@@ -185,6 +192,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
+		wStrongAttacks |= b & p.Black & (p.Rooks | p.Queens)
 		score += e.bishopMobility[PopCount(b)]
 		if (b & bkingMoves) != 0 {
 			wtropism += bishopTropism
@@ -198,6 +206,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 		bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
+		bStrongAttacks |= b & p.White & (p.Rooks | p.Queens)
 		score -= e.bishopMobility[PopCount(b)]
 		if (b & wkingMoves) != 0 {
 			btropism += bishopTropism
@@ -214,6 +223,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			score += e.rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
+		wStrongAttacks |= b & p.Black & p.Queens
 		if (b & bkingMoves) != 0 {
 			wtropism += rookTropism
 		}
@@ -235,6 +245,7 @@ func (e *evaluation) Evaluate(p *Position) int {
 			score -= e.rook7th
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
+		bStrongAttacks |= b & p.White & p.Queens
 		if (b & wkingMoves) != 0 {
 			btropism += rookTropism
 		}
@@ -341,6 +352,14 @@ func (e *evaluation) Evaluate(p *Position) int {
 
 	var phase = matIndexWhite + matIndexBlack
 	score += (opening*phase + endgame*(64-phase)) / 64
+
+	var attackScore = 40 * (popcount_1s_Max15(wStrongAttacks) -
+		popcount_1s_Max15(bStrongAttacks))
+	if score > 0 && attackScore < 0 {
+		score = max(0, score+attackScore)
+	} else if score < 0 && attackScore > 0 {
+		score = min(0, score+attackScore)
+	}
 
 	if wp == 0 && score > 0 {
 		if wn <= 2 && wb+wr+wq == 0 {

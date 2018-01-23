@@ -1,15 +1,15 @@
 package engine
 
 const (
-	StageImportant = iota
-	StageRemaining
+	stageImportant = iota
+	stageRemaining
 )
 
 type moveIterator struct {
-	buffer      [MAX_MOVES]Move
-	important   []moveWithScore
-	remaining   []moveWithScore
-	stage, head int
+	important []moveWithScore
+	remaining []moveWithScore
+	stage     int
+	head      int
 }
 
 type moveWithScore struct {
@@ -24,9 +24,10 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 	}
 	ctx.mi.important = ctx.mi.important[:0]
 	ctx.mi.remaining = ctx.mi.remaining[:0]
-	ctx.mi.stage = StageImportant
+	ctx.mi.stage = stageImportant
 	ctx.mi.head = 0
-	for _, m := range GenerateCaptures(ctx.Position, genChecks, ctx.mi.buffer[:]) {
+	var buffer [MAX_MOVES]Move
+	for _, m := range GenerateCaptures(ctx.Position, genChecks, buffer[:]) {
 		if IsCaptureOrPromotion(m) {
 			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 29000 + MVVLVA(m)})
 		} else {
@@ -39,9 +40,10 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 func (ctx *searchContext) InitMoves(hashMove Move) {
 	ctx.mi.important = ctx.mi.important[:0]
 	ctx.mi.remaining = ctx.mi.remaining[:0]
-	ctx.mi.stage = StageImportant
+	ctx.mi.stage = stageImportant
 	ctx.mi.head = 0
-	for _, m := range GenerateMoves(ctx.Position, ctx.mi.buffer[:]) {
+	var buffer [MAX_MOVES]Move
+	for _, m := range GenerateMoves(ctx.Position, buffer[:]) {
 		if m == hashMove {
 			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 30000})
 		} else if IsCaptureOrPromotion(m) {
@@ -60,7 +62,7 @@ func (ctx *searchContext) InitMoves(hashMove Move) {
 func (ctx *searchContext) NextMove() Move {
 	for {
 		switch ctx.mi.stage {
-		case StageImportant:
+		case stageImportant:
 			if ctx.mi.head < len(ctx.mi.important) {
 				var m = ctx.mi.important[ctx.mi.head].Move
 				ctx.mi.head++
@@ -73,7 +75,7 @@ func (ctx *searchContext) NextMove() Move {
 				item.Score = ctx.Engine.historyTable.Score(ctx.Position.WhiteMove, item.Move)
 			}
 			sortMoves(ctx.mi.remaining)
-		case StageRemaining:
+		case stageRemaining:
 			if ctx.mi.head < len(ctx.mi.remaining) {
 				var m = ctx.mi.remaining[ctx.mi.head].Move
 				ctx.mi.head++

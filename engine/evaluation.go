@@ -362,20 +362,22 @@ func (e *evaluation) Evaluate(p *Position) int {
 	}
 
 	if wp == 0 && score > 0 {
-		if wn <= 2 && wb+wr+wq == 0 {
-			score /= 2
-		}
 		if wn+wb <= 1 && wr+wq == 0 {
-			score /= 2
+			score /= 16
+		} else if wn == 2 && wb+wr+wq == 0 && bp == 0 {
+			score /= 16
+		} else if (wn+wb+2*wr+4*wq)-(bn+bb+2*br+4*bq) <= 1 {
+			score /= 4
 		}
 	}
 
 	if bp == 0 && score < 0 {
-		if bn <= 2 && bb+br+bq == 0 {
-			score /= 2
-		}
 		if bn+bb <= 1 && br+bq == 0 {
-			score /= 2
+			score /= 16
+		} else if bn == 2 && bb+br+bq == 0 && wp == 0 {
+			score /= 16
+		} else if (bn+bb+2*br+4*bq)-(wn+wb+2*wr+4*wq) <= 1 {
+			score /= 4
 		}
 	}
 

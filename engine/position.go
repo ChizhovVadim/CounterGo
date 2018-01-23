@@ -14,10 +14,10 @@ var castleMask [64]int
 func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Position {
 	var p = &Position{}
 
-	for i := 0; i < 64; i++ {
-		if board[i] != Empty {
-			var piece, pieceSide = GetPieceTypeAndSide(board[i])
-			xorPiece(p, piece, pieceSide, i)
+	for sq, piece := range board {
+		if piece != Empty {
+			var pieceType, pieceSide = GetPieceTypeAndSide(piece)
+			xorPiece(p, pieceType, pieceSide, sq)
 		}
 	}
 
@@ -425,7 +425,8 @@ func (p *Position) IsDiscoveredCheck() bool {
 }
 
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
-	for _, x := range GenerateMoves(p, make([]Move, MAX_MOVES)) {
+	var buffer [MAX_MOVES]Move
+	for _, x := range GenerateMoves(p, buffer[:]) {
 		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
 			var newPosition = &Position{}
 			if p.MakeMove(x, newPosition) {

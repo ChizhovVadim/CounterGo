@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -24,7 +25,7 @@ type UciProtocol struct {
 	commands  map[string]commandHandler
 	engine    UciEngine
 	positions []*engine.Position
-	ct        *engine.CancellationToken
+	cancel    context.CancelFunc
 }
 
 func UciCommand(uci *UciProtocol, args []string) {
@@ -94,14 +95,15 @@ func findIndexString(slice []string, value string) int {
 
 func GoCommand(uci *UciProtocol, args []string) {
 	var limits = ParseLimits(args)
+	var ctx, cancel = context.WithCancel(context.Background())
 	var searchParams = engine.SearchParams{
-		Positions:         uci.positions,
-		Limits:            limits,
-		CancellationToken: &engine.CancellationToken{},
-		Progress:          engine.SendProgressToUci,
+		Positions: uci.positions,
+		Limits:    limits,
+		Ctx:       ctx,
+		Progress:  engine.SendProgressToUci,
 	}
 	go func() {
-		uci.ct = searchParams.CancellationToken
+		uci.cancel = cancel
 		var searchResult = uci.engine.Search(searchParams)
 		engine.SendResultToUci(searchResult)
 	}()
@@ -155,8 +157,8 @@ func PonderhitCommand(uci *UciProtocol, args []string) {
 }
 
 func StopCommand(uci *UciProtocol, args []string) {
-	if uci.ct != nil {
-		uci.ct.Cancel()
+	if uci.cancel != nil {
+		uci.cancel()
 	}
 }
 
@@ -226,13 +228,13 @@ func StatusCommand(uci *UciProtocol, args []string) {
 
 func (uci *UciProtocol) PrintOptions() {
 	for _, option := range uci.engine.GetOptions() {
-		switch o := option.(type) {
+		switch option := option.(type) {
 		case *engine.BoolUciOption:
 			fmt.Printf("option name %v type %v default %v\n",
-				o.Name(), "check", o.Value)
+				option.Name(), "check", option.Value)
 		case *engine.IntUciOption:
 			fmt.Printf("option name %v type %v default %v min %v max %v\n",
-				o.Name(), "spin", o.Value, o.Min, o.Max)
+				option.Name(), "spin", option.Value, option.Min, option.Max)
 		}
 	}
 }
@@ -240,15 +242,15 @@ func (uci *UciProtocol) PrintOptions() {
 func (uci *UciProtocol) SetOption(name, value string) {
 	for _, option := range uci.engine.GetOptions() {
 		if strings.EqualFold(option.Name(), name) {
-			switch o := option.(type) {
+			switch option := option.(type) {
 			case *engine.BoolUciOption:
 				if v, err := strconv.ParseBool(value); err == nil {
-					o.Value = v
+					option.Value = v
 				}
 			case *engine.IntUciOption:
 				if v, err := strconv.Atoi(value); err == nil &&
-					o.Min <= v && v <= o.Max {
-					o.Value = v
+					option.Min <= v && v <= option.Max {
+					option.Value = v
 				}
 			}
 			return

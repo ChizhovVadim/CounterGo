@@ -1,22 +1,11 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"time"
 )
-
-type CancellationToken struct {
-	active bool
-}
-
-func (ct *CancellationToken) Cancel() {
-	ct.active = true
-}
-
-func (ct *CancellationToken) IsCancellationRequested() bool {
-	return ct.active
-}
 
 var searchTimeout = errors.New("search timeout")
 
@@ -26,8 +15,8 @@ type timeManager struct {
 	start                       time.Time
 	softTime                    time.Duration
 	nodes, softNodes, hardNodes int64
-	ct                          *CancellationToken
-	timer                       *time.Timer
+	done                        <-chan struct{}
+	cancel                      context.CancelFunc
 }
 
 func (tm *timeManager) Nodes() int64 {
@@ -35,13 +24,20 @@ func (tm *timeManager) Nodes() int64 {
 }
 
 func (tm *timeManager) IsHardTimeout() bool {
-	return tm.ct.IsCancellationRequested() ||
-		tm.hardNodes > 0 && tm.nodes >= tm.hardNodes
+	select {
+	case <-tm.done:
+		return true
+	default:
+	}
+	if tm.hardNodes > 0 && tm.nodes >= tm.hardNodes {
+		return true
+	}
+	return false
 }
 
 func (tm *timeManager) IncNodes() {
-	atomic.AddInt64(&tm.nodes, 1)
-	if tm.IsHardTimeout() {
+	var nodes = atomic.AddInt64(&tm.nodes, 1)
+	if (nodes&63) == 63 && tm.IsHardTimeout() {
 		panic(searchTimeout)
 	}
 }
@@ -56,21 +52,21 @@ func (tm *timeManager) IsSoftTimeout() bool {
 }
 
 func (tm *timeManager) Close() {
-	if t := tm.timer; t != nil {
-		t.Stop()
+	if tm.cancel != nil {
+		tm.cancel()
 	}
 }
 
 func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
-	side bool, ct *CancellationToken) *timeManager {
+	side bool, ctx context.Context) *timeManager {
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
 		timeControlStrategy = TimeControlBasic
 	}
 
-	if ct == nil {
-		ct = &CancellationToken{}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	var main, increment int
@@ -94,19 +90,17 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		}
 	}
 
-	var timer *time.Timer
+	var cancel context.CancelFunc
 	if hardTime > 0 {
-		timer = time.AfterFunc(time.Duration(hardTime)*time.Millisecond, func() {
-			ct.Cancel()
-		})
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
 	}
 	return &timeManager{
 		start:     start,
-		timer:     timer,
-		ct:        ct,
 		hardNodes: int64(hardNodes),
 		softNodes: int64(softNodes),
 		softTime:  time.Duration(softTime) * time.Millisecond,
+		done:      ctx.Done(),
+		cancel:    cancel,
 	}
 }
 

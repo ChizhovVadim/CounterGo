@@ -12,7 +12,8 @@ func RecoverFromSearchTimeout() {
 func (ctx *searchContext) GenRootMoves() []Move {
 	ctx.mi.important = ctx.mi.important[:0]
 	var child = ctx.Next()
-	for _, m := range GenerateMoves(ctx.Position, ctx.mi.buffer[:]) {
+	var buffer [MAX_MOVES]Move
+	for _, m := range GenerateMoves(ctx.Position, buffer[:]) {
 		if ctx.Position.MakeMove(m, child.Position) {
 			var score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
 			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, score})
@@ -216,7 +217,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 			newDepth = ctx.NewDepth(depth, child)
 			var reduction = 0
 
-			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
+			if ctx.mi.stage == stageRemaining && moveCount > 1 &&
 				!isCheck && !child.Position.IsCheck() &&
 				!IsPawnPush7th(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {

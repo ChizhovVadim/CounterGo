@@ -83,18 +83,6 @@ type Move int32
 
 const MoveEmpty = Move(0)
 
-type searchContext struct {
-	Engine             *Engine
-	Thread             int
-	Height             int
-	Position           *Position
-	mi                 moveIterator
-	Killer1            Move
-	Killer2            Move
-	PrincipalVariation []Move
-	QuietsSearched     []Move
-}
-
 type LimitsType struct {
 	Ponder         bool
 	Infinite       bool

@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"strconv"
 	s "strings"
 	"unicode"
@@ -451,8 +452,63 @@ func (this *Position) IsRepetition(other *Position) bool {
 		this.EpSquare == other.EpSquare
 }
 
+var (
+	sideKey        uint64
+	enpassantKey   [8]uint64
+	castlingKey    [16]uint64
+	pieceSquareKey [7 * 2 * 64]uint64
+)
+
+func PieceSquareKey(piece int, side bool, square int) uint64 {
+	return pieceSquareKey[MakePiece(piece, side)*64+square]
+}
+
+func (p *Position) ComputeKey() uint64 {
+	var result = uint64(0)
+	if p.WhiteMove {
+		result ^= sideKey
+	}
+	result ^= castlingKey[p.CastleRights]
+	if p.EpSquare != SquareNone {
+		result ^= enpassantKey[File(p.EpSquare)]
+	}
+	for i := 0; i < 64; i++ {
+		var piece = p.WhatPiece(i)
+		if piece != Empty {
+			var side = (p.White & squareMask[i]) != 0
+			result ^= PieceSquareKey(piece, side, i)
+		}
+	}
+	return result
+}
+
+func initKeys() {
+	var r = rand.New(rand.NewSource(0))
+	sideKey = r.Uint64()
+	for i := range enpassantKey {
+		enpassantKey[i] = r.Uint64()
+	}
+	for i := range pieceSquareKey {
+		pieceSquareKey[i] = r.Uint64()
+	}
+
+	var castle [4]uint64
+	for i := range castle {
+		castle[i] = r.Uint64()
+	}
+
+	for i := range castlingKey {
+		for j := 0; j < 4; j++ {
+			if (i & (1 << uint(j))) != 0 {
+				castlingKey[i] ^= castle[j]
+			}
+		}
+	}
+}
+
 func init() {
-	for i := 0; i < len(castleMask); i++ {
+	initKeys()
+	for i := range castleMask {
 		castleMask[i] = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
 	}
 	castleMask[SquareA1] &^= WhiteQueenSide

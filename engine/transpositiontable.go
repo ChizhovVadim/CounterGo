@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"math/rand"
 	"sync/atomic"
 )
 
@@ -26,15 +25,24 @@ const (
 	Upper
 )
 
-const ClusterSize = 4
+const ClusterSize = 1 << 2
 
 func NewTransTable(megabytes int) *transTable {
 	var size = 1024 * 1024 * megabytes / 16
+	size = roundPowerOfTwo(size)
 	return &transTable{
 		megabytes: megabytes,
-		entries:   make([]transEntry, size+ClusterSize-1),
-		mask:      uint32(size - 1),
+		entries:   make([]transEntry, size),
+		mask:      uint32(size-1) &^ (ClusterSize - 1),
 	}
+}
+
+func roundPowerOfTwo(size int) int {
+	var x = 1
+	for (x << 1) <= size {
+		x <<= 1
+	}
+	return x
 }
 
 func (tt *transTable) PrepareNewSearch() {
@@ -101,58 +109,4 @@ func Score(depth int8, gen, curGen uint8) int {
 		score += 100
 	}
 	return score
-}
-
-var (
-	sideKey        uint64
-	enpassantKey   [8]uint64
-	castlingKey    [16]uint64
-	pieceSquareKey [7 * 2 * 64]uint64
-)
-
-func PieceSquareKey(piece int, side bool, square int) uint64 {
-	return pieceSquareKey[MakePiece(piece, side)*64+square]
-}
-
-func (p *Position) ComputeKey() uint64 {
-	var result = uint64(0)
-	if p.WhiteMove {
-		result ^= sideKey
-	}
-	result ^= castlingKey[p.CastleRights]
-	if p.EpSquare != SquareNone {
-		result ^= enpassantKey[File(p.EpSquare)]
-	}
-	for i := 0; i < 64; i++ {
-		var piece = p.WhatPiece(i)
-		if piece != Empty {
-			var side = (p.White & squareMask[i]) != 0
-			result ^= PieceSquareKey(piece, side, i)
-		}
-	}
-	return result
-}
-
-func init() {
-	var r = rand.New(rand.NewSource(0))
-	sideKey = r.Uint64()
-	for i := 0; i < len(enpassantKey); i++ {
-		enpassantKey[i] = r.Uint64()
-	}
-	for i := 0; i < len(pieceSquareKey); i++ {
-		pieceSquareKey[i] = r.Uint64()
-	}
-
-	var castle = make([]uint64, 4)
-	for i := 0; i < len(castle); i++ {
-		castle[i] = r.Uint64()
-	}
-
-	for i := 0; i < len(castlingKey); i++ {
-		for j := 0; j < 4; j++ {
-			if (i & (1 << uint(j))) != 0 {
-				castlingKey[i] ^= castle[j]
-			}
-		}
-	}
 }

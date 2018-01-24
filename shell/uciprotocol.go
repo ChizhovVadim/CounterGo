@@ -295,6 +295,9 @@ func (uci *UciProtocol) Run() {
 			return
 		}
 		var cmdArgs = strings.Fields(commandLine)
+		if len(cmdArgs) == 0 {
+			continue
+		}
 		var commandName = cmdArgs[0]
 		var cmd, ok = uci.commands[commandName]
 		if ok {

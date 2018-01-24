@@ -12,11 +12,11 @@ var searchTimeout = errors.New("search timeout")
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start                       time.Time
-	softTime                    time.Duration
-	nodes, softNodes, hardNodes int64
-	done                        <-chan struct{}
-	cancel                      context.CancelFunc
+	start    time.Time
+	softTime time.Duration
+	nodes    int64
+	done     <-chan struct{}
+	cancel   context.CancelFunc
 }
 
 func (tm *timeManager) Nodes() int64 {
@@ -28,16 +28,13 @@ func (tm *timeManager) IsHardTimeout() bool {
 	case <-tm.done:
 		return true
 	default:
+		return false
 	}
-	if tm.hardNodes > 0 && tm.nodes >= tm.hardNodes {
-		return true
-	}
-	return false
 }
 
 func (tm *timeManager) IncNodes() {
 	var nodes = atomic.AddInt64(&tm.nodes, 1)
-	if (nodes&63) == 63 && tm.IsHardTimeout() {
+	if (nodes&63) == 0 && tm.IsHardTimeout() {
 		panic(searchTimeout)
 	}
 }
@@ -47,8 +44,7 @@ func (tm *timeManager) ElapsedMilliseconds() int64 {
 }
 
 func (tm *timeManager) IsSoftTimeout() bool {
-	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime) ||
-		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
+	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime)
 }
 
 func (tm *timeManager) Close() {
@@ -62,7 +58,7 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
-		timeControlStrategy = TimeControlBasic
+		timeControlStrategy = timeControlSmart
 	}
 
 	if ctx == nil {
@@ -76,18 +72,11 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		main, increment = limits.BlackTime, limits.BlackIncrement
 	}
 
-	var softTime, hardTime, softNodes, hardNodes int
+	var softTime, hardTime int
 	if limits.MoveTime > 0 {
 		hardTime = limits.MoveTime
-	} else if limits.Nodes > 0 {
-		hardNodes = limits.Nodes
 	} else if main > 0 {
-		var softLimit, hardLimit = timeControlStrategy(main, increment, limits.MovesToGo)
-		if limits.IsNodeLimits {
-			softNodes, hardNodes = softLimit, hardLimit
-		} else {
-			softTime, hardTime = softLimit, hardLimit
-		}
+		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
 	var cancel context.CancelFunc
@@ -95,37 +84,32 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
 	}
 	return &timeManager{
-		start:     start,
-		hardNodes: int64(hardNodes),
-		softNodes: int64(softNodes),
-		softTime:  time.Duration(softTime) * time.Millisecond,
-		done:      ctx.Done(),
-		cancel:    cancel,
+		start:    start,
+		softTime: time.Duration(softTime) * time.Millisecond,
+		done:     ctx.Done(),
+		cancel:   cancel,
 	}
 }
 
-func computeLimit(main, inc, moves int) int {
-	return (main + inc*(moves-1)) / moves
-}
-
-func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
+func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
-		SoftMovesToGo   = 50
-		HardMovesToGo   = 10
+		MovesToGo       = 50
 		LastMoveReserve = 300
 		MoveReserve     = 20
 	)
 
-	if moves == 0 {
-		moves = SoftMovesToGo
+	if moves == 0 || moves > MovesToGo {
+		moves = MovesToGo
 	}
 
-	softLimit = computeLimit(main, inc, min(moves, SoftMovesToGo))
-	hardLimit = computeLimit(main, inc, min(moves, HardMovesToGo))
-
-	hardLimit -= MoveReserve
-	hardLimit = min(hardLimit, main-LastMoveReserve)
-	hardLimit = max(hardLimit, 1)
+	var total = main + inc*(moves-1)
+	var alloc = total / moves
+	if moves > 1 {
+		total /= 2
+	}
+	var maxLimit = min(main-LastMoveReserve, total)
+	softLimit = max(1, min(alloc, maxLimit))
+	hardLimit = max(1, min(alloc*4-MoveReserve, maxLimit))
 
 	return
 }

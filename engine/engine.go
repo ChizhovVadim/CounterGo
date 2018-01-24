@@ -89,7 +89,7 @@ func (e *Engine) Prepare() {
 
 func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	var p = searchParams.Positions[len(searchParams.Positions)-1]
-	e.timeManager = NewTimeManager(searchParams.Limits, TimeControlBasic,
+	e.timeManager = NewTimeManager(searchParams.Limits, timeControlSmart,
 		p.WhiteMove, searchParams.Ctx)
 	defer e.timeManager.Close()
 

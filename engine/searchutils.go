@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"bytes"
-	"fmt"
 	"sync"
 )
 
@@ -51,47 +49,13 @@ func ValueFromTT(v, height int) int {
 	return v
 }
 
-func PVToUci(pv []Move) string {
-	var sb bytes.Buffer
-	for i, move := range pv {
-		if i > 0 {
-			sb.WriteString(" ")
-		}
-		sb.WriteString(move.String())
-	}
-	return sb.String()
-}
-
-func ScoreToUci(v int) string {
-	if VALUE_MATED_IN_MAX_HEIGHT < v && v < VALUE_MATE_IN_MAX_HEIGHT {
-		return fmt.Sprintf("cp %v", v)
+func ScoreToMate(v int) (int, bool) {
+	if v >= VALUE_MATE_IN_MAX_HEIGHT {
+		return (VALUE_MATE - v + 1) / 2, true
+	} else if v <= VALUE_MATED_IN_MAX_HEIGHT {
+		return (-VALUE_MATE - v) / 2, true
 	} else {
-		var mate int
-		if v > 0 {
-			mate = (VALUE_MATE - v + 1) / 2
-		} else {
-			mate = (-VALUE_MATE - v) / 2
-		}
-		return fmt.Sprintf("mate %v", mate)
-	}
-}
-
-func (si *SearchInfo) String() string {
-	var nps = si.Nodes * 1000 / (si.Time + 1)
-	return fmt.Sprintf("info score %v depth %v nodes %v time %v nps %v pv %v",
-		ScoreToUci(si.Score), si.Depth, si.Nodes, si.Time, nps, PVToUci(si.MainLine))
-}
-
-func SendProgressToUci(si SearchInfo) {
-	if si.Time >= 500 || si.Depth >= 5 {
-		fmt.Println(si.String())
-	}
-}
-
-func SendResultToUci(si SearchInfo) {
-	fmt.Println(si.String())
-	if len(si.MainLine) > 0 {
-		fmt.Printf("bestmove %v\n", si.MainLine[0])
+		return 0, false
 	}
 }
 

@@ -222,11 +222,11 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 				!IsPawnPush7th(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
 
-				if depth <= 2 {
+				if depth <= 4 {
 					if staticEval == VALUE_INFINITE {
 						staticEval = engine.evaluator.Evaluate(position)
 					}
-					if staticEval+PawnValue <= alpha {
+					if staticEval+60*depth <= alpha {
 						continue
 					}
 				}

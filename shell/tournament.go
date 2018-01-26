@@ -118,7 +118,7 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 				return GameResultWhiteWins
 			}
 		}
-		fmt.Println(searchResult.String())
+		PrintSearchInfo(searchResult)
 		fmt.Printf("White: %v Black: %v\n", limits.WhiteTime, limits.BlackTime)
 		var move = searchResult.MainLine[0]
 		var newPos = &engine.Position{}

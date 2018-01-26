@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -70,7 +71,7 @@ func (uci *UciProtocol) Run() {
 					debugUci("Command not found.")
 				}
 			case engine.SearchInfo:
-				fmt.Println(msg.String())
+				PrintSearchInfo(msg)
 			case engine.Move:
 				fmt.Printf("bestmove %v\n", msg)
 			}
@@ -88,6 +89,25 @@ func (uci *UciProtocol) Run() {
 
 func debugUci(s string) {
 	fmt.Println("info string " + s)
+}
+
+func PrintSearchInfo(si engine.SearchInfo) {
+	var scoreToUci string
+	if mate, isMate := engine.ScoreToMate(si.Score); isMate {
+		scoreToUci = fmt.Sprintf("mate %v", mate)
+	} else {
+		scoreToUci = fmt.Sprintf("cp %v", si.Score)
+	}
+	var nps = si.Nodes * 1000 / (si.Time + 1)
+	var sb bytes.Buffer
+	for i, move := range si.MainLine {
+		if i > 0 {
+			sb.WriteString(" ")
+		}
+		sb.WriteString(move.String())
+	}
+	fmt.Printf("info score %v depth %v nodes %v time %v nps %v pv %v\n",
+		scoreToUci, si.Depth, si.Nodes, si.Time, nps, sb.String())
 }
 
 func (uci *UciProtocol) uciCommand() {

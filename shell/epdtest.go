@@ -43,7 +43,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 		}
 
 		fmt.Println(test.Content)
-		fmt.Println(searchResult.String())
+		PrintSearchInfo(searchResult)
 		fmt.Printf("Solved: %v, Total: %v\n", solved, total)
 		fmt.Println()
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
-func NewEngineA() UciEngine {
+func newEngineA() UciEngine {
 	var result = engine.NewEngine()
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = false
@@ -17,7 +17,7 @@ func NewEngineA() UciEngine {
 	return result
 }
 
-func NewEngineB() UciEngine {
+func newEngineB() UciEngine {
 	var result = engine.NewEngine()
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = true
@@ -50,8 +50,8 @@ func RunTournament() {
 		engine UciEngine
 		wins   int
 	}{
-		{NewEngineA(), 0},
-		{NewEngineB(), 0},
+		{newEngineA(), 0},
+		{newEngineB(), 0},
 	}
 	for i := 0; i < numberOfGames; i++ {
 		var opening = openings[(i/2)%len(openings)]
@@ -59,7 +59,7 @@ func RunTournament() {
 
 		var whiteEngineIndex = i % 2
 		var blackEngineIndex = whiteEngineIndex ^ 1
-		var res = PlayGame(engines[whiteEngineIndex].engine,
+		var res = playGame(engines[whiteEngineIndex].engine,
 			engines[blackEngineIndex].engine, pos)
 		playedGames++
 		if res == GameResultWhiteWins {
@@ -74,17 +74,20 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
+func playGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
+	const Second = 1000
+	var timeControl = struct {
+		main, inc, moves int
+		//}{60 * Second, 1 * Second, 0}
+	}{60 * Second, 0 * Second, 40}
 	var positions = []*engine.Position{initialPosition}
-	var gameTime, isNodeLimits = 2 * 60 * 1000, false
-	//var gameTime, isNodeLimits = 100 * 1000 * 1000, true
 	var limits = engine.LimitsType{
-		WhiteTime:    gameTime,
-		BlackTime:    gameTime,
-		IsNodeLimits: isNodeLimits,
+		WhiteTime: timeControl.main,
+		BlackTime: timeControl.main,
+		MovesToGo: timeControl.moves,
 	}
 	for {
-		var gameResult = ComputeGameResult(positions)
+		var gameResult = computeGameResult(positions)
 		if gameResult != GameResultNone {
 			return gameResult
 		}
@@ -101,21 +104,26 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 		}
 		var start = time.Now()
 		var searchResult = uciEngine.Search(searchParams)
-		var elapsed int
-		if limits.IsNodeLimits {
-			elapsed = int(searchResult.Nodes)
-		} else {
-			elapsed = int(time.Since(start) / time.Millisecond)
-		}
+		var elapsed = int(time.Since(start) / time.Millisecond)
 		if side {
 			limits.WhiteTime -= elapsed
 			if limits.WhiteTime < 0 {
 				return GameResultBlackWins
 			}
+			limits.WhiteTime += timeControl.inc
 		} else {
 			limits.BlackTime -= elapsed
 			if limits.BlackTime < 0 {
 				return GameResultWhiteWins
+			}
+			limits.BlackTime += timeControl.inc
+			if timeControl.moves > 0 {
+				limits.MovesToGo--
+				if limits.MovesToGo == 0 {
+					limits.WhiteTime = timeControl.main
+					limits.BlackTime = timeControl.main
+					limits.MovesToGo = timeControl.moves
+				}
 			}
 		}
 		PrintSearchInfo(searchResult)
@@ -132,7 +140,7 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 	}
 }
 
-func ComputeGameResult(positions []*engine.Position) int {
+func computeGameResult(positions []*engine.Position) int {
 	var position = positions[len(positions)-1]
 	var ml = engine.GenerateLegalMoves(position)
 	if len(ml) == 0 {
@@ -143,13 +151,13 @@ func ComputeGameResult(positions []*engine.Position) int {
 		} else {
 			return GameResultWhiteWins
 		}
-	} else if position.Rule50 >= 100 || IsRepetition(positions) {
+	} else if position.Rule50 >= 100 || isRepetition(positions) {
 		return GameResultDraw
 	}
 	return GameResultNone
 }
 
-func IsRepetition(positions []*engine.Position) bool {
+func isRepetition(positions []*engine.Position) bool {
 	var current = positions[len(positions)-1]
 	var repeats = 0
 

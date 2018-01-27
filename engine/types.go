@@ -90,7 +90,6 @@ const MoveEmpty = Move(0)
 type LimitsType struct {
 	Ponder         bool
 	Infinite       bool
-	IsNodeLimits   bool
 	WhiteTime      int
 	BlackTime      int
 	WhiteIncrement int

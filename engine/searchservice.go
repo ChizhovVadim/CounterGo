@@ -9,22 +9,18 @@ func RecoverFromSearchTimeout() {
 	}
 }
 
-func (ctx *searchContext) GenRootMoves() []Move {
-	ctx.mi.important = ctx.mi.important[:0]
+func (ctx *searchContext) SortRootMoves(moves []Move) {
 	var child = ctx.Next()
-	var buffer [MAX_MOVES]Move
-	for _, m := range GenerateMoves(ctx.Position, buffer[:]) {
-		if ctx.Position.MakeMove(m, child.Position) {
-			var score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, score})
-		}
+	var list = make([]moveWithScore, len(moves))
+	for i, m := range moves {
+		ctx.Position.MakeMove(m, child.Position)
+		var score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
+		list[i] = moveWithScore{m, score}
 	}
-	sortMoves(ctx.mi.important)
-	var result = make([]Move, len(ctx.mi.important))
-	for i := range ctx.mi.important {
-		result[i] = ctx.mi.important[i].Move
+	sortMoves(list)
+	for i := range moves {
+		moves[i] = list[i].Move
 	}
-	return result
 }
 
 func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
@@ -36,7 +32,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 	}()
 
 	var p = ctx.Position
-	var ml = ctx.GenRootMoves()
+	var ml = GenerateLegalMoves(p)
 	if len(ml) == 0 {
 		return
 	}
@@ -44,6 +40,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 	if len(ml) == 1 {
 		return
 	}
+	ctx.SortRootMoves(ml)
 
 	const height = 0
 	const beta = VALUE_INFINITE

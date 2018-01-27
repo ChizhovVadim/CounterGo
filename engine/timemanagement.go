@@ -93,7 +93,7 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
-		MovesToGo       = 50
+		MovesToGo       = 25
 		LastMoveReserve = 300
 		MoveReserve     = 20
 	)
@@ -108,8 +108,8 @@ func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 		total /= 2
 	}
 	var maxLimit = min(main-LastMoveReserve, total)
-	softLimit = max(1, min(alloc, maxLimit))
-	hardLimit = max(1, min(alloc*4-MoveReserve, maxLimit))
+	softLimit = max(1, min(alloc/2, maxLimit))
+	hardLimit = max(1, min(alloc*2-MoveReserve, maxLimit))
 
 	return
 }

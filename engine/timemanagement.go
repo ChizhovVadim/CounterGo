@@ -93,7 +93,7 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
-		MovesToGo       = 25
+		MovesToGo       = 50
 		LastMoveReserve = 300
 	)
 

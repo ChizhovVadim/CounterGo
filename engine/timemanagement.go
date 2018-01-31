@@ -1,10 +1,11 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"sync/atomic"
 	"time"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
 var searchTimeout = errors.New("search timeout")
@@ -12,11 +13,11 @@ var searchTimeout = errors.New("search timeout")
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start    time.Time
-	softTime time.Duration
-	nodes    int64
-	done     <-chan struct{}
-	cancel   context.CancelFunc
+	start                       time.Time
+	softTime                    time.Duration
+	nodes, softNodes, hardNodes int64
+	ct                          *CancellationToken
+	timer                       *time.Timer
 }
 
 func (tm *timeManager) Nodes() int64 {
@@ -24,17 +25,13 @@ func (tm *timeManager) Nodes() int64 {
 }
 
 func (tm *timeManager) IsHardTimeout() bool {
-	select {
-	case <-tm.done:
-		return true
-	default:
-		return false
-	}
+	return tm.ct.IsCancellationRequested() ||
+		tm.hardNodes > 0 && tm.nodes >= tm.hardNodes
 }
 
 func (tm *timeManager) IncNodes() {
-	var nodes = atomic.AddInt64(&tm.nodes, 1)
-	if (nodes&63) == 0 && tm.IsHardTimeout() {
+	atomic.AddInt64(&tm.nodes, 1)
+	if tm.IsHardTimeout() {
 		panic(searchTimeout)
 	}
 }
@@ -44,25 +41,26 @@ func (tm *timeManager) ElapsedMilliseconds() int64 {
 }
 
 func (tm *timeManager) IsSoftTimeout() bool {
-	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime)
+	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime) ||
+		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
 }
 
 func (tm *timeManager) Close() {
-	if tm.cancel != nil {
-		tm.cancel()
+	if t := tm.timer; t != nil {
+		t.Stop()
 	}
 }
 
 func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
-	side bool, ctx context.Context) *timeManager {
+	side bool, ct *CancellationToken) *timeManager {
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
-		timeControlStrategy = timeControlSmart
+		timeControlStrategy = TimeControlBasic
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
+	if ct == nil {
+		ct = &CancellationToken{}
 	}
 
 	var main, increment int
@@ -72,46 +70,58 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		main, increment = limits.BlackTime, limits.BlackIncrement
 	}
 
-	var softTime, hardTime int
+	var softTime, hardTime, softNodes, hardNodes int
 	if limits.MoveTime > 0 {
 		hardTime = limits.MoveTime
+	} else if limits.Nodes > 0 {
+		hardNodes = limits.Nodes
 	} else if main > 0 {
-		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
+		var softLimit, hardLimit = timeControlStrategy(main, increment, limits.MovesToGo)
+		if limits.IsNodeLimits {
+			softNodes, hardNodes = softLimit, hardLimit
+		} else {
+			softTime, hardTime = softLimit, hardLimit
+		}
 	}
 
-	var cancel context.CancelFunc
+	var timer *time.Timer
 	if hardTime > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
+		timer = time.AfterFunc(time.Duration(hardTime)*time.Millisecond, func() {
+			ct.Cancel()
+		})
 	}
 	return &timeManager{
-		start:    start,
-		softTime: time.Duration(softTime) * time.Millisecond,
-		done:     ctx.Done(),
-		cancel:   cancel,
+		start:     start,
+		timer:     timer,
+		ct:        ct,
+		hardNodes: int64(hardNodes),
+		softNodes: int64(softNodes),
+		softTime:  time.Duration(softTime) * time.Millisecond,
 	}
 }
 
-func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
+func computeLimit(main, inc, moves int) int {
+	return (main + inc*(moves-1)) / moves
+}
+
+func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
-		MovesToGo       = 50
+		SoftMovesToGo   = 50
+		HardMovesToGo   = 10
 		LastMoveReserve = 300
+		MoveReserve     = 20
 	)
 
-	if moves == 0 || moves > MovesToGo {
-		moves = MovesToGo
+	if moves == 0 {
+		moves = SoftMovesToGo
 	}
 
-	var maxLimit = main - LastMoveReserve
-	if moves > 1 {
-		maxLimit = min(maxLimit, main/2+inc)
-	}
+	softLimit = computeLimit(main, inc, Min(moves, SoftMovesToGo))
+	hardLimit = computeLimit(main, inc, Min(moves, HardMovesToGo))
 
-	var safeMoves = float64(moves) * (2 - float64(moves)/MovesToGo)
-	softLimit = int(float64(main)/safeMoves) + inc
-	hardLimit = softLimit * 4
-
-	softLimit = max(1, min(maxLimit, softLimit))
-	hardLimit = max(1, min(maxLimit, hardLimit))
+	hardLimit -= MoveReserve
+	hardLimit = Min(hardLimit, main-LastMoveReserve)
+	hardLimit = Max(hardLimit, 1)
 
 	return
 }

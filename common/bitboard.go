@@ -1,4 +1,4 @@
-package engine
+package common
 
 import "math/bits"
 
@@ -26,7 +26,7 @@ const (
 
 var (
 	whitePawnAttacks, blackPawnAttacks     [64]uint64
-	squareMask, knightAttacks, kingAttacks [64]uint64
+	SquareMask, KnightAttacks, KingAttacks [64]uint64
 	index64                                [64]int
 	rookAttacks                            [64][1 << 12]uint64
 	bishopAttacks                          [64][1 << 9]uint64
@@ -34,7 +34,7 @@ var (
 	bishopMoves, rookMoves                 [64]uint64
 )
 
-var fileMask = [8]uint64{
+var FileMask = [8]uint64{
 	FileAMask, FileBMask, FileCMask, FileDMask, FileEMask, FileFMask, FileGMask, FileHMask,
 }
 
@@ -79,7 +79,7 @@ func PopCount(b uint64) int {
 	return int((b * 0x0101010101010101) >> 56)*/
 }
 
-func popcount_1s_Max15(b uint64) int {
+func Popcount_1s_Max15(b uint64) int {
 	return bits.OnesCount64(b)
 	/*b -= (b >> 1) & 0x5555555555555555
 	b = ((b >> 2) & 0x3333333333333333) + (b & 0x3333333333333333)
@@ -270,7 +270,7 @@ func magicify(b uint64, index int) uint64 {
 func computeSlideAttacks(f int, occ uint64, fs []func(sq uint64) uint64) uint64 {
 	var result uint64 = 0
 	for _, shift := range fs {
-		var x = shift(squareMask[f])
+		var x = shift(SquareMask[f])
 		for x != 0 {
 			result |= x
 			if (x & occ) != 0 {
@@ -285,18 +285,18 @@ func computeSlideAttacks(f int, occ uint64, fs []func(sq uint64) uint64) uint64 
 func init() {
 	for sq := 0; sq < 64; sq++ {
 		var b = uint64(1) << uint(sq)
-		squareMask[sq] = b
+		SquareMask[sq] = b
 		index64[(((b-1)^b)*0x03f79d71b4cb0a89)>>58] = sq
 
 		whitePawnAttacks[sq] = Up(Left(b) | Right(b))
 		blackPawnAttacks[sq] = Down(Left(b) | Right(b))
 
-		knightAttacks[sq] = Right(UpRight(b)) | Up(UpRight(b)) |
+		KnightAttacks[sq] = Right(UpRight(b)) | Up(UpRight(b)) |
 			Up(UpLeft(b)) | Left(UpLeft(b)) |
 			Left(DownLeft(b)) | Down(DownLeft(b)) |
 			Down(DownRight(b)) | Right(DownRight(b))
 
-		kingAttacks[sq] = UpRight(b) | Up(b) | UpLeft(b) | Left(b) |
+		KingAttacks[sq] = UpRight(b) | Up(b) | UpLeft(b) | Left(b) |
 			DownLeft(b) | Down(b) | DownRight(b) | Right(b)
 
 		// Rooks.
@@ -324,10 +324,10 @@ func init() {
 	for s1 := 0; s1 < 64; s1++ {
 		betweenMask[s1] = make([]uint64, 64)
 		for s2 := 0; s2 < 64; s2++ {
-			if (QueenAttacks(s1, 0) & squareMask[s2]) != 0 {
+			if (QueenAttacks(s1, 0) & SquareMask[s2]) != 0 {
 				var delta = ((s2 - s1) / SquareDistance(s1, s2))
 				for s := s1 + delta; s != s2; s += delta {
-					betweenMask[s1][s2] |= squareMask[s]
+					betweenMask[s1][s2] |= SquareMask[s]
 				}
 			}
 		}

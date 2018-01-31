@@ -1,6 +1,10 @@
 package engine
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
+)
 
 type historyTable []historyEntry
 
@@ -13,7 +17,7 @@ func NewHistoryTable() historyTable {
 }
 
 func (ht historyTable) Clear() {
-	for i := range ht {
+	for i := 0; i < len(ht); i++ {
 		ht[i] = historyEntry{1, 1}
 	}
 }

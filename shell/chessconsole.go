@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ChizhovVadim/CounterGo/engine"
+	"github.com/ChizhovVadim/CounterGo/common"
 )
 
 const (
@@ -55,12 +55,12 @@ var chessSymbols = [2][7]string{
 	{" ", blackPawn, blackKnight, blackBishop, blackRook, blackQueen, blackKing},
 }
 
-func PrintPosition(p *engine.Position) {
+func PrintPosition(p *common.Position) {
 	for i := 0; i < 64; i++ {
-		sq := engine.FlipSquare(i)
+		sq := common.FlipSquare(i)
 		piece, side := p.GetPieceTypeAndSide(sq)
-		fmt.Print(PieceString(piece, side, engine.IsDarkSquare(sq)))
-		if engine.File(sq) == engine.FileH {
+		fmt.Print(PieceString(piece, side, common.IsDarkSquare(sq)))
+		if common.File(sq) == common.FileH {
 			fmt.Println()
 		}
 	}

@@ -1,8 +1,4 @@
-package engine
-
-import (
-	"context"
-)
+package common
 
 const (
 	WhiteKingSide = 1 << iota
@@ -85,11 +81,22 @@ const (
 
 type Move int32
 
-const MoveEmpty = Move(0)
+const MoveEmpty Move = 0
+
+type MoveWithScore struct {
+	Move  Move
+	Score int
+}
+
+type MoveList struct {
+	Items [MAX_MOVES]MoveWithScore
+	Count int
+}
 
 type LimitsType struct {
 	Ponder         bool
 	Infinite       bool
+	IsNodeLimits   bool
 	WhiteTime      int
 	BlackTime      int
 	WhiteIncrement int
@@ -102,10 +109,10 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions []*Position
-	Limits    LimitsType
-	Ctx       context.Context
-	Progress  func(si SearchInfo)
+	Positions         []*Position
+	Limits            LimitsType
+	CancellationToken *CancellationToken
+	Progress          func(si SearchInfo)
 }
 
 type SearchInfo struct {
@@ -114,4 +121,38 @@ type SearchInfo struct {
 	Nodes    int64
 	Time     int64
 	MainLine []Move
+}
+
+type CancellationToken struct {
+	active bool
+}
+
+func (ct *CancellationToken) Cancel() {
+	ct.active = true
+}
+
+func (ct *CancellationToken) IsCancellationRequested() bool {
+	return ct.active
+}
+
+type UciOption interface {
+	GetName() string
+}
+
+type BoolUciOption struct {
+	Name  string
+	Value bool
+}
+
+func (o *BoolUciOption) GetName() string {
+	return o.Name
+}
+
+type IntUciOption struct {
+	Name            string
+	Value, Min, Max int
+}
+
+func (o *IntUciOption) GetName() string {
+	return o.Name
 }

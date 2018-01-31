@@ -1,20 +1,16 @@
 package engine
 
+import . "github.com/ChizhovVadim/CounterGo/common"
+
 const (
-	stageImportant = iota
-	stageRemaining
+	StageImportant = iota
+	StageRemaining
 )
 
 type moveIterator struct {
-	important []moveWithScore
-	remaining []moveWithScore
-	stage     int
-	head      int
-}
-
-type moveWithScore struct {
-	Move  Move
-	Score int
+	important   []MoveWithScore
+	remaining   []MoveWithScore
+	stage, head int
 }
 
 func (ctx *searchContext) InitQMoves(genChecks bool) {
@@ -24,14 +20,15 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 	}
 	ctx.mi.important = ctx.mi.important[:0]
 	ctx.mi.remaining = ctx.mi.remaining[:0]
-	ctx.mi.stage = stageImportant
+	ctx.mi.stage = StageImportant
 	ctx.mi.head = 0
-	var buffer [MAX_MOVES]Move
-	for _, m := range GenerateCaptures(ctx.Position, genChecks, buffer[:]) {
+	ctx.MoveList.GenerateCaptures(ctx.Position, genChecks)
+	for i := 0; i < ctx.MoveList.Count; i++ {
+		var m = ctx.MoveList.Items[i].Move
 		if IsCaptureOrPromotion(m) {
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 29000 + MVVLVA(m)})
+			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
 		} else {
-			ctx.mi.remaining = append(ctx.mi.remaining, moveWithScore{m, 0})
+			ctx.mi.remaining = append(ctx.mi.remaining, MoveWithScore{m, 0})
 		}
 	}
 	sortMoves(ctx.mi.important)
@@ -40,20 +37,21 @@ func (ctx *searchContext) InitQMoves(genChecks bool) {
 func (ctx *searchContext) InitMoves(hashMove Move) {
 	ctx.mi.important = ctx.mi.important[:0]
 	ctx.mi.remaining = ctx.mi.remaining[:0]
-	ctx.mi.stage = stageImportant
+	ctx.mi.stage = StageImportant
 	ctx.mi.head = 0
-	var buffer [MAX_MOVES]Move
-	for _, m := range GenerateMoves(ctx.Position, buffer[:]) {
+	ctx.MoveList.GenerateMoves(ctx.Position)
+	for i := 0; i < ctx.MoveList.Count; i++ {
+		var m = ctx.MoveList.Items[i].Move
 		if m == hashMove {
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 30000})
+			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 30000})
 		} else if IsCaptureOrPromotion(m) {
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 29000 + MVVLVA(m)})
+			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
 		} else if m == ctx.Killer1 {
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 28000})
+			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 28000})
 		} else if m == ctx.Killer2 {
-			ctx.mi.important = append(ctx.mi.important, moveWithScore{m, 28000 - 1})
+			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 28000 - 1})
 		} else {
-			ctx.mi.remaining = append(ctx.mi.remaining, moveWithScore{m, 0})
+			ctx.mi.remaining = append(ctx.mi.remaining, MoveWithScore{m, 0})
 		}
 	}
 	sortMoves(ctx.mi.important)
@@ -62,7 +60,7 @@ func (ctx *searchContext) InitMoves(hashMove Move) {
 func (ctx *searchContext) NextMove() Move {
 	for {
 		switch ctx.mi.stage {
-		case stageImportant:
+		case StageImportant:
 			if ctx.mi.head < len(ctx.mi.important) {
 				var m = ctx.mi.important[ctx.mi.head].Move
 				ctx.mi.head++
@@ -70,12 +68,12 @@ func (ctx *searchContext) NextMove() Move {
 			}
 			ctx.mi.head = 0
 			ctx.mi.stage++
-			for i := range ctx.mi.remaining {
+			for i := 0; i < len(ctx.mi.remaining); i++ {
 				var item = &ctx.mi.remaining[i]
 				item.Score = ctx.Engine.historyTable.Score(ctx.Position.WhiteMove, item.Move)
 			}
 			sortMoves(ctx.mi.remaining)
-		case stageRemaining:
+		case StageRemaining:
 			if ctx.mi.head < len(ctx.mi.remaining) {
 				var m = ctx.mi.remaining[ctx.mi.head].Move
 				ctx.mi.head++
@@ -96,7 +94,7 @@ func MVVLVA(move Move) int {
 
 var shellSortGaps = [...]int{10, 4, 1}
 
-func sortMoves(moves []moveWithScore) {
+func sortMoves(moves []MoveWithScore) {
 	for _, gap := range shellSortGaps {
 		for i := gap; i < len(moves); i++ {
 			j, t := i, moves[i]
@@ -108,7 +106,7 @@ func sortMoves(moves []moveWithScore) {
 	}
 }
 
-func isSorted(moves []moveWithScore) bool {
+func isSorted(moves []MoveWithScore) bool {
 	for i := 1; i < len(moves); i++ {
 		if moves[i-1].Score < moves[i].Score {
 			return false

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ChizhovVadim/CounterGo/engine"
+	"github.com/ChizhovVadim/CounterGo/common"
 )
 
 type TestItem struct {
 	Content   string
-	Position  *engine.Position
-	BestMoves []engine.Move
+	Position  *common.Position
+	BestMoves []common.Move
 }
 
 func RunEpdTest(filePath string, uciEngine UciEngine) {
@@ -23,9 +23,9 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 	var start = time.Now()
 	var total, solved int
 	for _, test := range epdTests {
-		var searchParams = engine.SearchParams{
-			Positions: []*engine.Position{test.Position},
-			Limits:    engine.LimitsType{MoveTime: 3000},
+		var searchParams = common.SearchParams{
+			Positions: []*common.Position{test.Position},
+			Limits:    common.LimitsType{MoveTime: 3000},
 		}
 		var searchResult = uciEngine.Search(searchParams)
 
@@ -44,6 +44,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 
 		fmt.Println(test.Content)
 		PrintSearchInfo(searchResult)
+
 		fmt.Printf("Solved: %v, Total: %v\n", solved, total)
 		fmt.Println()
 	}
@@ -82,12 +83,12 @@ func ParseEpdTest(s string) *TestItem {
 	var bmBegin = strings.Index(s, "bm")
 	var bmEnd = strings.Index(s, ";")
 	var fen = strings.TrimSpace(s[:bmBegin])
-	var p = engine.NewPositionFromFEN(fen)
+	var p = common.NewPositionFromFEN(fen)
 	var sBestMoves = strings.Split(s[bmBegin:bmEnd], " ")[1:]
-	var bestMoves []engine.Move
+	var bestMoves []common.Move
 	for _, sBestMove := range sBestMoves {
 		var move = ParseEpdMove(p, sBestMove)
-		if move == engine.MoveEmpty {
+		if move == common.MoveEmpty {
 			return nil
 		}
 		bestMoves = append(bestMoves, move)
@@ -102,19 +103,22 @@ func ParseEpdTest(s string) *TestItem {
 	}
 }
 
-func ParseEpdMove(p *engine.Position, s string) engine.Move {
+func ParseEpdMove(p *common.Position, s string) common.Move {
 	s = strings.TrimRight(s, "+")
 	var piece = 2 + strings.Index("NBRQK", s[0:1])
-	var to = engine.ParseSquare(s[len(s)-2:])
-	var moves []engine.Move
-	for _, move := range engine.GenerateLegalMoves(p) {
-		if move.MovingPiece() == piece &&
-			move.To() == to {
-			moves = append(moves, move)
+	var to = common.ParseSquare(s[len(s)-2:])
+	var ml = &common.MoveList{}
+	ml.GenerateMoves(p)
+	ml.FilterLegalMoves(p)
+	var moves []common.Move
+	for _, move := range ml.Items[:ml.Count] {
+		if move.Move.MovingPiece() == piece &&
+			move.Move.To() == to {
+			moves = append(moves, move.Move)
 		}
 	}
 	if len(moves) == 1 {
 		return moves[0]
 	}
-	return engine.MoveEmpty
+	return common.MoveEmpty
 }

@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ChizhovVadim/CounterGo/common"
 	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
-func newEngineA() UciEngine {
+func NewEngineA() UciEngine {
 	var result = engine.NewEngine()
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = false
@@ -17,7 +18,7 @@ func newEngineA() UciEngine {
 	return result
 }
 
-func newEngineB() UciEngine {
+func NewEngineB() UciEngine {
 	var result = engine.NewEngine()
 	result.Hash.Value = 16
 	result.ExperimentSettings.Value = true
@@ -50,16 +51,16 @@ func RunTournament() {
 		engine UciEngine
 		wins   int
 	}{
-		{newEngineA(), 0},
-		{newEngineB(), 0},
+		{NewEngineA(), 0},
+		{NewEngineB(), 0},
 	}
 	for i := 0; i < numberOfGames; i++ {
 		var opening = openings[(i/2)%len(openings)]
-		var pos = engine.NewPositionFromFEN(opening)
+		var pos = common.NewPositionFromFEN(opening)
 
 		var whiteEngineIndex = i % 2
 		var blackEngineIndex = whiteEngineIndex ^ 1
-		var res = playGame(engines[whiteEngineIndex].engine,
+		var res = PlayGame(engines[whiteEngineIndex].engine,
 			engines[blackEngineIndex].engine, pos)
 		playedGames++
 		if res == GameResultWhiteWins {
@@ -74,24 +75,24 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func playGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int {
+func PlayGame(engine1, engine2 UciEngine, initialPosition *common.Position) int {
 	const Second = 1000
 	var timeControl = struct {
 		main, inc, moves int
 		//}{60 * Second, 1 * Second, 0}
 	}{60 * Second, 0 * Second, 40}
-	var positions = []*engine.Position{initialPosition}
-	var limits = engine.LimitsType{
+	var positions = []*common.Position{initialPosition}
+	var limits = common.LimitsType{
 		WhiteTime: timeControl.main,
 		BlackTime: timeControl.main,
 		MovesToGo: timeControl.moves,
 	}
 	for {
-		var gameResult = computeGameResult(positions)
+		var gameResult = ComputeGameResult(positions)
 		if gameResult != GameResultNone {
 			return gameResult
 		}
-		var searchParams = engine.SearchParams{
+		var searchParams = common.SearchParams{
 			Positions: positions,
 			Limits:    limits,
 		}
@@ -129,7 +130,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 		PrintSearchInfo(searchResult)
 		fmt.Printf("White: %v Black: %v\n", limits.WhiteTime, limits.BlackTime)
 		var move = searchResult.MainLine[0]
-		var newPos = &engine.Position{}
+		var newPos = &common.Position{}
 		var ok = positions[len(positions)-1].MakeMove(move, newPos)
 		if !ok {
 			panic("engine illegal move")
@@ -140,10 +141,12 @@ func playGame(engine1, engine2 UciEngine, initialPosition *engine.Position) int 
 	}
 }
 
-func computeGameResult(positions []*engine.Position) int {
+func ComputeGameResult(positions []*common.Position) int {
 	var position = positions[len(positions)-1]
-	var ml = engine.GenerateLegalMoves(position)
-	if len(ml) == 0 {
+	var ml = &common.MoveList{}
+	ml.GenerateMoves(position)
+	ml.FilterLegalMoves(position)
+	if ml.Count == 0 {
 		if !position.IsCheck() {
 			return GameResultDraw
 		} else if position.WhiteMove {
@@ -151,13 +154,13 @@ func computeGameResult(positions []*engine.Position) int {
 		} else {
 			return GameResultWhiteWins
 		}
-	} else if position.Rule50 >= 100 || isRepetition(positions) {
+	} else if position.Rule50 >= 100 || IsRepetition(positions) {
 		return GameResultDraw
 	}
 	return GameResultNone
 }
 
-func isRepetition(positions []*engine.Position) bool {
+func IsRepetition(positions []*common.Position) bool {
 	var current = positions[len(positions)-1]
 	var repeats = 0
 

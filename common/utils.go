@@ -1,30 +1,19 @@
-package engine
+package common
 
 import (
 	"strings"
+	"sync"
 	"unicode"
 )
 
-func initSliceInt(size int, f func(index int) int) []int {
-	var result = make([]int, size)
-	for i := range result {
-		result[i] = f(i)
-	}
-	return result
-}
-
-func interpolateLinearInt(x, x_min, x_max, y_min, y_max int) int {
-	return ((y_max-y_min)*(x-x_min)+(x_max-x_min)/2)/(x_max-x_min) + y_min
-}
-
-func min(l, r int) int {
+func Min(l, r int) int {
 	if l < r {
 		return l
 	}
 	return r
 }
 
-func max(l, r int) int {
+func Max(l, r int) int {
 	if l > r {
 		return l
 	}
@@ -70,7 +59,7 @@ func RankDistance(sq1, sq2 int) int {
 }
 
 func SquareDistance(sq1, sq2 int) int {
-	return max(FileDistance(sq1, sq2), RankDistance(sq1, sq2))
+	return Max(FileDistance(sq1, sq2), RankDistance(sq1, sq2))
 }
 
 func MakeSquare(file, rank int) int {
@@ -170,4 +159,59 @@ func ParseMove(s string) Move {
 	}
 	var promotion = strings.Index("nbrqk", strings.ToLower(s[4:5])) + Knight
 	return MakePawnMove(from, to, Empty, promotion)
+}
+
+func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
+	var wg sync.WaitGroup
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(threadIndex int) {
+			body(threadIndex)
+			wg.Done()
+		}(i)
+	}
+	body(0)
+	wg.Wait()
+}
+
+func MateIn(height int) int {
+	return VALUE_MATE - height
+}
+
+func MatedIn(height int) int {
+	return -VALUE_MATE + height
+}
+
+func ScoreToMate(v int) (int, bool) {
+	if v >= VALUE_MATE_IN_MAX_HEIGHT {
+		return (VALUE_MATE - v + 1) / 2, true
+	} else if v <= VALUE_MATED_IN_MAX_HEIGHT {
+		return (-VALUE_MATE - v) / 2, true
+	} else {
+		return 0, false
+	}
+}
+
+func ValueToTT(v, height int) int {
+	if v >= VALUE_MATE_IN_MAX_HEIGHT {
+		return v + height
+	}
+
+	if v <= VALUE_MATED_IN_MAX_HEIGHT {
+		return v - height
+	}
+
+	return v
+}
+
+func ValueFromTT(v, height int) int {
+	if v >= VALUE_MATE_IN_MAX_HEIGHT {
+		return v - height
+	}
+
+	if v <= VALUE_MATED_IN_MAX_HEIGHT {
+		return v + height
+	}
+
+	return v
 }

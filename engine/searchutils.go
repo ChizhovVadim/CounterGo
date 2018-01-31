@@ -1,63 +1,8 @@
 package engine
 
 import (
-	"sync"
+	. "github.com/ChizhovVadim/CounterGo/common"
 )
-
-func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			body(threadIndex)
-			wg.Done()
-		}(i)
-	}
-	body(0)
-	wg.Wait()
-}
-
-func MateIn(height int) int {
-	return VALUE_MATE - height
-}
-
-func MatedIn(height int) int {
-	return -VALUE_MATE + height
-}
-
-func ValueToTT(v, height int) int {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return v + height
-	}
-
-	if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return v - height
-	}
-
-	return v
-}
-
-func ValueFromTT(v, height int) int {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return v - height
-	}
-
-	if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return v + height
-	}
-
-	return v
-}
-
-func ScoreToMate(v int) (int, bool) {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return (VALUE_MATE - v + 1) / 2, true
-	} else if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return (-VALUE_MATE - v) / 2, true
-	} else {
-		return 0, false
-	}
-}
 
 func (ctx *searchContext) Next() *searchContext {
 	return &ctx.Engine.tree[ctx.Thread][ctx.Height+1]
@@ -115,12 +60,26 @@ func (ctx *searchContext) ComposePV(move Move, child *searchContext) {
 }
 
 func IsLateEndgame(p *Position, side bool) bool {
-	var ownPieces = p.piecesByColor(side)
+	//sample: position fen 8/8/6p1/1p2pk1p/1Pp1p2P/2PbP1P1/3N1P2/4K3 w - - 12 58
+	var ownPieces = p.PiecesByColor(side)
 	return ((p.Rooks|p.Queens)&ownPieces) == 0 &&
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
-var pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
+var (
+	pieceValues = [...]int{0, PawnValue, KnightValue,
+		BishopValue, RookValue, QueenValue, QueenValue * 10}
+
+	pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
+)
+
+func MoveValue(move Move) int {
+	var result = pieceValues[move.CapturedPiece()]
+	if move.Promotion() != Empty {
+		result += pieceValues[move.Promotion()] - pieceValues[Pawn]
+	}
+	return result
+}
 
 func IsCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||
@@ -141,7 +100,7 @@ func IsPawnAdvance(move Move, side bool) bool {
 
 func IsDangerCapture(p *Position, m Move) bool {
 	if m.CapturedPiece() == Pawn {
-		var pawns = p.Pawns & p.piecesByColor(!p.WhiteMove)
+		var pawns = p.Pawns & p.PiecesByColor(!p.WhiteMove)
 		if (pawns & (pawns - 1)) == 0 {
 			return true
 		}
@@ -163,11 +122,11 @@ func IsPawnPush7th(move Move, side bool) bool {
 
 func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	var att = (PawnAttacks(to, !side) & p.Pawns) |
-		(knightAttacks[to] & p.Knights) |
-		(kingAttacks[to] & p.Kings) |
+		(KnightAttacks[to] & p.Knights) |
+		(KingAttacks[to] & p.Kings) |
 		(BishopAttacks(to, occ) & (p.Bishops | p.Queens)) |
 		(RookAttacks(to, occ) & (p.Rooks | p.Queens))
-	return p.piecesByColor(side) & att
+	return p.PiecesByColor(side) & att
 }
 
 func GetLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attacker, from int) {
@@ -198,8 +157,8 @@ func SEE_GE(p *Position, move Move) bool {
 		score0 += pieceValuesSEE[promotion] - pieceValuesSEE[Pawn]
 	}
 	var to = move.To()
-	var occ = p.White ^ p.Black ^ squareMask[move.From()]
-	occ |= squareMask[to]
+	var occ = p.White ^ p.Black ^ SquareMask[move.From()]
+	occ |= SquareMask[to]
 	var side = !p.WhiteMove
 	var relativeStm = true
 	var balance = score0 - pieceValuesSEE[piece]
@@ -214,7 +173,7 @@ func SEE_GE(p *Position, move Move) bool {
 		if piece == King {
 			return !relativeStm
 		}
-		occ ^= squareMask[from]
+		occ ^= SquareMask[from]
 		piece = nextVictim
 		if relativeStm {
 			balance += pieceValuesSEE[nextVictim]

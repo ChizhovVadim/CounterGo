@@ -1,25 +1,15 @@
 package engine
 
-import "sync"
+import (
+	"sync"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
+)
 
 func RecoverFromSearchTimeout() {
 	var r = recover()
 	if r != nil && r != searchTimeout {
 		panic(r)
-	}
-}
-
-func (ctx *searchContext) SortRootMoves(moves []Move) {
-	var child = ctx.Next()
-	var list = make([]moveWithScore, len(moves))
-	for i, m := range moves {
-		ctx.Position.MakeMove(m, child.Position)
-		var score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
-		list[i] = moveWithScore{m, score}
-	}
-	sortMoves(list)
-	for i := range moves {
-		moves[i] = list[i].Move
 	}
 }
 
@@ -32,15 +22,24 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 	}()
 
 	var p = ctx.Position
-	var ml = GenerateLegalMoves(p)
-	if len(ml) == 0 {
+	ctx.MoveList.GenerateMoves(p)
+	ctx.MoveList.FilterLegalMoves(p)
+	if ctx.MoveList.Count == 0 {
 		return
 	}
-	result.MainLine = []Move{ml[0]}
-	if len(ml) == 1 {
+	result.MainLine = []Move{ctx.MoveList.Items[0].Move}
+	if ctx.MoveList.Count == 1 {
 		return
 	}
-	ctx.SortRootMoves(ml)
+	{
+		var child = ctx.Next()
+		for i := 0; i < ctx.MoveList.Count; i++ {
+			var item = &ctx.MoveList.Items[i]
+			p.MakeMove(item.Move, child.Position)
+			item.Score = -child.Quiescence(-VALUE_INFINITE, VALUE_INFINITE, 1)
+		}
+		ctx.MoveList.SortMoves()
+	}
 
 	const height = 0
 	const beta = VALUE_INFINITE
@@ -51,7 +50,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 		var bestMoveIndex = 0
 		{
 			var child = ctx.Next()
-			var move = ml[0]
+			var move = ctx.MoveList.Items[0].Move
 			p.MakeMove(move, child.Position)
 			var newDepth = ctx.NewDepth(depth, child)
 			var score = -child.AlphaBeta(-beta, -alpha, newDepth)
@@ -77,15 +76,15 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 				var localIndex = index
 				index++
 				gate.Unlock()
-				if localIndex >= len(ml) {
+				if localIndex >= ctx.MoveList.Count {
 					return
 				}
-				var move = ml[localIndex]
+				var move = ctx.MoveList.Items[localIndex].Move
 				p.MakeMove(move, child.Position)
 				var newDepth = ctx.NewDepth(depth, child)
-				var score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
-				if score <= localAlpha {
-					continue
+				var score = -child.AlphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
+				if score > localAlpha {
+					score = -child.AlphaBeta(-beta, -localAlpha, newDepth)
 				}
 				gate.Lock()
 				if score > alpha {
@@ -114,7 +113,7 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {
 			break
 		}
-		MoveToBegin(ml, bestMoveIndex)
+		ctx.MoveList.MoveToBegin(bestMoveIndex)
 		HashStorePV(ctx, result.Depth, result.Score, result.MainLine)
 	}
 	return
@@ -122,10 +121,8 @@ func (ctx *searchContext) IterateSearch(progress func(SearchInfo)) (result Searc
 
 func HashStorePV(ctx *searchContext, depth, score int, pv []Move) {
 	for _, move := range pv {
-		if _, _, _, _, ok := ctx.Engine.transTable.Read(ctx.Position); !ok {
-			ctx.Engine.transTable.Update(ctx.Position, depth,
-				ValueToTT(score, ctx.Height), Lower|Upper, move)
-		}
+		ctx.Engine.transTable.Update(ctx.Position, depth,
+			ValueToTT(score, ctx.Height), Lower|Upper, move)
 		var child = ctx.Next()
 		ctx.Position.MakeMove(move, child.Position)
 		depth = ctx.NewDepth(depth, child)
@@ -151,7 +148,7 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	var engine = ctx.Engine
 	engine.timeManager.IncNodes()
 
-	beta = min(beta, MateIn(ctx.Height+1))
+	beta = Min(beta, MateIn(ctx.Height+1))
 	if alpha >= beta {
 		return alpha
 	}
@@ -173,11 +170,11 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 	}
 
 	var isCheck = position.IsCheck()
+	var lateEndgame = IsLateEndgame(position, position.WhiteMove)
 
 	var child = ctx.Next()
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
-		beta < VALUE_MATE_IN_MAX_HEIGHT &&
-		!IsLateEndgame(position, position.WhiteMove) {
+		beta < VALUE_MATE_IN_MAX_HEIGHT && !lateEndgame {
 		newDepth = depth - 4
 		position.MakeNullMove(child.Position)
 		if newDepth <= 0 {
@@ -214,27 +211,29 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 			newDepth = ctx.NewDepth(depth, child)
 			var reduction = 0
 
-			if ctx.mi.stage == stageRemaining && moveCount > 1 &&
+			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
 				!isCheck && !child.Position.IsCheck() &&
 				!IsPawnPush7th(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
 
-				if depth <= 4 {
+				if depth <= 2 {
 					if staticEval == VALUE_INFINITE {
-						staticEval = engine.evaluator.Evaluate(position)
+						staticEval = engine.evaluate(position)
 					}
-					if staticEval+60*depth <= alpha {
+					if staticEval+PawnValue <= alpha {
 						continue
 					}
 				}
 
 				if !IsPawnAdvance(move, position.WhiteMove) {
-					if moveCount > 9 {
+					if moveCount > 16 {
+						reduction = 3
+					} else if moveCount > 9 {
 						reduction = 2
 					} else {
 						reduction = 1
 					}
-					reduction = min(depth-2, reduction)
+					reduction = Min(depth-2, reduction)
 				}
 			}
 
@@ -297,7 +296,7 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {
-		eval = engine.evaluator.Evaluate(position)
+		eval = engine.evaluate(position)
 		if eval > alpha {
 			alpha = eval
 		}
@@ -320,7 +319,7 @@ func (ctx *searchContext) Quiescence(alpha, beta, depth int) int {
 		if position.MakeMove(move, child.Position) {
 			moveCount++
 			if !isCheck && !danger && !child.Position.IsCheck() &&
-				eval+engine.evaluator.MoveValue(move)+PawnValue <= alpha {
+				eval+MoveValue(move)+PawnValue <= alpha {
 				continue
 			}
 			var score = -child.Quiescence(-beta, -alpha, depth-1)

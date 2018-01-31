@@ -2,6 +2,8 @@ package engine
 
 import (
 	"sync/atomic"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
 type transTable struct {
@@ -25,15 +27,14 @@ const (
 	Upper
 )
 
-const ClusterSize = 1 << 2
+const ClusterSize = 4
 
 func NewTransTable(megabytes int) *transTable {
-	var size = 1024 * 1024 * megabytes / 16
-	size = roundPowerOfTwo(size)
+	var size = roundPowerOfTwo(1024 * 1024 * megabytes / 16)
 	return &transTable{
 		megabytes: megabytes,
-		entries:   make([]transEntry, size),
-		mask:      uint32(size-1) &^ (ClusterSize - 1),
+		entries:   make([]transEntry, size+ClusterSize-1),
+		mask:      uint32(size - 1),
 	}
 }
 
@@ -50,12 +51,12 @@ func (tt *transTable) PrepareNewSearch() {
 }
 
 func (tt *transTable) Clear() {
-	for i := range tt.entries {
+	for i := 0; i < len(tt.entries); i++ {
 		tt.entries[i] = transEntry{}
 	}
 }
 
-func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok bool) {
+func (tt *transTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var index = int(uint32(p.Key) & tt.mask)
 	for i := 0; i < ClusterSize; i++ {
 		var entry = &tt.entries[index+i]
@@ -66,7 +67,7 @@ func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok 
 				score = int(entry.score)
 				move = entry.move
 				depth = int(entry.depth)
-				bound = int(entry.bound_gen & 3)
+				entryType = int(entry.bound_gen & 3)
 				ok = true
 			}
 			atomic.StoreInt32(&entry.gate, 0)
@@ -77,7 +78,7 @@ func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok 
 }
 
 //position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
-func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
+func (tt *transTable) Update(p *Position, depth, score, entryType int, move Move) {
 	var index = int(uint32(p.Key) & tt.mask)
 	var bestEntry *transEntry
 	var bestScore = -32767
@@ -98,7 +99,7 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 		bestEntry.move = move
 		bestEntry.score = int16(score)
 		bestEntry.depth = int8(depth)
-		bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+		bestEntry.bound_gen = uint8(entryType) + (tt.generation << 2)
 		atomic.StoreInt32(&bestEntry.gate, 0)
 	}
 }

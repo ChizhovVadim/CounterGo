@@ -2,108 +2,19 @@ package engine
 
 import (
 	"testing"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-//https://chessprogramming.wikispaces.com/Perft+Results
-func TestPerft(t *testing.T) {
-	/*var tests = []struct {
-		fen   string
-		depth int
-		nodes int
-	}{
-		{
-			fen:   InitialPositionFen,
-			depth: 6,
-			nodes: 119060324,
-		},
-		{
-			fen:   "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -",
-			depth: 5,
-			nodes: 193690690,
-		},
-		{
-			fen:   "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -",
-			depth: 7,
-			nodes: 178633661,
-		},
-		{
-			fen:   "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-			depth: 5,
-			nodes: 15833292,
-		},
-		{
-			fen:   "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-			depth: 5,
-			nodes: 89941194,
-		},
-		{
-			fen:   "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
-			depth: 5,
-			nodes: 164075551,
-		},
-	}
-	for i, test := range tests {
-		var p = NewPositionFromFEN(test.fen)
-		var nodes = Perft(p, test.depth)
-		if nodes != test.nodes {
-			t.Error(i, test, nodes)
-		}
-	}*/
-}
-
-func Perft(p *Position, depth int) int {
-	var result = 0
-	var buffer [MAX_MOVES]Move
-	var child Position
-	for _, move := range GenerateMoves(p, buffer[:]) {
-		if p.MakeMove(move, &child) {
-			if depth > 1 {
-				result += Perft(&child, depth-1)
-			} else {
-				result++
-			}
-		}
-	}
-	return result
-}
-
-func TestEval(t *testing.T) {
-	var e = NewEvaluation(false)
-	for _, fen := range testFENs {
-		var p = NewPositionFromFEN(fen)
-		var eval = e.Evaluate(p)
-		var mirrorP = MirrorPosition(p)
-		var mirrorEval = e.Evaluate(mirrorP)
-		if eval != mirrorEval {
-			t.Error(fen, mirrorP.String(), eval, mirrorEval)
-		}
-	}
-}
-
-func MirrorPosition(p *Position) *Position {
-	var board [64]int
-	for sq := range board {
-		var pt, side = p.GetPieceTypeAndSide(FlipSquare(sq))
-		if pt == Empty {
-			board[sq] = Empty
-		} else {
-			board[sq] = MakePiece(pt, !side)
-		}
-	}
-	return createPosition(board,
-		!p.WhiteMove,
-		((p.CastleRights&3)<<2)|(p.CastleRights>>2),
-		let(p.EpSquare == SquareNone, SquareNone, FlipSquare(p.EpSquare)),
-		p.Rule50)
-}
-
 func TestSEE(t *testing.T) {
-	var buffer [MAX_MOVES]Move
+	var ml MoveList
 	var child = &Position{}
 	for _, test := range testFENs {
 		var p = NewPositionFromFEN(test)
 		var eval = basicMaterial(p)
-		for _, move := range GenerateCaptures(p, true, buffer[:]) {
+		ml.GenerateCaptures(p, true)
+		for i := 0; i < ml.Count; i++ {
+			var move = ml.Items[i].Move
 			if !p.MakeMove(move, child) {
 				continue
 			}
@@ -140,10 +51,10 @@ func searchSEE(p *Position, alpha, beta int) int {
 			return eval
 		}
 	}
-	var buffer [MAX_MOVES]Move
-	var ml = GenerateCaptures(p, false, buffer[:])
+	var ml MoveList
+	ml.GenerateCaptures(p, false)
 	var child = &Position{}
-	var move = lvaRecapture(p, child, ml, p.LastMove.To())
+	var move = lvaRecapture(p, child, &ml, p.LastMove.To())
 	if move != MoveEmpty &&
 		p.MakeMove(move, child) {
 		var score = -searchSEE(child, -beta, -alpha)
@@ -157,10 +68,11 @@ func searchSEE(p *Position, alpha, beta int) int {
 	return alpha
 }
 
-func lvaRecapture(p, child *Position, ml []Move, square int) Move {
+func lvaRecapture(p, child *Position, ml *MoveList, square int) Move {
 	var piece = King + 1
 	var bestMove = MoveEmpty
-	for _, move := range ml {
+	for i := 0; i < ml.Count; i++ {
+		var move = ml.Items[i].Move
 		if move.To() == square &&
 			move.MovingPiece() < piece &&
 			p.MakeMove(move, child) {
@@ -293,7 +205,7 @@ func bitboardToString(bb uint64) string {
 	return s
 }
 
-func TestGenerateCapturesAndChecks(t *testing.T) {
+/*func TestGenerateCapturesAndChecks(t *testing.T) {
 	for _, test := range testFENs {
 		var p = NewPositionFromFEN(test)
 		var a = generateCapturesAndChecks(p, true)
@@ -310,16 +222,16 @@ func TestGenerateCapturesAndChecks(t *testing.T) {
 }
 
 func generateCapturesAndChecks(p *Position, directWay bool) []Move {
-	var buffer [MAX_MOVES]Move
-	var ml []Move
 	var result []Move
+	var ml = MoveList{}
 	var child = Position{}
 	if directWay {
-		ml = GenerateMoves(p, buffer[:])
+		ml.GenerateMoves(p)
 	} else {
-		ml = GenerateCaptures(p, true, buffer[:])
+		ml.GenerateCaptures(p, true)
 	}
-	for _, move := range ml {
+	for i := 0; i < ml.Count; i++ {
+		var move = ml.Items[i].Move
 		if p.MakeMove(move, &child) {
 			if directWay {
 				if isMinorPromotion(move) || isCastle(move) {
@@ -371,7 +283,7 @@ func containsRepeats(source []Move) bool {
 		m[item] = true
 	}
 	return false
-}
+}*/
 
 var testFENs = []string{
 	// Initial position

@@ -1,4 +1,4 @@
-package engine
+package common
 
 import (
 	"bytes"
@@ -14,10 +14,10 @@ var castleMask [64]int
 func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Position {
 	var p = &Position{}
 
-	for sq, piece := range board {
-		if piece != Empty {
-			var pieceType, pieceSide = GetPieceTypeAndSide(piece)
-			xorPiece(p, pieceType, pieceSide, sq)
+	for i := 0; i < 64; i++ {
+		if board[i] != Empty {
+			var piece, pieceSide = GetPieceTypeAndSide(board[i])
+			xorPiece(p, piece, pieceSide, i)
 		}
 	}
 
@@ -96,7 +96,7 @@ func (p *Position) String() string {
 			}
 
 			var pieceSide bool
-			if (p.White & squareMask[sq]) != 0 {
+			if (p.White & SquareMask[sq]) != 0 {
 				pieceSide = true
 			} else {
 				pieceSide = false
@@ -166,7 +166,7 @@ func pieceToChar(pieceType int, side bool) string {
 }
 
 func (p *Position) GetPieceTypeAndSide(sq int) (pieceType int, side bool) {
-	var bb = squareMask[sq]
+	var bb = SquareMask[sq]
 	if (p.White & bb) != 0 {
 		side = true
 	} else if (p.Black & bb) != 0 {
@@ -180,7 +180,7 @@ func (p *Position) GetPieceTypeAndSide(sq int) (pieceType int, side bool) {
 }
 
 func (p *Position) WhatPiece(sq int) int {
-	var bb = squareMask[sq]
+	var bb = SquareMask[sq]
 	if ((p.White | p.Black) & bb) == 0 {
 		return Empty
 	}
@@ -318,7 +318,7 @@ func (src *Position) MakeNullMove(result *Position) {
 	result.LastMove = MoveEmpty
 }
 
-func (p *Position) piecesByColor(side bool) uint64 {
+func (p *Position) PiecesByColor(side bool) uint64 {
 	if side {
 		return p.White
 	}
@@ -326,7 +326,7 @@ func (p *Position) piecesByColor(side bool) uint64 {
 }
 
 func xorPiece(p *Position, piece int, side bool, square int) {
-	var b = squareMask[square]
+	var b = SquareMask[square]
 	if side {
 		p.White ^= b
 	} else {
@@ -350,7 +350,7 @@ func xorPiece(p *Position, piece int, side bool, square int) {
 }
 
 func movePiece(p *Position, piece int, side bool, from int, to int) {
-	var b = squareMask[from] ^ squareMask[to]
+	var b = SquareMask[from] ^ SquareMask[to]
 	if side {
 		p.White ^= b
 	} else {
@@ -374,14 +374,14 @@ func movePiece(p *Position, piece int, side bool, from int, to int) {
 }
 
 func (p *Position) isAttackedBySide(sq int, side bool) bool {
-	var enemy = p.piecesByColor(side)
+	var enemy = p.PiecesByColor(side)
 	if (PawnAttacks(sq, !side) & p.Pawns & enemy) != 0 {
 		return true
 	}
-	if (knightAttacks[sq] & p.Knights & enemy) != 0 {
+	if (KnightAttacks[sq] & p.Knights & enemy) != 0 {
 		return true
 	}
-	if (kingAttacks[sq] & p.Kings & enemy) != 0 {
+	if (KingAttacks[sq] & p.Kings & enemy) != 0 {
 		return true
 	}
 	var allPieces = p.White | p.Black
@@ -398,10 +398,10 @@ func (p *Position) attackersTo(sq int) uint64 {
 	var occ = p.White | p.Black
 	return (blackPawnAttacks[sq] & p.Pawns & p.White) |
 		(whitePawnAttacks[sq] & p.Pawns & p.Black) |
-		(knightAttacks[sq] & p.Knights) |
+		(KnightAttacks[sq] & p.Knights) |
 		(BishopAttacks(sq, occ) & (p.Bishops | p.Queens)) |
 		(RookAttacks(sq, occ) & (p.Rooks | p.Queens)) |
-		(kingAttacks[sq] & p.Kings)
+		(KingAttacks[sq] & p.Kings)
 }
 
 func (p *Position) computeCheckers() uint64 {
@@ -412,7 +412,7 @@ func (p *Position) computeCheckers() uint64 {
 }
 
 func (p *Position) isLegal() bool {
-	var kingSq = FirstOne(p.Kings & p.piecesByColor(!p.WhiteMove))
+	var kingSq = FirstOne(p.Kings & p.PiecesByColor(!p.WhiteMove))
 	return !p.isAttackedBySide(kingSq, p.WhiteMove)
 }
 
@@ -421,12 +421,14 @@ func (p *Position) IsCheck() bool {
 }
 
 func (p *Position) IsDiscoveredCheck() bool {
-	return (p.Checkers & ^squareMask[p.LastMove.To()]) != 0
+	return (p.Checkers & ^SquareMask[p.LastMove.To()]) != 0
 }
 
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
-	var buffer [MAX_MOVES]Move
-	for _, x := range GenerateMoves(p, buffer[:]) {
+	var moveList MoveList
+	moveList.GenerateMoves(p)
+	for i := 0; i < moveList.Count; i++ {
+		var x = moveList.Items[i].Move
 		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
 			var newPosition = &Position{}
 			if p.MakeMove(x, newPosition) {
@@ -476,7 +478,7 @@ func (p *Position) ComputeKey() uint64 {
 	for i := 0; i < 64; i++ {
 		var piece = p.WhatPiece(i)
 		if piece != Empty {
-			var side = (p.White & squareMask[i]) != 0
+			var side = (p.White & SquareMask[i]) != 0
 			result ^= PieceSquareKey(piece, side, i)
 		}
 	}
@@ -486,19 +488,19 @@ func (p *Position) ComputeKey() uint64 {
 func initKeys() {
 	var r = rand.New(rand.NewSource(0))
 	sideKey = r.Uint64()
-	for i := range enpassantKey {
+	for i := 0; i < len(enpassantKey); i++ {
 		enpassantKey[i] = r.Uint64()
 	}
-	for i := range pieceSquareKey {
+	for i := 0; i < len(pieceSquareKey); i++ {
 		pieceSquareKey[i] = r.Uint64()
 	}
 
-	var castle [4]uint64
-	for i := range castle {
+	var castle = make([]uint64, 4)
+	for i := 0; i < len(castle); i++ {
 		castle[i] = r.Uint64()
 	}
 
-	for i := range castlingKey {
+	for i := 0; i < len(castlingKey); i++ {
 		for j := 0; j < 4; j++ {
 			if (i & (1 << uint(j))) != 0 {
 				castlingKey[i] ^= castle[j]
@@ -509,7 +511,7 @@ func initKeys() {
 
 func init() {
 	initKeys()
-	for i := range castleMask {
+	for i := 0; i < len(castleMask); i++ {
 		castleMask[i] = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
 	}
 	castleMask[SquareA1] &^= WhiteQueenSide

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/common"
-	"github.com/ChizhovVadim/CounterGo/engine"
+	"github.com/ChizhovVadim/CounterGo/v22/engine"
 )
 
 func NewEngineA() UciEngine {

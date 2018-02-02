@@ -14,7 +14,7 @@ type Engine struct {
 	historyTable       historyTable
 	transTable         *transTable
 	evaluate           evaluate
-	historyKeys        []uint64
+	historyKeys       map[uint64]int
 	timeManager        *timeManager
 	tree               [][]searchContext
 }
@@ -76,7 +76,7 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	if e.ClearTransTable {
 		e.transTable.Clear()
 	}
-	e.historyKeys = PositionsToHistoryKeys(searchParams.Positions)
+	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for i := 0; i < len(e.tree); i++ {
 		e.tree[i][0].Position = p
 	}
@@ -94,13 +94,14 @@ func (e *Engine) clearKillers() {
 	}
 }
 
-func PositionsToHistoryKeys(positions []*Position) []uint64 {
-	var result []uint64
-	for _, p := range positions {
+func getHistoryKeys(positions []*Position) map[uint64]int {
+	var result = make(map[uint64]int)
+	for i := len(positions) - 1; i >= 0; i-- {
+		var p = positions[i]
 		if p.Rule50 == 0 {
-			result = result[:0]
+			break
 		}
-		result = append(result, p.Key)
+		result[p.Key]++
 	}
 	return result
 }

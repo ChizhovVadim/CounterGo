@@ -45,7 +45,11 @@ func (ctx *searchContext) InitMoves(hashMove Move) {
 		if m == hashMove {
 			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 30000})
 		} else if IsCaptureOrPromotion(m) {
-			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
+			if SEE_GE(ctx.Position, m) {
+				ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 29000 + MVVLVA(m)})
+			} else {
+				ctx.mi.remaining = append(ctx.mi.remaining, MoveWithScore{m, 0})
+			}
 		} else if m == ctx.Killer1 {
 			ctx.mi.important = append(ctx.mi.important, MoveWithScore{m, 28000})
 		} else if m == ctx.Killer2 {

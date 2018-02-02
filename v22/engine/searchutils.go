@@ -35,10 +35,8 @@ func (ctx *searchContext) IsDraw() bool {
 		}
 	}
 
-	for _, key := range ctx.Engine.historyKeys {
-		if key == p.Key {
-			return true
-		}
+	if ctx.Engine.historyKeys[p.Key] >= 2 {
+		return true
 	}
 
 	return false

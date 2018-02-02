@@ -187,8 +187,9 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 		}
 	}
 
-	if depth >= 4 && hashMove == MoveEmpty {
-		ctx.AlphaBeta(alpha, beta, depth/2)
+	if depth >= 4 && hashMove == MoveEmpty && alpha < VALUE_MATED_IN_MAX_HEIGHT {
+		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
+		ctx.AlphaBeta(alpha, beta, depth-2)
 		hashMove = ctx.BestMove()
 		ctx.ClearPV() //!
 	}

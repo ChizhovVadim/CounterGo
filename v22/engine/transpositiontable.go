@@ -51,7 +51,7 @@ func (tt *transTable) PrepareNewSearch() {
 }
 
 func (tt *transTable) Clear() {
-	for i := 0; i < len(tt.entries); i++ {
+	for i := range tt.entries {
 		tt.entries[i] = transEntry{}
 	}
 }

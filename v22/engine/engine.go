@@ -77,17 +77,17 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 		e.transTable.Clear()
 	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
-	for i := 0; i < len(e.tree); i++ {
-		e.tree[i][0].Position = p
+	for thread := range e.tree {
+		e.tree[thread][0].Position = p
 	}
 	var ctx = &e.tree[0][0]
 	return ctx.IterateSearch(searchParams.Progress)
 }
 
 func (e *Engine) clearKillers() {
-	for i := 0; i < len(e.tree); i++ {
-		for j := 0; j < len(e.tree[i]); j++ {
-			var ctx = &e.tree[i][j]
+	for thread := range e.tree {
+		for height := range e.tree[thread] {
+			var ctx = &e.tree[thread][height]
 			ctx.Killer1 = MoveEmpty
 			ctx.Killer2 = MoveEmpty
 		}

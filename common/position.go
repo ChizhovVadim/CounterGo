@@ -14,10 +14,10 @@ var castleMask [64]int
 func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Position {
 	var p = &Position{}
 
-	for i := 0; i < 64; i++ {
-		if board[i] != Empty {
-			var piece, pieceSide = GetPieceTypeAndSide(board[i])
-			xorPiece(p, piece, pieceSide, i)
+	for sq, piece := range board {
+		if piece != Empty {
+			var pieceType, pieceSide = GetPieceTypeAndSide(piece)
+			xorPiece(p, pieceType, pieceSide, sq)
 		}
 	}
 
@@ -488,19 +488,19 @@ func (p *Position) ComputeKey() uint64 {
 func initKeys() {
 	var r = rand.New(rand.NewSource(0))
 	sideKey = r.Uint64()
-	for i := 0; i < len(enpassantKey); i++ {
+	for i := range enpassantKey {
 		enpassantKey[i] = r.Uint64()
 	}
-	for i := 0; i < len(pieceSquareKey); i++ {
+	for i := range pieceSquareKey {
 		pieceSquareKey[i] = r.Uint64()
 	}
 
-	var castle = make([]uint64, 4)
-	for i := 0; i < len(castle); i++ {
+	var castle [4]uint64
+	for i := range castle {
 		castle[i] = r.Uint64()
 	}
 
-	for i := 0; i < len(castlingKey); i++ {
+	for i := range castlingKey {
 		for j := 0; j < 4; j++ {
 			if (i & (1 << uint(j))) != 0 {
 				castlingKey[i] ^= castle[j]
@@ -511,7 +511,7 @@ func initKeys() {
 
 func init() {
 	initKeys()
-	for i := 0; i < len(castleMask); i++ {
+	for i := range castleMask {
 		castleMask[i] = WhiteKingSide | WhiteQueenSide | BlackKingSide | BlackQueenSide
 	}
 	castleMask[SquareA1] &^= WhiteQueenSide

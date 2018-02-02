@@ -17,7 +17,7 @@ func NewHistoryTable() historyTable {
 }
 
 func (ht historyTable) Clear() {
-	for i := 0; i < len(ht); i++ {
+	for i := range ht {
 		ht[i] = historyEntry{1, 1}
 	}
 }

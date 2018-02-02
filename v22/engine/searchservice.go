@@ -211,8 +211,9 @@ func (ctx *searchContext) AlphaBeta(alpha, beta, depth int) int {
 			newDepth = ctx.NewDepth(depth, child)
 			var reduction = 0
 
-			if ctx.mi.stage == StageRemaining && moveCount > 1 &&
+			if !IsCaptureOrPromotion(move) && moveCount > 1 &&
 				!isCheck && !child.Position.IsCheck() &&
+				move != ctx.Killer1 && move != ctx.Killer2 &&
 				!IsPawnPush7th(move, position.WhiteMove) &&
 				alpha > VALUE_MATED_IN_MAX_HEIGHT {
 

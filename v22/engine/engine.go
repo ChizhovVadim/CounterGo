@@ -14,7 +14,7 @@ type Engine struct {
 	historyTable       historyTable
 	transTable         *transTable
 	evaluate           evaluate
-	historyKeys       map[uint64]int
+	historyKeys        map[uint64]int
 	timeManager        *timeManager
 	tree               [][]searchContext
 }
@@ -98,10 +98,10 @@ func getHistoryKeys(positions []*Position) map[uint64]int {
 	var result = make(map[uint64]int)
 	for i := len(positions) - 1; i >= 0; i-- {
 		var p = positions[i]
+		result[p.Key]++
 		if p.Rule50 == 0 {
 			break
 		}
-		result[p.Key]++
 	}
 	return result
 }

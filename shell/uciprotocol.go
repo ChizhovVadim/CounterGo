@@ -121,10 +121,10 @@ func debugUci(s string) {
 
 func PrintSearchInfo(si common.SearchInfo) {
 	var scoreToUci string
-	if mate, isMate := common.ScoreToMate(si.Score); isMate {
-		scoreToUci = fmt.Sprintf("mate %v", mate)
+	if si.Score.Mate != 0 {
+		scoreToUci = fmt.Sprintf("mate %v", si.Score.Mate)
 	} else {
-		scoreToUci = fmt.Sprintf("cp %v", si.Score)
+		scoreToUci = fmt.Sprintf("cp %v", si.Score.Centipawns)
 	}
 	var nps = si.Nodes * 1000 / (si.Time + 1)
 	var sb bytes.Buffer

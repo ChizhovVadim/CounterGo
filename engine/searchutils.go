@@ -1,18 +1,84 @@
 package engine
 
 import (
+	"sync"
+
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-func (ctx *searchContext) Next() *searchContext {
+const (
+	MaxHeight                = 64
+	ValueDraw                = 0
+	ValueMate                = 30000
+	ValueInfinity            = 30001
+	ValueMateInMaxHeight  = ValueMate - MaxHeight
+	ValueMatedInMaxHeight = -ValueMate + MaxHeight
+)
+
+func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
+	var wg sync.WaitGroup
+	for i := 1; i < degreeOfParallelism; i++ {
+		wg.Add(1)
+		go func(threadIndex int) {
+			body(threadIndex)
+			wg.Done()
+		}(i)
+	}
+	body(0)
+	wg.Wait()
+}
+
+func mateIn(height int) int {
+	return ValueMate - height
+}
+
+func matedIn(height int) int {
+	return -ValueMate + height
+}
+
+func valueToTT(v, height int) int {
+	if v >= ValueMateInMaxHeight {
+		return v + height
+	}
+
+	if v <= ValueMatedInMaxHeight {
+		return v - height
+	}
+
+	return v
+}
+
+func valueFromTT(v, height int) int {
+	if v >= ValueMateInMaxHeight {
+		return v - height
+	}
+
+	if v <= ValueMatedInMaxHeight {
+		return v + height
+	}
+
+	return v
+}
+
+func scoreToUci(v int) Score {
+	if v >= ValueMateInMaxHeight {
+		return Score{0, (ValueMate - v + 1) / 2}
+	} else if v <= ValueMatedInMaxHeight {
+		return Score{0, (-ValueMate - v) / 2}
+	} else {
+		return Score{v, 0}
+	}
+}
+
+func (ctx *searchContext) next() *searchContext {
 	return &ctx.engine.tree[ctx.thread][ctx.height+1]
 }
 
-func (ctx *searchContext) NextOnThread(thread int) *searchContext {
+func (ctx *searchContext) nextOnThread(thread int) *searchContext {
 	return &ctx.engine.tree[thread][ctx.height+1]
 }
 
-func (ctx *searchContext) IsDraw() bool {
+func (ctx *searchContext) isDraw() bool {
 	var p = ctx.position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
@@ -42,22 +108,22 @@ func (ctx *searchContext) IsDraw() bool {
 	return false
 }
 
-func (ctx *searchContext) ClearPV() {
+func (ctx *searchContext) clearPV() {
 	ctx.principalVariation = ctx.principalVariation[:0]
 }
 
-func (ctx *searchContext) BestMove() Move {
+func (ctx *searchContext) bestMove() Move {
 	if len(ctx.principalVariation) == 0 {
 		return MoveEmpty
 	}
 	return ctx.principalVariation[0]
 }
 
-func (ctx *searchContext) ComposePV(move Move, child *searchContext) {
+func (ctx *searchContext) composePV(move Move, child *searchContext) {
 	ctx.principalVariation = append(append(ctx.principalVariation[:0], move), child.principalVariation...)
 }
 
-func IsLateEndgame(p *Position, side bool) bool {
+func isLateEndgame(p *Position, side bool) bool {
 	//sample: position fen 8/8/6p1/1p2pk1p/1Pp1p2P/2PbP1P1/3N1P2/4K3 w - - 12 58
 	var ownPieces = p.PiecesByColor(side)
 	return ((p.Rooks|p.Queens)&ownPieces) == 0 &&
@@ -71,7 +137,7 @@ var (
 	pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
 )
 
-func MoveValue(move Move) int {
+func moveValue(move Move) int {
 	var result = pieceValues[move.CapturedPiece()]
 	if move.Promotion() != Empty {
 		result += pieceValues[move.Promotion()] - pieceValues[Pawn]
@@ -79,12 +145,12 @@ func MoveValue(move Move) int {
 	return result
 }
 
-func IsCaptureOrPromotion(move Move) bool {
+func isCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||
 		move.Promotion() != Empty
 }
 
-func IsPawnAdvance(move Move, side bool) bool {
+func isPawnAdvance(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false
 	}
@@ -96,7 +162,7 @@ func IsPawnAdvance(move Move, side bool) bool {
 	}
 }
 
-func IsDangerCapture(p *Position, m Move) bool {
+func isDangerCapture(p *Position, m Move) bool {
 	if m.CapturedPiece() == Pawn {
 		var pawns = p.Pawns & p.PiecesByColor(!p.WhiteMove)
 		if (pawns & (pawns - 1)) == 0 {
@@ -106,7 +172,7 @@ func IsDangerCapture(p *Position, m Move) bool {
 	return false
 }
 
-func IsPawnPush7th(move Move, side bool) bool {
+func isPawnPush7th(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false
 	}
@@ -118,7 +184,7 @@ func IsPawnPush7th(move Move, side bool) bool {
 	}
 }
 
-func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {
+func getAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	var att = (PawnAttacks(to, !side) & p.Pawns) |
 		(KnightAttacks[to] & p.Knights) |
 		(KingAttacks[to] & p.Kings) |
@@ -127,10 +193,10 @@ func GetAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	return p.PiecesByColor(side) & att
 }
 
-func GetLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attacker, from int) {
+func getLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attacker, from int) {
 	attacker = Empty
 	from = SquareNone
-	var att = GetAttacks(p, to, side, occ) & occ
+	var att = getAttacks(p, to, side, occ) & occ
 	if att == 0 {
 		return
 	}
@@ -164,7 +230,7 @@ func SEE_GE(p *Position, move Move) bool {
 		return true
 	}
 	for {
-		var nextVictim, from = GetLeastValuableAttacker(p, to, side, occ)
+		var nextVictim, from = getLeastValuableAttacker(p, to, side, occ)
 		if nextVictim == Empty {
 			return relativeStm
 		}

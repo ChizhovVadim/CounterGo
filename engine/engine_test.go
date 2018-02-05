@@ -88,7 +88,7 @@ func TestTransTable(t *testing.T) {
 	var p = NewPositionFromFEN(InitialPositionFen)
 	var depth = 5
 	var score = 5
-	var bound = Lower
+	var bound = boundLower
 	var move = MoveEmpty
 	transTable.Update(p, depth, score, bound, move)
 	var ttDepth, ttScore, ttBound, ttMove, ttOk = transTable.Read(p)

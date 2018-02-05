@@ -56,7 +56,7 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 	var start = time.Now()
 
 	if timeControlStrategy == nil {
-		timeControlStrategy = TimeControlBasic
+		timeControlStrategy = timeControlBasic
 	}
 
 	if ct == nil {
@@ -104,7 +104,7 @@ func computeLimit(main, inc, moves int) int {
 	return (main + inc*(moves-1)) / moves
 }
 
-func TimeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
+func timeControlBasic(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
 		SoftMovesToGo   = 50
 		HardMovesToGo   = 10

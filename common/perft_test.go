@@ -53,7 +53,7 @@ func TestPerft(t *testing.T) {
 
 func Perft(p *Position, depth int) int {
 	var result = 0
-	var buffer [MAX_MOVES]Move
+	var buffer [MaxMoves]Move
 	var child Position
 	for _, move := range GenerateMoves(buffer[:], p) {
 		if p.MakeMove(move, &child) {

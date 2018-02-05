@@ -25,7 +25,7 @@ func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Posit
 	p.CastleRights = castleRights
 	p.EpSquare = ep
 	p.Rule50 = fifty
-	p.Key = p.ComputeKey()
+	p.Key = p.computeKey()
 	p.Checkers = p.computeCheckers()
 	p.LastMove = MoveEmpty
 
@@ -425,7 +425,7 @@ func (p *Position) IsDiscoveredCheck() bool {
 }
 
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
-	var buffer [MAX_MOVES]Move
+	var buffer [MaxMoves]Move
 	for _, x := range GenerateMoves(buffer[:], p) {
 		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
 			var newPosition = &Position{}
@@ -464,7 +464,7 @@ func PieceSquareKey(piece int, side bool, square int) uint64 {
 	return pieceSquareKey[MakePiece(piece, side)*64+square]
 }
 
-func (p *Position) ComputeKey() uint64 {
+func (p *Position) computeKey() uint64 {
 	var result = uint64(0)
 	if p.WhiteMove {
 		result ^= sideKey

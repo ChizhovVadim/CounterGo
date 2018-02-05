@@ -28,9 +28,9 @@ type searchContext struct {
 	killer2            Move
 	principalVariation []Move
 	quietsSearched     []Move
-	buffer0            [MAX_MOVES]Move
-	buffer1            [MAX_MOVES]orderedMove
-	buffer2            [MAX_MOVES]orderedMove
+	buffer0            [MaxMoves]Move
+	buffer1            [MaxMoves]orderedMove
+	buffer2            [MaxMoves]orderedMove
 }
 
 type evaluate func(p *Position) int
@@ -119,15 +119,15 @@ func getHistoryKeys(positions []*Position) map[uint64]int {
 func (e *Engine) initTree() {
 	e.tree = make([][]searchContext, e.Threads.Value)
 	for thread := range e.tree {
-		e.tree[thread] = make([]searchContext, MAX_HEIGHT+1)
+		e.tree[thread] = make([]searchContext, MaxHeight+1)
 		for height := range e.tree[thread] {
 			e.tree[thread][height] = searchContext{
 				engine:             e,
 				thread:             thread,
 				height:             height,
 				position:           &Position{},
-				quietsSearched:     make([]Move, 0, MAX_MOVES),
-				principalVariation: make([]Move, 0, MAX_HEIGHT),
+				quietsSearched:     make([]Move, 0, MaxMoves),
+				principalVariation: make([]Move, 0, MaxHeight),
 			}
 		}
 	}

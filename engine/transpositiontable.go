@@ -24,8 +24,8 @@ type transEntry struct {
 }
 
 const (
-	Lower = 1 << iota
-	Upper
+	boundLower = 1 << iota
+	boundUpper
 )
 
 func roundPowerOfTwo(size int) int {
@@ -45,13 +45,13 @@ type transTable struct {
 	mask       uint32
 }
 
-const ClusterSize = 4
+const clusterSize = 4
 
 func NewTransTable(megabytes int) *transTable {
 	var size = roundPowerOfTwo(1024 * 1024 * megabytes / 16)
 	return &transTable{
 		megabytes: megabytes,
-		entries:   make([]transEntry, size+ClusterSize-1),
+		entries:   make([]transEntry, size+clusterSize-1),
 		mask:      uint32(size - 1),
 	}
 }
@@ -72,7 +72,7 @@ func (tt *transTable) Clear() {
 
 func (tt *transTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
 	var index = int(uint32(p.Key) & tt.mask)
-	for i := 0; i < ClusterSize; i++ {
+	for i := 0; i < clusterSize; i++ {
 		var entry = &tt.entries[index+i]
 		if entry.key32 == uint32(p.Key>>32) &&
 			atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
@@ -96,13 +96,13 @@ func (tt *transTable) Update(p *Position, depth, score, entryType int, move Move
 	var index = int(uint32(p.Key) & tt.mask)
 	var bestEntry *transEntry
 	var bestScore = -32767
-	for i := 0; i < ClusterSize; i++ {
+	for i := 0; i < clusterSize; i++ {
 		var entry = &tt.entries[index+i]
 		if entry.key32 == uint32(p.Key>>32) {
 			bestEntry = entry
 			break
 		}
-		var score = Score(entry.depth, entry.bound_gen>>2, tt.generation)
+		var score = transEntryScore(entry.depth, entry.bound_gen>>2, tt.generation)
 		if score > bestScore {
 			bestScore = score
 			bestEntry = entry
@@ -118,7 +118,7 @@ func (tt *transTable) Update(p *Position, depth, score, entryType int, move Move
 	}
 }
 
-func Score(depth int8, gen, curGen uint8) int {
+func transEntryScore(depth int8, gen, curGen uint8) int {
 	var score = -int(depth)
 	if gen != curGen {
 		score += 100

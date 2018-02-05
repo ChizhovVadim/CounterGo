@@ -28,7 +28,7 @@ func (ms *moveSortQS) Next() Move {
 			ms.moves = ms.ctx.buffer1[:0]
 			for _, m := range ml {
 				var score int
-				if IsCaptureOrPromotion(m) {
+				if isCaptureOrPromotion(m) {
 					score = 29000 + mvvlva(m)
 				} else {
 					score = ms.ctx.engine.historyTable.Score(ms.ctx.position.WhiteMove, m)
@@ -68,7 +68,7 @@ func (ms *moveSort) Next() Move {
 			for _, m := range GenerateMoves(ms.ctx.buffer0[:], pos) {
 				if m == ms.trans {
 					ms.important = append(ms.important, orderedMove{m, 30000})
-				} else if IsCaptureOrPromotion(m) {
+				} else if isCaptureOrPromotion(m) {
 					var score = 29000 + mvvlva(m)
 					if !SEE_GE(pos, m) {
 						score -= 500

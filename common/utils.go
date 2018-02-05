@@ -2,7 +2,6 @@ package common
 
 import (
 	"strings"
-	"sync"
 	"unicode"
 )
 
@@ -96,11 +95,11 @@ func ParsePiece(ch rune) int {
 	return MakePiece(i+Pawn, side)
 }
 
-func MakeMove(from, to, movingPiece, capturedPiece int) Move {
+func makeMove(from, to, movingPiece, capturedPiece int) Move {
 	return Move(from ^ (to << 6) ^ (movingPiece << 12) ^ (capturedPiece << 15))
 }
 
-func MakePawnMove(from, to, capturedPiece, promotion int) Move {
+func makePawnMove(from, to, capturedPiece, promotion int) Move {
 	return Move(from ^ (to << 6) ^ (Pawn << 12) ^ (capturedPiece << 15) ^ (promotion << 18))
 }
 
@@ -155,63 +154,8 @@ func ParseMove(s string) Move {
 	var from = ParseSquare(s[0:2])
 	var to = ParseSquare(s[2:4])
 	if len(s) <= 4 {
-		return MakeMove(from, to, Empty, Empty)
+		return makeMove(from, to, Empty, Empty)
 	}
 	var promotion = strings.Index("nbrqk", strings.ToLower(s[4:5])) + Knight
-	return MakePawnMove(from, to, Empty, promotion)
-}
-
-func ParallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			body(threadIndex)
-			wg.Done()
-		}(i)
-	}
-	body(0)
-	wg.Wait()
-}
-
-func MateIn(height int) int {
-	return VALUE_MATE - height
-}
-
-func MatedIn(height int) int {
-	return -VALUE_MATE + height
-}
-
-func ScoreToMate(v int) (int, bool) {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return (VALUE_MATE - v + 1) / 2, true
-	} else if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return (-VALUE_MATE - v) / 2, true
-	} else {
-		return 0, false
-	}
-}
-
-func ValueToTT(v, height int) int {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return v + height
-	}
-
-	if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return v - height
-	}
-
-	return v
-}
-
-func ValueFromTT(v, height int) int {
-	if v >= VALUE_MATE_IN_MAX_HEIGHT {
-		return v - height
-	}
-
-	if v <= VALUE_MATED_IN_MAX_HEIGHT {
-		return v + height
-	}
-
-	return v
+	return makePawnMove(from, to, Empty, promotion)
 }

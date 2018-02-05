@@ -28,13 +28,7 @@ const (
 )
 
 const (
-	MAX_HEIGHT                = 64
-	MAX_MOVES                 = 256
-	VALUE_DRAW                = 0
-	VALUE_MATE                = 30000
-	VALUE_INFINITE            = 30001
-	VALUE_MATE_IN_MAX_HEIGHT  = VALUE_MATE - MAX_HEIGHT
-	VALUE_MATED_IN_MAX_HEIGHT = -VALUE_MATE + MAX_HEIGHT
+	MaxMoves = 256
 )
 
 const (
@@ -83,16 +77,6 @@ type Move int32
 
 const MoveEmpty Move = 0
 
-type MoveWithScore struct {
-	Move  Move
-	Score int
-}
-
-type MoveList struct {
-	Items [MAX_MOVES]MoveWithScore
-	Count int
-}
-
 type LimitsType struct {
 	Ponder         bool
 	Infinite       bool
@@ -116,11 +100,16 @@ type SearchParams struct {
 }
 
 type SearchInfo struct {
-	Score    int
+	Score    Score
 	Depth    int
 	Nodes    int64
 	Time     int64
 	MainLine []Move
+}
+
+type Score struct {
+	Centipawns int
+	Mate       int
 }
 
 type CancellationToken struct {

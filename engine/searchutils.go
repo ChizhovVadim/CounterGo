@@ -5,15 +5,15 @@ import (
 )
 
 func (ctx *searchContext) Next() *searchContext {
-	return &ctx.Engine.tree[ctx.Thread][ctx.Height+1]
+	return &ctx.engine.tree[ctx.thread][ctx.height+1]
 }
 
 func (ctx *searchContext) NextOnThread(thread int) *searchContext {
-	return &ctx.Engine.tree[thread][ctx.Height+1]
+	return &ctx.engine.tree[thread][ctx.height+1]
 }
 
 func (ctx *searchContext) IsDraw() bool {
-	var p = ctx.Position
+	var p = ctx.position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
 		!MoreThanOne(p.Knights|p.Bishops) {
@@ -24,9 +24,9 @@ func (ctx *searchContext) IsDraw() bool {
 		return true
 	}
 
-	var stacks = ctx.Engine.tree[ctx.Thread]
-	for i := ctx.Height - 1; i >= 0; i-- {
-		var temp = stacks[i].Position
+	var stacks = ctx.engine.tree[ctx.thread]
+	for i := ctx.height - 1; i >= 0; i-- {
+		var temp = stacks[i].position
 		if temp.Key == p.Key {
 			return true
 		}
@@ -35,28 +35,26 @@ func (ctx *searchContext) IsDraw() bool {
 		}
 	}
 
-	for _, key := range ctx.Engine.historyKeys {
-		if key == p.Key {
-			return true
-		}
+	if ctx.engine.historyKeys[p.Key] >= 2 {
+		return true
 	}
 
 	return false
 }
 
 func (ctx *searchContext) ClearPV() {
-	ctx.PrincipalVariation = ctx.PrincipalVariation[:0]
+	ctx.principalVariation = ctx.principalVariation[:0]
 }
 
 func (ctx *searchContext) BestMove() Move {
-	if len(ctx.PrincipalVariation) == 0 {
+	if len(ctx.principalVariation) == 0 {
 		return MoveEmpty
 	}
-	return ctx.PrincipalVariation[0]
+	return ctx.principalVariation[0]
 }
 
 func (ctx *searchContext) ComposePV(move Move, child *searchContext) {
-	ctx.PrincipalVariation = append(append(ctx.PrincipalVariation[:0], move), child.PrincipalVariation...)
+	ctx.principalVariation = append(append(ctx.principalVariation[:0], move), child.principalVariation...)
 }
 
 func IsLateEndgame(p *Position, side bool) bool {

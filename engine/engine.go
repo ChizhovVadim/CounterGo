@@ -12,7 +12,7 @@ type Engine struct {
 	ExperimentSettings BoolUciOption
 	ClearTransTable    bool
 	historyTable       historyTable
-	transTable         *transTable
+	transTable         TransTable
 	evaluate           evaluate
 	historyKeys        map[uint64]int
 	timeManager        *timeManager
@@ -20,16 +20,17 @@ type Engine struct {
 }
 
 type searchContext struct {
-	Engine             *Engine
-	Thread             int
-	Height             int
-	Position           *Position
-	MoveList           *MoveList
-	mi                 moveIterator
-	Killer1            Move
-	Killer2            Move
-	PrincipalVariation []Move
-	QuietsSearched     []Move
+	engine             *Engine
+	thread             int
+	height             int
+	position           *Position
+	killer1            Move
+	killer2            Move
+	principalVariation []Move
+	quietsSearched     []Move
+	buffer0            [MAX_MOVES]Move
+	buffer1            [MAX_MOVES]orderedMove
+	buffer2            [MAX_MOVES]orderedMove
 }
 
 type evaluate func(p *Position) int
@@ -54,11 +55,11 @@ func (e *Engine) GetOptions() []UciOption {
 }
 
 func (e *Engine) Prepare() {
-	if e.transTable == nil || e.transTable.megabytes != e.Hash.Value {
+	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if len(e.tree) != e.Threads.Value {
-		e.tree = NewTree(e, e.Threads.Value)
+		e.initTree()
 	}
 }
 
@@ -78,7 +79,7 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for thread := range e.tree {
-		e.tree[thread][0].Position = p
+		e.tree[thread][0].position = p
 	}
 	var ctx = &e.tree[0][0]
 	return ctx.IterateSearch(searchParams.Progress)
@@ -88,8 +89,17 @@ func (e *Engine) clearKillers() {
 	for thread := range e.tree {
 		for height := range e.tree[thread] {
 			var ctx = &e.tree[thread][height]
-			ctx.Killer1 = MoveEmpty
-			ctx.Killer2 = MoveEmpty
+			ctx.killer1 = MoveEmpty
+			ctx.killer2 = MoveEmpty
+		}
+	}
+}
+
+func (e *Engine) initKillers() {
+	for thread := 1; thread < len(e.tree); thread++ {
+		for height := range e.tree[0] {
+			e.tree[thread][height].killer1 = e.tree[0][height].killer1
+			e.tree[thread][height].killer2 = e.tree[0][height].killer2
 		}
 	}
 }
@@ -106,30 +116,19 @@ func getHistoryKeys(positions []*Position) map[uint64]int {
 	return result
 }
 
-func NewTree(engine *Engine, degreeOfParallelism int) [][]searchContext {
-	var result = make([][]searchContext, degreeOfParallelism)
-	for i := 0; i < len(result); i++ {
-		result[i] = NewSearchContexts(engine, i)
-	}
-	return result
-}
-
-func NewSearchContexts(engine *Engine, thread int) []searchContext {
-	var result = make([]searchContext, MAX_HEIGHT+1)
-	for i := 0; i < len(result); i++ {
-		result[i] = NewSearchContext(engine, thread, i)
-	}
-	return result
-}
-
-func NewSearchContext(engine *Engine, thread, height int) searchContext {
-	return searchContext{
-		Engine:             engine,
-		Thread:             thread,
-		Height:             height,
-		Position:           &Position{},
-		MoveList:           &MoveList{},
-		QuietsSearched:     make([]Move, 0, MAX_MOVES),
-		PrincipalVariation: make([]Move, 0, MAX_HEIGHT),
+func (e *Engine) initTree() {
+	e.tree = make([][]searchContext, e.Threads.Value)
+	for thread := range e.tree {
+		e.tree[thread] = make([]searchContext, MAX_HEIGHT+1)
+		for height := range e.tree[thread] {
+			e.tree[thread][height] = searchContext{
+				engine:             e,
+				thread:             thread,
+				height:             height,
+				position:           &Position{},
+				quietsSearched:     make([]Move, 0, MAX_MOVES),
+				principalVariation: make([]Move, 0, MAX_HEIGHT),
+			}
+		}
 	}
 }

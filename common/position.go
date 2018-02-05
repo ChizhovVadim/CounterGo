@@ -425,10 +425,8 @@ func (p *Position) IsDiscoveredCheck() bool {
 }
 
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
-	var moveList MoveList
-	moveList.GenerateMoves(p)
-	for i := 0; i < moveList.Count; i++ {
-		var x = moveList.Items[i].Move
+	var buffer [MAX_MOVES]Move
+	for _, x := range GenerateMoves(buffer[:], p) {
 		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
 			var newPosition = &Position{}
 			if p.MakeMove(x, newPosition) {

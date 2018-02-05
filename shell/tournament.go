@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/common"
-	"github.com/ChizhovVadim/CounterGo/v22/engine"
+	//oldEngine "github.com/ChizhovVadim/CounterGo/v21/engine"
+	"github.com/ChizhovVadim/CounterGo/engine"
 )
 
 func NewEngineA() UciEngine {
@@ -143,10 +144,8 @@ func PlayGame(engine1, engine2 UciEngine, initialPosition *common.Position) int 
 
 func ComputeGameResult(positions []*common.Position) int {
 	var position = positions[len(positions)-1]
-	var ml = &common.MoveList{}
-	ml.GenerateMoves(position)
-	ml.FilterLegalMoves(position)
-	if ml.Count == 0 {
+	var ml = common.GenerateLegalMoves(position)
+	if len(ml) == 0 {
 		if !position.IsCheck() {
 			return GameResultDraw
 		} else if position.WhiteMove {

@@ -53,11 +53,10 @@ func TestPerft(t *testing.T) {
 
 func Perft(p *Position, depth int) int {
 	var result = 0
-	var ml MoveList
-	ml.GenerateMoves(p)
+	var buffer [MAX_MOVES]Move
 	var child Position
-	for _, move := range ml.Items[:ml.Count] {
-		if p.MakeMove(move.Move, &child) {
+	for _, move := range GenerateMoves(buffer[:], p) {
+		if p.MakeMove(move, &child) {
 			if depth > 1 {
 				result += Perft(&child, depth-1)
 			} else {

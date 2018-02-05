@@ -17,18 +17,18 @@ func NewHistoryTable() historyTable {
 }
 
 func (ht historyTable) Clear() {
-	for i := 0; i < len(ht); i++ {
+	for i := range ht {
 		ht[i] = historyEntry{1, 1}
 	}
 }
 
 func (ht historyTable) Update(ctx *searchContext, bestMove Move, depth int) {
-	if ctx.Killer1 != bestMove {
-		ctx.Killer2 = ctx.Killer1
-		ctx.Killer1 = bestMove
+	if ctx.killer1 != bestMove {
+		ctx.killer2 = ctx.killer1
+		ctx.killer1 = bestMove
 	}
-	var side = ctx.Position.WhiteMove
-	for _, move := range ctx.QuietsSearched {
+	var side = ctx.position.WhiteMove
+	for _, move := range ctx.quietsSearched {
 		atomic.AddInt32(&ht[pieceSquareIndex(side, move)].try, int32(depth))
 	}
 	atomic.AddInt32(&ht[pieceSquareIndex(side, bestMove)].success, int32(depth))

@@ -13,11 +13,11 @@ var searchTimeout = errors.New("search timeout")
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start                       time.Time
-	softTime                    time.Duration
-	nodes, softNodes, hardNodes int64
-	ct                          *CancellationToken
-	timer                       *time.Timer
+	start    time.Time
+	softTime time.Duration
+	nodes    int64
+	ct       *CancellationToken
+	timer    *time.Timer
 }
 
 func (tm *timeManager) Nodes() int64 {
@@ -25,8 +25,7 @@ func (tm *timeManager) Nodes() int64 {
 }
 
 func (tm *timeManager) IsHardTimeout() bool {
-	return tm.ct.IsCancellationRequested() ||
-		tm.hardNodes > 0 && tm.nodes >= tm.hardNodes
+	return tm.ct.IsCancellationRequested()
 }
 
 func (tm *timeManager) IncNodes() {
@@ -41,8 +40,7 @@ func (tm *timeManager) ElapsedMilliseconds() int64 {
 }
 
 func (tm *timeManager) IsSoftTimeout() bool {
-	return (tm.softTime > 0 && time.Since(tm.start) >= tm.softTime) ||
-		(tm.softNodes > 0 && tm.nodes >= tm.softNodes)
+	return tm.softTime > 0 && time.Since(tm.start) >= tm.softTime
 }
 
 func (tm *timeManager) Close() {
@@ -55,10 +53,6 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 	side bool, ct *CancellationToken) *timeManager {
 	var start = time.Now()
 
-	if timeControlStrategy == nil {
-		timeControlStrategy = timeControlBasic
-	}
-
 	if ct == nil {
 		ct = &CancellationToken{}
 	}
@@ -70,18 +64,11 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		main, increment = limits.BlackTime, limits.BlackIncrement
 	}
 
-	var softTime, hardTime, softNodes, hardNodes int
+	var softTime, hardTime int
 	if limits.MoveTime > 0 {
 		hardTime = limits.MoveTime
-	} else if limits.Nodes > 0 {
-		hardNodes = limits.Nodes
 	} else if main > 0 {
-		var softLimit, hardLimit = timeControlStrategy(main, increment, limits.MovesToGo)
-		if limits.IsNodeLimits {
-			softNodes, hardNodes = softLimit, hardLimit
-		} else {
-			softTime, hardTime = softLimit, hardLimit
-		}
+		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
 	var timer *time.Timer
@@ -91,12 +78,10 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		})
 	}
 	return &timeManager{
-		start:     start,
-		timer:     timer,
-		ct:        ct,
-		hardNodes: int64(hardNodes),
-		softNodes: int64(softNodes),
-		softTime:  time.Duration(softTime) * time.Millisecond,
+		start:    start,
+		timer:    timer,
+		ct:       ct,
+		softTime: time.Duration(softTime) * time.Millisecond,
 	}
 }
 

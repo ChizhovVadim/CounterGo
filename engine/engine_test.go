@@ -7,14 +7,12 @@ import (
 )
 
 func TestSEE(t *testing.T) {
-	var ml MoveList
+	var buffer [MaxMoves]Move
 	var child = &Position{}
 	for _, test := range testFENs {
 		var p = NewPositionFromFEN(test)
 		var eval = basicMaterial(p)
-		ml.GenerateCaptures(p, true)
-		for i := 0; i < ml.Count; i++ {
-			var move = ml.Items[i].Move
+		for _, move := range GenerateCaptures(buffer[:], p, true) {
 			if !p.MakeMove(move, child) {
 				continue
 			}
@@ -51,10 +49,10 @@ func searchSEE(p *Position, alpha, beta int) int {
 			return eval
 		}
 	}
-	var ml MoveList
-	ml.GenerateCaptures(p, false)
+	var buffer [MaxMoves]Move
+	var ml = GenerateCaptures(buffer[:], p, false)
 	var child = &Position{}
-	var move = lvaRecapture(p, child, &ml, p.LastMove.To())
+	var move = lvaRecapture(p, child, ml, p.LastMove.To())
 	if move != MoveEmpty &&
 		p.MakeMove(move, child) {
 		var score = -searchSEE(child, -beta, -alpha)
@@ -68,11 +66,10 @@ func searchSEE(p *Position, alpha, beta int) int {
 	return alpha
 }
 
-func lvaRecapture(p, child *Position, ml *MoveList, square int) Move {
+func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 	var piece = King + 1
 	var bestMove = MoveEmpty
-	for i := 0; i < ml.Count; i++ {
-		var move = ml.Items[i].Move
+	for _, move := range ml {
 		if move.To() == square &&
 			move.MovingPiece() < piece &&
 			p.MakeMove(move, child) {

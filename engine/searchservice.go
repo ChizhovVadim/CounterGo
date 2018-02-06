@@ -246,15 +246,8 @@ func (ctx *searchContext) alphaBeta(alpha, beta, depth int) int {
 					}
 				}
 
-				if !isPawnAdvance(move, position.WhiteMove) {
-					if moveCount > 16 {
-						reduction = 3
-					} else if moveCount > 9 {
-						reduction = 2
-					} else {
-						reduction = 1
-					}
-					reduction = Min(depth-2, reduction)
+				if depth >= 3 && !isPawnAdvance(move, position.WhiteMove) {
+					reduction = 1
 				}
 			}
 

@@ -3,7 +3,7 @@ package engine
 import . "github.com/ChizhovVadim/CounterGo/common"
 
 type moveSortQS struct {
-	ctx       *searchContext
+	node       *node
 	genChecks bool
 	moves     []orderedMove
 	state     int
@@ -19,19 +19,19 @@ func (ms *moveSortQS) Next() Move {
 	for {
 		switch ms.state {
 		case 0:
-			var ml = ms.ctx.buffer0[:]
-			if ms.ctx.position.IsCheck() {
-				ml = GenerateMoves(ml, ms.ctx.position)
+			var ml = ms.node.buffer0[:]
+			if ms.node.position.IsCheck() {
+				ml = GenerateMoves(ml, ms.node.position)
 			} else {
-				ml = GenerateCaptures(ml, ms.ctx.position, ms.genChecks)
+				ml = GenerateCaptures(ml, ms.node.position, ms.genChecks)
 			}
-			ms.moves = ms.ctx.buffer1[:0]
+			ms.moves = ms.node.buffer1[:0]
 			for _, m := range ml {
 				var score int
 				if isCaptureOrPromotion(m) {
 					score = 29000 + mvvlva(m)
 				} else {
-					score = ms.ctx.engine.historyTable.Score(ms.ctx.position.WhiteMove, m)
+					score = ms.node.engine.historyTable.Score(ms.node.position.WhiteMove, m)
 				}
 				ms.moves = append(ms.moves, orderedMove{m, score})
 			}
@@ -50,7 +50,7 @@ func (ms *moveSortQS) Next() Move {
 }
 
 type moveSort struct {
-	ctx       *searchContext
+	node       *node
 	trans     Move
 	important []orderedMove
 	remaining []orderedMove
@@ -62,21 +62,22 @@ func (ms *moveSort) Next() Move {
 	for {
 		switch ms.state {
 		case 0:
-			var pos = ms.ctx.position
-			ms.important = ms.ctx.buffer1[:0]
-			ms.remaining = ms.ctx.buffer2[:0]
-			for _, m := range GenerateMoves(ms.ctx.buffer0[:], pos) {
+			var pos = ms.node.position
+			ms.important = ms.node.buffer1[:0]
+			ms.remaining = ms.node.buffer2[:0]
+			for _, m := range GenerateMoves(ms.node.buffer0[:], pos) {
 				if m == ms.trans {
 					ms.important = append(ms.important, orderedMove{m, 30000})
 				} else if isCaptureOrPromotion(m) {
-					var score = 29000 + mvvlva(m)
-					if !SEE_GE(pos, m) {
-						score -= 500
+					if seeGEZero(pos, m) {
+						var score = 29000 + mvvlva(m)
+						ms.important = append(ms.important, orderedMove{m, score})
+					} else {
+						ms.remaining = append(ms.remaining, orderedMove{m, 0})
 					}
-					ms.important = append(ms.important, orderedMove{m, score})
-				} else if m == ms.ctx.killer1 {
+				} else if m == ms.node.killer1 {
 					ms.important = append(ms.important, orderedMove{m, 28000})
-				} else if m == ms.ctx.killer2 {
+				} else if m == ms.node.killer2 {
 					ms.important = append(ms.important, orderedMove{m, 28000 - 1})
 				} else {
 					ms.remaining = append(ms.remaining, orderedMove{m, 0})
@@ -91,8 +92,8 @@ func (ms *moveSort) Next() Move {
 				ms.head++
 				return m
 			}
-			var side = ms.ctx.position.WhiteMove
-			var ht = ms.ctx.engine.historyTable
+			var side = ms.node.position.WhiteMove
+			var ht = ms.node.engine.historyTable
 			for i := range ms.remaining {
 				var item = &ms.remaining[i]
 				item.key = ht.Score(side, item.move)

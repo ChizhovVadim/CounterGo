@@ -23,31 +23,31 @@ const (
 )
 
 const (
-	FgBlack = iota + 30
+	fgBlack = iota + 30
 )
 
 // Background text colors
 const (
-	BgBlack = iota + 40
-	BgRed
-	BgGreen
-	BgYellow
-	BgBlue
-	BgMagenta
-	BgCyan
-	BgWhite
+	bgBlack = iota + 40
+	bgRed
+	bgGreen
+	bgYellow
+	bgBlue
+	bgMagenta
+	bgCyan
+	bgWhite
 )
 
 // Background Hi-Intensity text colors
 const (
-	BgHiBlack = iota + 100
-	BgHiRed
-	BgHiGreen
-	BgHiYellow
-	BgHiBlue
-	BgHiMagenta
-	BgHiCyan
-	BgHiWhite
+	bgHiBlack = iota + 100
+	bgHiRed
+	bgHiGreen
+	bgHiYellow
+	bgHiBlue
+	bgHiMagenta
+	bgHiCyan
+	bgHiWhite
 )
 
 var chessSymbols = [2][7]string{
@@ -59,14 +59,14 @@ func PrintPosition(p *common.Position) {
 	for i := 0; i < 64; i++ {
 		sq := common.FlipSquare(i)
 		piece, side := p.GetPieceTypeAndSide(sq)
-		fmt.Print(PieceString(piece, side, common.IsDarkSquare(sq)))
+		fmt.Print(pieceString(piece, side, common.IsDarkSquare(sq)))
 		if common.File(sq) == common.FileH {
 			fmt.Println()
 		}
 	}
 }
 
-func PieceString(piece int, side, darkSquare bool) string {
+func pieceString(piece int, side, darkSquare bool) string {
 	var s string
 	if side {
 		s = chessSymbols[0][piece]
@@ -74,12 +74,12 @@ func PieceString(piece int, side, darkSquare bool) string {
 		s = chessSymbols[1][piece]
 	}
 	s += " "
-	const fgColor = FgBlack
+	const fgColor = fgBlack
 	var bgColor int
 	if darkSquare {
-		bgColor = BgWhite
+		bgColor = bgWhite
 	} else {
-		bgColor = BgHiWhite
+		bgColor = bgHiWhite
 	}
 	const escape = "\x1b"
 	const reset = 0

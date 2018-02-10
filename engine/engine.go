@@ -16,10 +16,11 @@ type Engine struct {
 	evaluate           evaluate
 	historyKeys        map[uint64]int
 	timeManager        *timeManager
-	tree               [][]searchContext
+	tree               [][]node
+	lateMoveReduction  func(d, m int) int
 }
 
-type searchContext struct {
+type node struct {
 	engine             *Engine
 	thread             int
 	height             int
@@ -46,7 +47,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "2.5", "Vadim Chizhov"
+	return "Counter", "2.6dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -56,10 +57,13 @@ func (e *Engine) GetOptions() []UciOption {
 
 func (e *Engine) Prepare() {
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
-		e.transTable = NewTransTable(e.Hash.Value)
+		e.transTable = NewSimpleTransTable(e.Hash.Value)
 	}
 	if len(e.tree) != e.Threads.Value {
 		e.initTree()
+	}
+	if e.lateMoveReduction == nil {
+		e.lateMoveReduction = initLmrCrafty()
 	}
 }
 
@@ -81,16 +85,16 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	for thread := range e.tree {
 		e.tree[thread][0].position = p
 	}
-	var ctx = &e.tree[0][0]
-	return ctx.IterateSearch(searchParams.Progress)
+	var node = &e.tree[0][0]
+	return node.IterateSearch(searchParams.Progress)
 }
 
 func (e *Engine) clearKillers() {
 	for thread := range e.tree {
 		for height := range e.tree[thread] {
-			var ctx = &e.tree[thread][height]
-			ctx.killer1 = MoveEmpty
-			ctx.killer2 = MoveEmpty
+			var node = &e.tree[thread][height]
+			node.killer1 = MoveEmpty
+			node.killer2 = MoveEmpty
 		}
 	}
 }
@@ -117,17 +121,17 @@ func getHistoryKeys(positions []*Position) map[uint64]int {
 }
 
 func (e *Engine) initTree() {
-	e.tree = make([][]searchContext, e.Threads.Value)
+	e.tree = make([][]node, e.Threads.Value)
 	for thread := range e.tree {
-		e.tree[thread] = make([]searchContext, MaxHeight+1)
+		e.tree[thread] = make([]node, maxHeight+1)
 		for height := range e.tree[thread] {
-			e.tree[thread][height] = searchContext{
+			e.tree[thread][height] = node{
 				engine:             e,
 				thread:             thread,
 				height:             height,
 				position:           &Position{},
 				quietsSearched:     make([]Move, 0, MaxMoves),
-				principalVariation: make([]Move, 0, MaxHeight),
+				principalVariation: make([]Move, 0, maxHeight),
 			}
 		}
 	}

@@ -191,3 +191,62 @@ func (tt *simpleTransTable) Update(p *Position, depth, score, entryType int, mov
 		atomic.StoreInt32(&entry.gate, 0)
 	}
 }
+
+//----------------------------------------------------------------------------
+
+type alwaysReplaceTransTable struct {
+	megabytes int
+	entries   []transEntry
+	mask      uint32
+}
+
+func NewAlwaysReplaceTransTable(megabytes int) *alwaysReplaceTransTable {
+	var size = roundPowerOfTwo(1024 * 1024 * megabytes / 16)
+	return &alwaysReplaceTransTable{
+		megabytes: megabytes,
+		entries:   make([]transEntry, size),
+		mask:      uint32(size - 1),
+	}
+}
+
+func (tt *alwaysReplaceTransTable) Megabytes() int {
+	return tt.megabytes
+}
+
+func (tt *alwaysReplaceTransTable) PrepareNewSearch() {
+}
+
+func (tt *alwaysReplaceTransTable) Clear() {
+	for i := range tt.entries {
+		tt.entries[i] = transEntry{}
+	}
+}
+
+func (tt *alwaysReplaceTransTable) Read(p *Position) (depth, score, entryType int, move Move, ok bool) {
+	var index = int(uint32(p.Key) & tt.mask)
+	var entry = &tt.entries[index]
+	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
+		if entry.key32 == uint32(p.Key>>32) {
+			score = int(entry.score)
+			move = entry.move
+			depth = int(entry.depth)
+			entryType = int(entry.bound_gen & 3)
+			ok = true
+		}
+		atomic.StoreInt32(&entry.gate, 0)
+	}
+	return
+}
+
+func (tt *alwaysReplaceTransTable) Update(p *Position, depth, score, entryType int, move Move) {
+	var index = int(uint32(p.Key) & tt.mask)
+	var entry = &tt.entries[index]
+	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
+		entry.key32 = uint32(p.Key >> 32)
+		entry.move = move
+		entry.score = int16(score)
+		entry.depth = int8(depth)
+		entry.bound_gen = uint8(entryType)
+		atomic.StoreInt32(&entry.gate, 0)
+	}
+}

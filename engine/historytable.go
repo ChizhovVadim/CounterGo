@@ -22,13 +22,13 @@ func (ht historyTable) Clear() {
 	}
 }
 
-func (ht historyTable) Update(ctx *searchContext, bestMove Move, depth int) {
-	if ctx.killer1 != bestMove {
-		ctx.killer2 = ctx.killer1
-		ctx.killer1 = bestMove
+func (ht historyTable) Update(node *node, bestMove Move, depth int) {
+	if node.killer1 != bestMove {
+		node.killer2 = node.killer1
+		node.killer1 = bestMove
 	}
-	var side = ctx.position.WhiteMove
-	for _, move := range ctx.quietsSearched {
+	var side = node.position.WhiteMove
+	for _, move := range node.quietsSearched {
 		atomic.AddInt32(&ht[pieceSquareIndex(side, move)].try, int32(depth))
 	}
 	atomic.AddInt32(&ht[pieceSquareIndex(side, bestMove)].success, int32(depth))

@@ -1,18 +1,19 @@
 package engine
 
 import (
+	"math"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
 const (
-	MaxHeight                = 64
-	ValueDraw                = 0
-	ValueMate                = 30000
-	ValueInfinity            = 30001
-	ValueMateInMaxHeight  = ValueMate - MaxHeight
-	ValueMatedInMaxHeight = -ValueMate + MaxHeight
+	maxHeight             = 64
+	valueDraw             = 0
+	valueMate             = 30000
+	valueInfinity         = 30001
+	valueMateInMaxHeight  = valueMate - maxHeight
+	valueMatedInMaxHeight = -valueMate + maxHeight
 )
 
 func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
@@ -29,19 +30,19 @@ func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
 }
 
 func mateIn(height int) int {
-	return ValueMate - height
+	return valueMate - height
 }
 
 func matedIn(height int) int {
-	return -ValueMate + height
+	return -valueMate + height
 }
 
 func valueToTT(v, height int) int {
-	if v >= ValueMateInMaxHeight {
+	if v >= valueMateInMaxHeight {
 		return v + height
 	}
 
-	if v <= ValueMatedInMaxHeight {
+	if v <= valueMatedInMaxHeight {
 		return v - height
 	}
 
@@ -49,11 +50,11 @@ func valueToTT(v, height int) int {
 }
 
 func valueFromTT(v, height int) int {
-	if v >= ValueMateInMaxHeight {
+	if v >= valueMateInMaxHeight {
 		return v - height
 	}
 
-	if v <= ValueMatedInMaxHeight {
+	if v <= valueMatedInMaxHeight {
 		return v + height
 	}
 
@@ -61,25 +62,25 @@ func valueFromTT(v, height int) int {
 }
 
 func scoreToUci(v int) Score {
-	if v >= ValueMateInMaxHeight {
-		return Score{0, (ValueMate - v + 1) / 2}
-	} else if v <= ValueMatedInMaxHeight {
-		return Score{0, (-ValueMate - v) / 2}
+	if v >= valueMateInMaxHeight {
+		return Score{0, (valueMate - v + 1) / 2}
+	} else if v <= valueMatedInMaxHeight {
+		return Score{0, (-valueMate - v) / 2}
 	} else {
 		return Score{v, 0}
 	}
 }
 
-func (ctx *searchContext) next() *searchContext {
-	return &ctx.engine.tree[ctx.thread][ctx.height+1]
+func (node *node) next() *node {
+	return &node.engine.tree[node.thread][node.height+1]
 }
 
-func (ctx *searchContext) nextOnThread(thread int) *searchContext {
-	return &ctx.engine.tree[thread][ctx.height+1]
+func (node *node) nextOnThread(thread int) *node {
+	return &node.engine.tree[thread][node.height+1]
 }
 
-func (ctx *searchContext) isDraw() bool {
-	var p = ctx.position
+func (node *node) isDraw() bool {
+	var p = node.position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
 		!MoreThanOne(p.Knights|p.Bishops) {
@@ -90,8 +91,8 @@ func (ctx *searchContext) isDraw() bool {
 		return true
 	}
 
-	var stacks = ctx.engine.tree[ctx.thread]
-	for i := ctx.height - 1; i >= 0; i-- {
+	var stacks = node.engine.tree[node.thread]
+	for i := node.height - 1; i >= 0; i-- {
 		var temp = stacks[i].position
 		if temp.Key == p.Key {
 			return true
@@ -101,26 +102,26 @@ func (ctx *searchContext) isDraw() bool {
 		}
 	}
 
-	if ctx.engine.historyKeys[p.Key] >= 2 {
+	if node.engine.historyKeys[p.Key] >= 2 {
 		return true
 	}
 
 	return false
 }
 
-func (ctx *searchContext) clearPV() {
-	ctx.principalVariation = ctx.principalVariation[:0]
+func (node *node) clearPV() {
+	node.principalVariation = node.principalVariation[:0]
 }
 
-func (ctx *searchContext) bestMove() Move {
-	if len(ctx.principalVariation) == 0 {
+func (node *node) bestMove() Move {
+	if len(node.principalVariation) == 0 {
 		return MoveEmpty
 	}
-	return ctx.principalVariation[0]
+	return node.principalVariation[0]
 }
 
-func (ctx *searchContext) composePV(move Move, child *searchContext) {
-	ctx.principalVariation = append(append(ctx.principalVariation[:0], move), child.principalVariation...)
+func (node *node) composePV(move Move, child *node) {
+	node.principalVariation = append(append(node.principalVariation[:0], move), child.principalVariation...)
 }
 
 func isLateEndgame(p *Position, side bool) bool {
@@ -213,7 +214,12 @@ func getLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attac
 	return
 }
 
-func SEE_GE(p *Position, move Move) bool {
+func seeGEZero(p *Position, move Move) bool {
+	return pieceValuesSEE[move.MovingPiece()] <= pieceValuesSEE[move.CapturedPiece()] ||
+		see(p, move) >= 0
+}
+
+func seeGE(p *Position, move Move, bound int) bool {
 	var piece = move.MovingPiece()
 	var score0 = pieceValuesSEE[move.CapturedPiece()]
 	if promotion := move.Promotion(); promotion != Empty {
@@ -225,7 +231,11 @@ func SEE_GE(p *Position, move Move) bool {
 	occ |= SquareMask[to]
 	var side = !p.WhiteMove
 	var relativeStm = true
-	var balance = score0 - pieceValuesSEE[piece]
+	var balance = score0 - bound
+	if balance < 0 {
+		return false
+	}
+	balance -= pieceValuesSEE[piece]
 	if balance >= 0 {
 		return true
 	}
@@ -249,5 +259,86 @@ func SEE_GE(p *Position, move Move) bool {
 			return relativeStm
 		}
 		side = !side
+	}
+}
+
+func see(pos *Position, mv Move) int {
+	var from = mv.From()
+	var to = mv.To()
+	var pc = mv.MovingPiece()
+	var sd = pos.WhiteMove
+	var sc = 0
+	if mv.CapturedPiece() != Empty {
+		sc += pieceValuesSEE[mv.CapturedPiece()]
+	}
+	if mv.Promotion() != Empty {
+		pc = mv.Promotion()
+		sc += pieceValuesSEE[pc] - pieceValuesSEE[Pawn]
+	}
+	var pieces = (pos.White | pos.Black) &^ SquareMask[from]
+	sc -= seeRec(pos, !sd, to, pieces, pc)
+	return sc
+}
+
+func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
+	var bs = 0
+	var pc, from = getLeastValuableAttacker(pos, to, sd, pieces)
+	if from != SquareNone {
+		var sc = pieceValuesSEE[cp]
+		if cp != King {
+			sc -= seeRec(pos, !sd, to, pieces&^SquareMask[from], pc)
+		}
+		if sc > bs {
+			bs = sc
+		}
+	}
+	return bs
+}
+
+func lmrBasic(depth, moveCount int) int {
+	var reduction int
+	if moveCount > 16 {
+		reduction = 3
+	} else if moveCount > 9 {
+		reduction = 2
+	} else {
+		reduction = 1
+	}
+	reduction = Max(0, Min(depth-2, reduction))
+	return reduction
+}
+
+func initLmrSenpai() func(d, m int) int {
+	var LMR [32][64]int
+	for d := 3; d < 32; d++ {
+		for m := 2; m < 64; m++ {
+			var r = int(math.Log2(float64(d)) * math.Log2(float64(m)) * 0.2)
+			LMR[d][m] = r
+		}
+	}
+	return func(d, m int) int {
+		return LMR[Min(d, 31)][Min(m, 63)]
+	}
+}
+
+func initLmrCrafty() func(d, m int) int {
+	const (
+		LMR_rdepth = 1   /* leave 1 full ply after reductions    */
+		LMR_min    = 1   /* minimum reduction 1 ply              */
+		LMR_max    = 15  /* maximum reduction 15 plies           */
+		LMR_db     = 1.8 /* depth is 1.8x as important as        */
+		LMR_mb     = 1.0 /* moves searched in the formula.       */
+		LMR_s      = 2.0 /* smaller numbers increase reductions. */
+	)
+	var LMR [32][64]int
+	for d := 3; d < 32; d++ {
+		for m := 2; m < 64; m++ {
+			var r = math.Log(float64(d)*LMR_db) * math.Log(float64(m)*LMR_mb) / LMR_s
+			LMR[d][m] = Max(Min(int(r), LMR_max), LMR_min)
+			LMR[d][m] = Min(LMR[d][m], Max(d-1-LMR_rdepth, 0))
+		}
+	}
+	return func(d, m int) int {
+		return LMR[Min(d, 31)][Min(m-1, 63)]
 	}
 }

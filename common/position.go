@@ -426,7 +426,7 @@ func (p *Position) IsDiscoveredCheck() bool {
 
 func (p *Position) MakeMoveIfLegal(move Move) *Position {
 	var buffer [MaxMoves]Move
-	for _, x := range GenerateMoves(buffer[:], p) {
+	for _, x := range p.GenerateMoves(buffer[:]) {
 		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
 			var newPosition = &Position{}
 			if p.MakeMove(x, newPosition) {

@@ -153,7 +153,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition *common.Position) int 
 
 func computeGameResult(positions []*common.Position) int {
 	var position = positions[len(positions)-1]
-	var ml = common.GenerateLegalMoves(position)
+	var ml = position.GenerateLegalMoves()
 	if len(ml) == 0 {
 		if !position.IsCheck() {
 			return gameResultDraw

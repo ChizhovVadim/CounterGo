@@ -3,7 +3,7 @@ package engine
 import . "github.com/ChizhovVadim/CounterGo/common"
 
 type moveSortQS struct {
-	node       *node
+	node      *node
 	genChecks bool
 	moves     []orderedMove
 	state     int
@@ -21,9 +21,9 @@ func (ms *moveSortQS) Next() Move {
 		case 0:
 			var ml = ms.node.buffer0[:]
 			if ms.node.position.IsCheck() {
-				ml = GenerateMoves(ml, ms.node.position)
+				ml = ms.node.position.GenerateMoves(ml)
 			} else {
-				ml = GenerateCaptures(ml, ms.node.position, ms.genChecks)
+				ml = ms.node.position.GenerateCaptures(ml, ms.genChecks)
 			}
 			ms.moves = ms.node.buffer1[:0]
 			for _, m := range ml {
@@ -50,7 +50,7 @@ func (ms *moveSortQS) Next() Move {
 }
 
 type moveSort struct {
-	node       *node
+	node      *node
 	trans     Move
 	important []orderedMove
 	remaining []orderedMove
@@ -65,7 +65,7 @@ func (ms *moveSort) Next() Move {
 			var pos = ms.node.position
 			ms.important = ms.node.buffer1[:0]
 			ms.remaining = ms.node.buffer2[:0]
-			for _, m := range GenerateMoves(ms.node.buffer0[:], pos) {
+			for _, m := range pos.GenerateMoves(ms.node.buffer0[:]) {
 				if m == ms.trans {
 					ms.important = append(ms.important, orderedMove{m, 30000})
 				} else if isCaptureOrPromotion(m) {

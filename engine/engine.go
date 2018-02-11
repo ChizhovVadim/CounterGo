@@ -16,7 +16,7 @@ type Engine struct {
 	evaluate           evaluate
 	historyKeys        map[uint64]int
 	timeManager        *timeManager
-	tree               [][]node
+	tree               [][maxHeight + 1]node
 	lateMoveReduction  func(d, m int) int
 }
 
@@ -42,7 +42,6 @@ func NewEngine() *Engine {
 		Hash:               IntUciOption{"Hash", 4, 4, 512},
 		Threads:            IntUciOption{"Threads", numCPUs, 1, numCPUs},
 		ExperimentSettings: BoolUciOption{"ExperimentSettings", false},
-		historyTable:       NewHistoryTable(),
 	}
 }
 
@@ -56,6 +55,9 @@ func (e *Engine) GetOptions() []UciOption {
 }
 
 func (e *Engine) Prepare() {
+	if e.historyTable == nil {
+		e.historyTable = NewHistoryTable()
+	}
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
 		e.transTable = NewSimpleTransTable(e.Hash.Value)
 	}
@@ -63,7 +65,10 @@ func (e *Engine) Prepare() {
 		e.initTree()
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmrCrafty()
+		e.lateMoveReduction = lmrOne
+	}
+	if e.evaluate == nil {
+		e.evaluate = evalCacheDecorator(Evaluate)
 	}
 }
 
@@ -74,7 +79,6 @@ func (e *Engine) Search(searchParams SearchParams) SearchInfo {
 	defer e.timeManager.Close()
 
 	e.Prepare()
-	e.evaluate = Evaluate
 	e.clearKillers()
 	e.historyTable.Clear()
 	e.transTable.PrepareNewSearch()
@@ -121,9 +125,8 @@ func getHistoryKeys(positions []*Position) map[uint64]int {
 }
 
 func (e *Engine) initTree() {
-	e.tree = make([][]node, e.Threads.Value)
+	e.tree = make([][maxHeight + 1]node, e.Threads.Value)
 	for thread := range e.tree {
-		e.tree[thread] = make([]node, maxHeight+1)
 		for height := range e.tree[thread] {
 			e.tree[thread][height] = node{
 				engine:             e,

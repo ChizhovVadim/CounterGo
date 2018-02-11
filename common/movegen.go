@@ -22,7 +22,7 @@ func addPromotions(ml []Move, move Move) (count int) {
 	return 4
 }
 
-func GenerateMoves(ml []Move, p *Position) []Move {
+func (p *Position) GenerateMoves(ml []Move) []Move {
 	var count = 0
 	var fromBB, toBB, ownPieces, oppPieces uint64
 	var from, to int
@@ -198,7 +198,7 @@ func GenerateMoves(ml []Move, p *Position) []Move {
 	return ml[:count]
 }
 
-func GenerateCaptures(ml []Move, p *Position, genChecks bool) []Move {
+func (p *Position) GenerateCaptures(ml []Move, genChecks bool) []Move {
 	var count = 0
 	var fromBB, toBB, ownPieces, oppPieces uint64
 	var from, to, promotion int
@@ -436,10 +436,11 @@ func GenerateCaptures(ml []Move, p *Position, genChecks bool) []Move {
 	return ml[:count]
 }
 
-func GenerateLegalMoves(pos *Position) (ml []Move) {
+func (pos *Position) GenerateLegalMoves() []Move {
+	var ml []Move
 	var buffer [MaxMoves]Move
 	var child Position
-	for _, m := range GenerateMoves(buffer[:], pos) {
+	for _, m := range pos.GenerateMoves(buffer[:]) {
 		if pos.MakeMove(m, &child) {
 			ml = append(ml, m)
 		}

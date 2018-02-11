@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	maxHeight             = 64
-	valueDraw             = 0
-	valueMate             = 30000
-	valueInfinity         = 30001
-	valueMateInMaxHeight  = valueMate - maxHeight
-	valueMatedInMaxHeight = -valueMate + maxHeight
+	maxHeight     = 64
+	valueDraw     = 0
+	valueMate     = 30000
+	valueInfinity = valueMate + 1
+	valueWin      = valueMate - maxHeight
+	valueLoss     = -valueWin
 )
 
 func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
@@ -29,20 +29,20 @@ func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
 	wg.Wait()
 }
 
-func mateIn(height int) int {
+func winIn(height int) int {
 	return valueMate - height
 }
 
-func matedIn(height int) int {
+func lossIn(height int) int {
 	return -valueMate + height
 }
 
 func valueToTT(v, height int) int {
-	if v >= valueMateInMaxHeight {
+	if v >= valueWin {
 		return v + height
 	}
 
-	if v <= valueMatedInMaxHeight {
+	if v <= valueLoss {
 		return v - height
 	}
 
@@ -50,11 +50,11 @@ func valueToTT(v, height int) int {
 }
 
 func valueFromTT(v, height int) int {
-	if v >= valueMateInMaxHeight {
+	if v >= valueWin {
 		return v - height
 	}
 
-	if v <= valueMatedInMaxHeight {
+	if v <= valueLoss {
 		return v + height
 	}
 
@@ -62,9 +62,9 @@ func valueFromTT(v, height int) int {
 }
 
 func scoreToUci(v int) Score {
-	if v >= valueMateInMaxHeight {
+	if v >= valueWin {
 		return Score{0, (valueMate - v + 1) / 2}
-	} else if v <= valueMatedInMaxHeight {
+	} else if v <= valueLoss {
 		return Score{0, (-valueMate - v) / 2}
 	} else {
 		return Score{v, 0}
@@ -91,7 +91,7 @@ func (node *node) isDraw() bool {
 		return true
 	}
 
-	var stacks = node.engine.tree[node.thread]
+	var stacks = &node.engine.tree[node.thread]
 	for i := node.height - 1; i >= 0; i-- {
 		var temp = stacks[i].position
 		if temp.Key == p.Key {
@@ -293,6 +293,13 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 		}
 	}
 	return bs
+}
+
+func lmrOne(depth, moveCount int) int {
+	if depth >= 3 {
+		return 1
+	}
+	return 0
 }
 
 func lmrBasic(depth, moveCount int) int {

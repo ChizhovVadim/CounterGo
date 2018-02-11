@@ -107,7 +107,7 @@ func parseEpdMove(p *common.Position, s string) common.Move {
 	s = strings.TrimRight(s, "+")
 	var piece = 2 + strings.Index("NBRQK", s[0:1])
 	var to = common.ParseSquare(s[len(s)-2:])
-	var ml = common.GenerateLegalMoves(p)
+	var ml = p.GenerateLegalMoves()
 	var moves []common.Move
 	for _, move := range ml {
 		if move.MovingPiece() == piece &&

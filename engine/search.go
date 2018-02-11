@@ -22,7 +22,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	}()
 
 	var p = node.position
-	var ml = GenerateLegalMoves(p)
+	var ml = p.GenerateLegalMoves()
 	if len(ml) == 0 {
 		return
 	}
@@ -98,7 +98,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 		if engine.timeManager.IsHardTimeout() {
 			break
 		}
-		if alpha >= mateIn(depth) || alpha <= matedIn(depth) {
+		if alpha >= winIn(depth) || alpha <= lossIn(depth) {
 			break
 		}
 		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {
@@ -165,7 +165,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	var engine = node.engine
 	engine.timeManager.IncNodes()
 
-	if mateIn(node.height+1) <= alpha {
+	if winIn(node.height+1) <= alpha {
 		return alpha
 	}
 
@@ -189,7 +189,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 
 	var child = node.next()
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
-		beta < valueMateInMaxHeight &&
+		beta < valueWin &&
 		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
 		position.MakeNullMove(child.position)
@@ -199,7 +199,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		} else {
 			score = -child.alphaBeta(-rbeta, -(rbeta - 1), newDepth)
 		}
-		if score >= rbeta && score < valueMateInMaxHeight {
+		if score >= rbeta && score < valueWin {
 			return beta
 		}
 	}
@@ -237,7 +237,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 				!isCheck && !child.position.IsCheck() &&
 				move != node.killer1 && move != node.killer2 &&
 				!isPawnPush7th(move, position.WhiteMove) &&
-				alpha > valueMatedInMaxHeight {
+				alpha > valueLoss {
 
 				if depth <= 2 {
 					if staticEval == valueInfinity {
@@ -278,7 +278,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 
 	if moveCount == 0 {
 		if isCheck {
-			return matedIn(node.height)
+			return lossIn(node.height)
 		}
 		return valueDraw
 	}
@@ -352,7 +352,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 		}
 	}
 	if isCheck && moveCount == 0 {
-		return matedIn(node.height)
+		return lossIn(node.height)
 	}
 	return alpha
 }

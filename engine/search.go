@@ -47,7 +47,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 			alpha = score
 			result = SearchInfo{
 				Depth:    depth,
-				Score:    scoreToUci(score),
+				Score:    newUciScore(score),
 				MainLine: append([]Move{move}, child.principalVariation...),
 				Time:     engine.timeManager.ElapsedMilliseconds(),
 				Nodes:    engine.timeManager.Nodes(),
@@ -82,7 +82,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 					alpha = score
 					result = SearchInfo{
 						Depth:    depth,
-						Score:    scoreToUci(score),
+						Score:    newUciScore(score),
 						MainLine: append([]Move{move}, child.principalVariation...),
 						Time:     engine.timeManager.ElapsedMilliseconds(),
 						Nodes:    engine.timeManager.Nodes(),
@@ -165,11 +165,16 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	var engine = node.engine
 	engine.timeManager.IncNodes()
 
+	var position = node.position
+	var isCheck = position.IsCheck()
+
 	if winIn(node.height+1) <= alpha {
 		return alpha
 	}
+	if lossIn(node.height+2) >= beta && !isCheck {
+		return beta
+	}
 
-	var position = node.position
 	var hashMove = MoveEmpty
 
 	if ttDepth, ttScore, ttType, ttMove, ok := engine.transTable.Read(position); ok {
@@ -184,8 +189,6 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 			}
 		}
 	}
-
-	var isCheck = position.IsCheck()
 
 	var child = node.next()
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&

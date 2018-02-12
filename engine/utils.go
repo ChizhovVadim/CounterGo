@@ -61,13 +61,13 @@ func valueFromTT(v, height int) int {
 	return v
 }
 
-func scoreToUci(v int) Score {
+func newUciScore(v int) UciScore {
 	if v >= valueWin {
-		return Score{0, (valueMate - v + 1) / 2}
+		return UciScore{0, (valueMate - v + 1) / 2}
 	} else if v <= valueLoss {
-		return Score{0, (-valueMate - v) / 2}
+		return UciScore{0, (-valueMate - v) / 2}
 	} else {
-		return Score{v, 0}
+		return UciScore{v, 0}
 	}
 }
 

@@ -12,7 +12,7 @@ func TestSEE(t *testing.T) {
 	for _, test := range testFENs {
 		var p = NewPositionFromFEN(test)
 		var eval = basicMaterial(p)
-		for _, move := range GenerateCaptures(buffer[:], p, true) {
+		for _, move := range p.GenerateCaptures(buffer[:], true) {
 			if !p.MakeMove(move, child) {
 				continue
 			}
@@ -47,7 +47,7 @@ func basicMaterial(p *Position) int {
 func searchSEE(p *Position) int {
 	var alpha = basicMaterial(p)
 	var buffer [MaxMoves]Move
-	var ml = GenerateCaptures(buffer[:], p, false)
+	var ml = p.GenerateCaptures(buffer[:], false)
 	var child = &Position{}
 	var move = lvaRecapture(p, child, ml, p.LastMove.To())
 	if move != MoveEmpty &&

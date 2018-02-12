@@ -55,7 +55,7 @@ func Perft(p *Position, depth int) int {
 	var result = 0
 	var buffer [MaxMoves]Move
 	var child Position
-	for _, move := range GenerateMoves(buffer[:], p) {
+	for _, move := range p.GenerateMoves(buffer[:]) {
 		if p.MakeMove(move, &child) {
 			if depth > 1 {
 				result += Perft(&child, depth-1)

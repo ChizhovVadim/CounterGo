@@ -99,14 +99,14 @@ type SearchParams struct {
 }
 
 type SearchInfo struct {
-	Score    Score
+	Score    UciScore
 	Depth    int
 	Nodes    int64
 	Time     int64
 	MainLine []Move
 }
 
-type Score struct {
+type UciScore struct {
 	Centipawns int
 	Mate       int
 }

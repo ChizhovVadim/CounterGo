@@ -59,7 +59,7 @@ func (e *Engine) Prepare() {
 		e.historyTable = NewHistoryTable()
 	}
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
-		e.transTable = NewSimpleTransTable(e.Hash.Value)
+		e.transTable = NewTierTransTable(e.Hash.Value)
 	}
 	if len(e.tree) != e.Threads.Value {
 		e.initTree()

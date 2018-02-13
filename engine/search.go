@@ -98,7 +98,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 		if engine.timeManager.IsHardTimeout() {
 			break
 		}
-		if alpha >= winIn(depth) || alpha <= lossIn(depth) {
+		if alpha >= winIn(depth-3) || alpha <= lossIn(depth-3) {
 			break
 		}
 		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {

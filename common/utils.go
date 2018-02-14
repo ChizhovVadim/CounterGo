@@ -159,3 +159,72 @@ func ParseMove(s string) Move {
 	var promotion = strings.Index("nbrqk", strings.ToLower(s[4:5])) + Knight
 	return makePawnMove(from, to, Empty, promotion)
 }
+
+func moveToSAN(pos *Position, ml []Move, mv Move) string {
+	const PieceNames = "NBRQK"
+	if mv == whiteKingSideCastle || mv == blackKingSideCastle {
+		return "O-O"
+	}
+	if mv == whiteQueenSideCastle || mv == blackQueenSideCastle {
+		return "O-O-O"
+	}
+	var strPiece, strCapture, strFrom, strTo, strPromotion string
+	if mv.MovingPiece() != Pawn {
+		strPiece = string(PieceNames[mv.MovingPiece()-Knight])
+	}
+	strTo = SquareName(mv.To())
+	if mv.CapturedPiece() != Empty {
+		strCapture = "x"
+		if mv.MovingPiece() == Pawn {
+			strFrom = SquareName(mv.From())[:1]
+		}
+	}
+	if mv.Promotion() != Empty {
+		strPromotion = "=" + string(PieceNames[mv.Promotion()-Knight])
+	}
+	var ambiguity = false
+	var uniqCol = true
+	var uniqRow = true
+	for _, mv1 := range ml {
+		if mv1.From() == mv.From() {
+			continue
+		}
+		if mv1.To() != mv.To() {
+			continue
+		}
+		if mv1.MovingPiece() != mv.MovingPiece() {
+			continue
+		}
+		ambiguity = true
+		if File(mv1.From()) == File(mv.From()) {
+			uniqCol = false
+		}
+		if Rank(mv1.From()) == Rank(mv.From()) {
+			uniqRow = false
+		}
+	}
+	if ambiguity {
+		if uniqCol {
+			strFrom = SquareName(mv.From())[:1]
+		} else if uniqRow {
+			strFrom = SquareName(mv.From())[1:2]
+		} else {
+			strFrom = SquareName(mv.From())
+		}
+	}
+	return strPiece + strFrom + strCapture + strTo + strPromotion
+}
+
+func ParseMoveSAN(pos *Position, san string) Move {
+	var index = strings.IndexAny(san, "+#?!")
+	if index >= 0 {
+		san = san[:index]
+	}
+	var ml = pos.GenerateLegalMoves()
+	for _, mv := range ml {
+		if san == moveToSAN(pos, ml, mv) {
+			return mv
+		}
+	}
+	return MoveEmpty
+}

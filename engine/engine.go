@@ -73,7 +73,7 @@ func (e *Engine) Prepare() {
 		e.initTree()
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmrCrafty()
+		e.lateMoveReduction = lmrOne
 	}
 	if e.evaluate == nil {
 		e.evaluate = evalCacheDecorator(Evaluate)

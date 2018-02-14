@@ -87,7 +87,7 @@ func parseEpdTest(s string) *testItem {
 	var sBestMoves = strings.Split(s[bmBegin:bmEnd], " ")[1:]
 	var bestMoves []common.Move
 	for _, sBestMove := range sBestMoves {
-		var move = parseEpdMove(p, sBestMove)
+		var move = common.ParseMoveSAN(p, sBestMove)
 		if move == common.MoveEmpty {
 			return nil
 		}
@@ -101,22 +101,4 @@ func parseEpdTest(s string) *testItem {
 		position:  p,
 		bestMoves: bestMoves,
 	}
-}
-
-func parseEpdMove(p *common.Position, s string) common.Move {
-	s = strings.TrimRight(s, "+")
-	var piece = 2 + strings.Index("NBRQK", s[0:1])
-	var to = common.ParseSquare(s[len(s)-2:])
-	var ml = p.GenerateLegalMoves()
-	var moves []common.Move
-	for _, move := range ml {
-		if move.MovingPiece() == piece &&
-			move.To() == to {
-			moves = append(moves, move)
-		}
-	}
-	if len(moves) == 1 {
-		return moves[0]
-	}
-	return common.MoveEmpty
 }

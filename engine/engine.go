@@ -36,6 +36,14 @@ type node struct {
 
 type evaluate func(p *Position) int
 
+type TransTable interface {
+	Megabytes() int
+	PrepareNewSearch()
+	Clear()
+	Read(p *Position) (depth, score, bound int, move Move, ok bool)
+	Update(p *Position, depth, score, bound int, move Move)
+}
+
 func NewEngine() *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
@@ -65,7 +73,7 @@ func (e *Engine) Prepare() {
 		e.initTree()
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = lmrOne
+		e.lateMoveReduction = initLmrCrafty()
 	}
 	if e.evaluate == nil {
 		e.evaluate = evalCacheDecorator(Evaluate)

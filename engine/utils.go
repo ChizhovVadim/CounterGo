@@ -215,8 +215,7 @@ func getLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attac
 }
 
 func seeGEZero(p *Position, move Move) bool {
-	return pieceValuesSEE[move.MovingPiece()] <= pieceValuesSEE[move.CapturedPiece()] ||
-		see(p, move) >= 0
+	return seeGE(p, move, 0)
 }
 
 func seeGE(p *Position, move Move, bound int) bool {
@@ -346,6 +345,6 @@ func initLmrCrafty() func(d, m int) int {
 		}
 	}
 	return func(d, m int) int {
-		return LMR[Min(d, 31)][Min(m-1, 63)]
+		return LMR[Min(d, 31)][Min(m, 63)]
 	}
 }

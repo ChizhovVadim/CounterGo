@@ -76,7 +76,8 @@ func (e *Engine) Prepare() {
 		e.lateMoveReduction = lmrOne
 	}
 	if e.evaluate == nil {
-		e.evaluate = evalCacheDecorator(Evaluate)
+		e.evaluate = Evaluate
+		//e.evaluate = evalCacheDecorator(Evaluate)
 	}
 }
 

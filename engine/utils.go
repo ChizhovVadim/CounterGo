@@ -132,8 +132,8 @@ func isLateEndgame(p *Position, side bool) bool {
 }
 
 var (
-	pieceValues = [...]int{0, PawnValue, KnightValue,
-		BishopValue, RookValue, QueenValue, QueenValue * 10}
+	pieceValues = [...]int{0, PawnValue, 4 * PawnValue,
+		4 * PawnValue, 6 * PawnValue, 12 * PawnValue, 120 * PawnValue}
 
 	pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
 )

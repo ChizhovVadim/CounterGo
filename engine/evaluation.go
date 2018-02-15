@@ -1,47 +1,74 @@
 package engine
 
 import (
-	"fmt"
 	"math"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
 const (
-	PawnValue          = 100
-	KnightValue        = 400
-	BishopValue        = 400
-	RookValue          = 600
-	QueenValue         = 1200
-	PawnEndgameBonus   = 5
-	PawnDoubled        = -10
-	PawnIsolated       = -15
-	PawnCenter         = 10
-	PawnPassed         = 130
-	PawnPassedKingDist = 10
-	PawnPassedSquare   = 200
-	PawnPassedBlocker  = 15
-	KnightCenter       = 35
-	KnightKingTropism  = 15
-	BishopPairEndgame  = 60
-	BishopMobility     = 50
-	BishopKingTropism  = 10
-	Rook7th            = 30
-	RookSemiopen       = 20
-	RookOpen           = 25
-	RookMobility       = 25
-	RookKingTropism    = 15
-	QueenKingTropism   = 80
-	QueenCenterEndgame = 20
-	Queen7th           = 20
-	KingCenterMidgame  = -35
-	KingCenterEndgame  = 30
-	KingPawnShield     = 120
-	WeakField          = -10
-	MinorOnStrongField = 10
+	FeatureMaterialPawn = iota
+	FeatureMaterialKnight
+	FeatureMaterialBishop
+	FeatureMaterialRook
+	FeatureMaterialQueen
+	FeatureMaterialBishopPair
+	FeaturePstKnight
+	FeaturePstQueen
+	FeaturePstKingOpening
+	FeaturePstKingEndgame
+	FeatureKingAttack
+	FeatureBishopMobility
+	FeatureRookMobility
+	FeatureRook7Th
+	FeatureRookOpen
+	FeatureRookSemiopen
+	FeatureKingPawnShiled
+	FeatureMinorOnStrongField
+	FeaturePawnIsolated
+	FeaturePawnCenter
+	FeaturePawnPassedBonus
+	FeaturePawnPassedFreeBonus
+	FeaturePawnPassedKingDistance
+	FeaturePawnPassedSquare
+	FeatureSize
 )
 
-const DarkSquares uint64 = 0xAA55AA55AA55AA55
+var FeatureNames = []string{
+	"MaterialPawn",
+	"MaterialKnight",
+	"MaterialBishop",
+	"MaterialRook",
+	"MaterialQueen",
+	"MaterialBishopPair",
+	"PstKnight",
+	"PstQueen",
+	"PstKingOpening",
+	"PstKingEndgame",
+	"KingAttack",
+	"BishopMobility",
+	"RookMobility",
+	"Rook7Th",
+	"RookOpen",
+	"RookSemiopen",
+	"KingPawnShiled",
+	"MinorOnStrongField",
+	"PawnIsolated",
+	"PawnCenter",
+	"PawnPassedBonus",
+	"PawnPassedFreeBonus",
+	"PawnPassedKingDistance",
+	"PawnPassedSquare",
+}
+
+type EvalInfo struct {
+	Features                               [FeatureSize]int
+	Phase                                  int
+	wp, bp, wn, bn, wb, bb, wr, br, wq, bq int
+}
+
+const PawnValue = 100
+const darkSquares uint64 = 0xAA55AA55AA55AA55
 
 var (
 	center = [64]int{
@@ -66,153 +93,227 @@ var (
 		4, 4, 4, 4, 4, 4, 4, 4,
 	}
 
-	knightPst, queenEndgamePst, kingOpeningPst, kingEndgamePst [64]int
-	BB_WPAWN_SQUARE, BB_BPAWN_SQUARE                           [64]uint64
-	BISHOP_MOBILITY                                            [13 + 1]int
-	ROOK_MOBILITY                                              [14 + 1]int
-	KNIGHT_KING_TROPISM, BISHOP_KING_TROPISM,
-	ROOK_KING_TROPISM, QUEEN_KING_TROPISM [10]int
-	KING_PAWN_SHIELD [10]int
-	PAWN_PASSED      [8]int
-	dist             [][]int
+	pawnPassedBonus  = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
+	kingAttackWeight = [...]int{0, 0, 2, 3, 4}
+	featureWeights   = [FeatureSize * 2]int{7562, 8403, 32752, 33879, 32721, 34956, 46452, 49740, 109394, 96886, 1445, 3578, 1061, 1347, 0, 687, -891, 0, 0, -488, 215, 0, 60, 8, 10, 105, 2165, 2933, 1472, 0, 641, 0, -505, 0, 1829, 0, -1702, -658, 3063, 0, 217, 349, 0, 107, 0, 56, 0, 0}
+)
+
+const (
+	kingAttackUnitKnight = 2
+	kingAttackUnitBishop = 2
+	kingAttackUnitRook   = 3
+	kingAttackUnitQueen  = 4
+)
+
+var (
+	dist            [64][64]int
+	bishopMobility  [13 + 1]int
+	rookMobility    [14 + 1]int
+	whitePawnSquare [64]uint64
+	blackPawnSquare [64]uint64
 )
 
 func Evaluate(p *Position) int {
+	var ei EvalInfo
+	EvaluateFeatures(p, &ei)
+
+	var opening, endgame int
+	for i, x := range ei.Features {
+		opening += x * featureWeights[i*2]
+		endgame += x * featureWeights[i*2+1]
+	}
+
+	var score = (opening*ei.Phase + endgame*(64-ei.Phase)) / 64
+
+	if ei.wp == 0 && score > 0 {
+		if ei.wn+ei.wb <= 1 && ei.wr+ei.wq == 0 {
+			score /= 16
+		} else if ei.wn == 2 && ei.wb+ei.wr+ei.wq == 0 && ei.bp == 0 {
+			score /= 16
+		} else if (ei.wn+ei.wb+2*ei.wr+4*ei.wq)-(ei.bn+ei.bb+2*ei.br+4*ei.bq) <= 1 {
+			score /= 4
+		}
+	}
+
+	if ei.bp == 0 && score < 0 {
+		if ei.bn+ei.bb <= 1 && ei.br+ei.bq == 0 {
+			score /= 16
+		} else if ei.bn == 2 && ei.bb+ei.br+ei.bq == 0 && ei.wp == 0 {
+			score /= 16
+		} else if (ei.bn+ei.bb+2*ei.br+4*ei.bq)-(ei.wn+ei.wb+2*ei.wr+4*ei.wq) <= 1 {
+			score /= 4
+		}
+	}
+
+	if (p.Knights|p.Rooks|p.Queens) == 0 &&
+		ei.wb == 1 && ei.bb == 1 && AbsDelta(ei.wp, ei.bp) <= 2 &&
+		(p.Bishops&darkSquares) != 0 &&
+		(p.Bishops & ^darkSquares) != 0 {
+		score /= 2
+	}
+
+	if !p.WhiteMove {
+		score = -score
+	}
+
+	return score / 100
+}
+
+func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	var (
-		x, b                           uint64
-		sq, keySq                      int
-		wn, bn, wb, bb, wr, br, wq, bq int
-		score, opening, endgame        int
+		x, b             uint64
+		sq, keySq, bonus int
 
 		allPieces = p.White | p.Black
 		wkingSq   = FirstOne(p.Kings & p.White)
 		bkingSq   = FirstOne(p.Kings & p.Black)
-		wp        = Popcount_1s_Max15(p.Pawns & p.White)
-		bp        = Popcount_1s_Max15(p.Pawns & p.Black)
 	)
 
-	score += PawnIsolated * (Popcount_1s_Max15(GetIsolatedPawns(p.Pawns&p.White)) -
-		Popcount_1s_Max15(GetIsolatedPawns(p.Pawns&p.Black)))
+	ei.wp = PopCount(p.Pawns & p.White)
+	ei.bp = PopCount(p.Pawns & p.Black)
 
-	score += PawnDoubled * (Popcount_1s_Max15(GetDoubledPawns(p.Pawns&p.White)) -
-		Popcount_1s_Max15(GetDoubledPawns(p.Pawns&p.Black)))
+	ei.Features[FeaturePawnIsolated] = PopCount(getIsolatedPawns(p.Pawns&p.White)) -
+		PopCount(getIsolatedPawns(p.Pawns&p.Black))
 
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
-		score += PawnCenter
+		ei.Features[FeaturePawnCenter]++
 	}
 	if (b & FileEMask) != 0 {
-		score += PawnCenter
+		ei.Features[FeaturePawnCenter]++
 	}
-
 	b = p.Pawns & p.Black & (Rank5Mask | Rank4Mask | Rank3Mask)
 	if (b & FileDMask) != 0 {
-		score -= PawnCenter
+		ei.Features[FeaturePawnCenter]--
 	}
 	if (b & FileEMask) != 0 {
-		score -= PawnCenter
+		ei.Features[FeaturePawnCenter]--
 	}
 
+	var wkingMoves = KingAttacks[wkingSq]
+	var bkingMoves = KingAttacks[bkingSq]
+	var wattackTot, wattackNb, battackTot, battackNb int
+
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
-		wn++
+		ei.wn++
 		sq = FirstOne(x)
-		score += knightPst[sq]
-		score += KNIGHT_KING_TROPISM[dist[sq][bkingSq]]
-		b = KnightAttacks[sq]
+		ei.Features[FeaturePstKnight] += center[sq]
+		if (KnightAttacks[sq] & bkingMoves) != 0 {
+			wattackTot += kingAttackUnitKnight
+			wattackNb++
+		}
 	}
 
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
-		bn++
+		ei.bn++
 		sq = FirstOne(x)
-		score -= knightPst[sq]
-		score -= KNIGHT_KING_TROPISM[dist[sq][wkingSq]]
-		b = KnightAttacks[sq]
+		ei.Features[FeaturePstKnight] -= center[sq]
+		if (KnightAttacks[sq] & wkingMoves) != 0 {
+			battackTot += kingAttackUnitKnight
+			battackNb++
+		}
 	}
 
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
-		wb++
+		ei.wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score += BISHOP_MOBILITY[Popcount_1s_Max15(b)]
-		score += BISHOP_KING_TROPISM[dist[sq][bkingSq]]
+		ei.Features[FeatureBishopMobility] += bishopMobility[PopCount(b)]
+		if (b & bkingMoves) != 0 {
+			wattackTot += kingAttackUnitBishop
+			wattackNb++
+		}
 	}
 
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
-		bb++
+		ei.bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score -= BISHOP_MOBILITY[Popcount_1s_Max15(b)]
-		score -= BISHOP_KING_TROPISM[dist[sq][wkingSq]]
+		ei.Features[FeatureBishopMobility] -= bishopMobility[PopCount(b)]
+		if (b & wkingMoves) != 0 {
+			battackTot += kingAttackUnitBishop
+			battackNb++
+		}
 	}
 
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
-		wr++
+		ei.wr++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank7 {
-			score += Rook7th
+			ei.Features[FeatureRook7Th]++
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
-		score += ROOK_MOBILITY[Popcount_1s_Max15(b)]
+		ei.Features[FeatureRookMobility] += rookMobility[PopCount(b)]
+		if (b & bkingMoves) != 0 {
+			wattackTot += kingAttackUnitRook
+			wattackNb++
+		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
 			if (b & p.Pawns) == 0 {
-				score += RookOpen
+				ei.Features[FeatureRookOpen]++
 			} else {
-				score += RookSemiopen
+				ei.Features[FeatureRookSemiopen]++
 			}
 		}
-		score += ROOK_KING_TROPISM[dist[sq][bkingSq]]
 	}
 
 	for x = p.Rooks & p.Black; x != 0; x &= x - 1 {
-		br++
+		ei.br++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank2 {
-			score -= Rook7th
+			ei.Features[FeatureRook7Th]--
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
-		score -= ROOK_MOBILITY[Popcount_1s_Max15(b)]
+		ei.Features[FeatureRookMobility] -= rookMobility[PopCount(b)]
+		if (b & wkingMoves) != 0 {
+			battackTot += kingAttackUnitRook
+			battackNb++
+		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
 			if (b & p.Pawns) == 0 {
-				score -= RookOpen
+				ei.Features[FeatureRookOpen]--
 			} else {
-				score -= RookSemiopen
+				ei.Features[FeatureRookSemiopen]--
 			}
 		}
-		score -= ROOK_KING_TROPISM[dist[sq][wkingSq]]
 	}
 
 	for x = p.Queens & p.White; x != 0; x &= x - 1 {
-		wq++
+		ei.wq++
 		sq = FirstOne(x)
-		if Rank(sq) == Rank7 {
-			score += Queen7th
+		ei.Features[FeaturePstQueen] += center[sq]
+		if (QueenAttacks(sq, allPieces) & bkingMoves) != 0 {
+			wattackTot += kingAttackUnitQueen
+			wattackNb++
 		}
-		endgame += queenEndgamePst[sq]
-		score += QUEEN_KING_TROPISM[dist[sq][bkingSq]]
 	}
 
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
-		bq++
+		ei.bq++
 		sq = FirstOne(x)
-		if Rank(sq) == Rank2 {
-			score -= Queen7th
+		ei.Features[FeaturePstQueen] -= center[sq]
+		if (QueenAttacks(sq, allPieces) & wkingMoves) != 0 {
+			battackTot += kingAttackUnitQueen
+			battackNb++
 		}
-		endgame -= queenEndgamePst[sq]
-		score -= QUEEN_KING_TROPISM[dist[sq][wkingSq]]
 	}
 
-	var matIndexWhite = Min(32, (wn+wb)*3+wr*5+wq*10)
-	var matIndexBlack = Min(32, (bn+bb)*3+br*5+bq*10)
+	ei.Features[FeatureKingAttack] = wattackTot*kingAttackWeight[Min(wattackNb, len(kingAttackWeight)-1)] -
+		battackTot*kingAttackWeight[Min(battackNb, len(kingAttackWeight)-1)]
 
-	for x = GetWhitePassedPawns(p); x != 0; x &= x - 1 {
+	var matIndexWhite = Min(32, (ei.wn+ei.wb)*3+ei.wr*5+ei.wq*10)
+	var matIndexBlack = Min(32, (ei.bn+ei.bb)*3+ei.br*5+ei.bq*10)
+
+	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
-		score += PAWN_PASSED[Rank(sq)]
-
+		bonus = pawnPassedBonus[Rank(sq)]
+		ei.Features[FeaturePawnPassedBonus] += bonus
 		keySq = sq + 8
-		if (SquareMask[keySq] & p.Black) != 0 {
-			score -= PawnPassedBlocker
+		ei.Features[FeaturePawnPassedKingDistance] += bonus * (dist[keySq][bkingSq]*2 - dist[keySq][wkingSq])
+		if (SquareMask[keySq] & allPieces) == 0 {
+			ei.Features[FeaturePawnPassedFreeBonus] += bonus
 		}
 
 		if matIndexBlack == 0 {
@@ -220,21 +321,20 @@ func Evaluate(p *Position) int {
 			if !p.WhiteMove {
 				f1 -= 8
 			}
-			if (BB_WPAWN_SQUARE[f1] & p.Kings & p.Black) == 0 {
-				score += PawnPassedSquare * Rank(f1) / 6
+			if (whitePawnSquare[f1] & p.Kings & p.Black) == 0 {
+				ei.Features[FeaturePawnPassedSquare] += Rank(f1) / 6
 			}
-		} else if matIndexBlack < 10 {
-			score += PawnPassedKingDist * dist[keySq][bkingSq]
 		}
 	}
 
-	for x = GetBlackPassedPawns(p); x != 0; x &= x - 1 {
+	for x = getBlackPassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
-		score -= PAWN_PASSED[Rank(FlipSquare(sq))]
-
+		bonus = pawnPassedBonus[Rank(FlipSquare(sq))]
+		ei.Features[FeaturePawnPassedBonus] -= bonus
 		keySq = sq - 8
-		if (SquareMask[keySq] & p.White) != 0 {
-			score += PawnPassedBlocker
+		ei.Features[FeaturePawnPassedKingDistance] -= bonus * (dist[keySq][wkingSq]*2 - dist[keySq][bkingSq])
+		if (SquareMask[keySq] & allPieces) == 0 {
+			ei.Features[FeaturePawnPassedFreeBonus] -= bonus
 		}
 
 		if matIndexWhite == 0 {
@@ -242,21 +342,20 @@ func Evaluate(p *Position) int {
 			if p.WhiteMove {
 				f1 += 8
 			}
-			if (BB_BPAWN_SQUARE[f1] & p.Kings & p.White) == 0 {
-				score -= PawnPassedSquare * Rank(FlipSquare(f1)) / 6
+			if (blackPawnSquare[f1] & p.Kings & p.White) == 0 {
+				ei.Features[FeaturePawnPassedSquare] -= Rank(FlipSquare(f1)) / 6
 			}
-		} else if matIndexWhite < 10 {
-			score -= PawnPassedKingDist * dist[keySq][wkingSq]
 		}
 	}
 
-	opening += KING_PAWN_SHIELD[ShelterWKingSquare(p, wkingSq)]
-	opening += kingOpeningPst[wkingSq]
-	endgame += kingEndgamePst[wkingSq]
+	ei.Features[FeatureKingPawnShiled] += shelterWKingSquare(p, wkingSq)
+	ei.Features[FeatureKingPawnShiled] -= shelterBKingSquare(p, bkingSq)
 
-	opening -= KING_PAWN_SHIELD[ShelterBKingSquare(p, bkingSq)]
-	opening -= kingOpeningPst[FlipSquare(bkingSq)]
-	endgame -= kingEndgamePst[bkingSq]
+	ei.Features[FeaturePstKingOpening] += center_k[wkingSq]
+	ei.Features[FeaturePstKingOpening] -= center_k[FlipSquare(bkingSq)]
+
+	ei.Features[FeaturePstKingEndgame] += center[wkingSq]
+	ei.Features[FeaturePstKingEndgame] -= center[bkingSq]
 
 	var wStrongFields = AllWhitePawnAttacks(p.Pawns&p.White) &^
 		DownFill(AllBlackPawnAttacks(p.Pawns&p.Black)) & 0xffffffff00000000
@@ -264,82 +363,48 @@ func Evaluate(p *Position) int {
 	var bStrongFields = AllBlackPawnAttacks(p.Pawns&p.Black) &^
 		UpFill(AllWhitePawnAttacks(p.Pawns&p.White)) & 0x00000000ffffffff
 
-	score += 10 * (Popcount_1s_Max15(wStrongFields) - Popcount_1s_Max15(bStrongFields))
-
 	var wMinorOnStrongFields = wStrongFields & (p.Knights | p.Bishops) & p.White
 	var bMinorOnStrongFields = bStrongFields & (p.Knights | p.Bishops) & p.Black
 
-	score += MinorOnStrongField * (Popcount_1s_Max15(wMinorOnStrongFields) -
-		Popcount_1s_Max15(bMinorOnStrongFields))
+	ei.Features[FeatureMinorOnStrongField] = PopCount(wMinorOnStrongFields) -
+		PopCount(bMinorOnStrongFields)
 
-	score += PawnValue*(wp-bp) + KnightValue*(wn-bn) +
-		BishopValue*(wb-bb) + RookValue*(wr-br) + QueenValue*(wq-bq)
-
-	endgame += PawnEndgameBonus * (wp - bp)
-	if wb >= 2 {
-		endgame += BishopPairEndgame
+	ei.Features[FeatureMaterialPawn] = ei.wp - ei.bp
+	ei.Features[FeatureMaterialKnight] = ei.wn - ei.bn
+	ei.Features[FeatureMaterialBishop] = ei.wb - ei.bb
+	if ei.wb >= 2 {
+		ei.Features[FeatureMaterialBishopPair]++
 	}
-	if bb >= 2 {
-		endgame -= BishopPairEndgame
+	if ei.bb >= 2 {
+		ei.Features[FeatureMaterialBishopPair]--
 	}
+	ei.Features[FeatureMaterialRook] = ei.wr - ei.br
+	ei.Features[FeatureMaterialQueen] = ei.wq - ei.bq
 
-	var phase = matIndexWhite + matIndexBlack
-	score += (opening*phase + endgame*(64-phase)) / 64
-
-	if wp == 0 && score > 0 {
-		if wn+wb <= 1 && wr+wq == 0 {
-			score /= 16
-		} else if wn == 2 && wb+wr+wq == 0 && bp == 0 {
-			score /= 16
-		} else if (wn+wb+2*wr+4*wq)-(bn+bb+2*br+4*bq) <= 1 {
-			score /= 4
-		}
-	}
-
-	if bp == 0 && score < 0 {
-		if bn+bb <= 1 && br+bq == 0 {
-			score /= 16
-		} else if bn == 2 && bb+br+bq == 0 && wp == 0 {
-			score /= 16
-		} else if (bn+bb+2*br+4*bq)-(wn+wb+2*wr+4*wq) <= 1 {
-			score /= 4
-		}
-	}
-
-	if (p.Knights|p.Rooks|p.Queens) == 0 &&
-		wb == 1 && bb == 1 && AbsDelta(wp, bp) <= 2 &&
-		(p.Bishops&DarkSquares) != 0 &&
-		(p.Bishops & ^DarkSquares) != 0 {
-		score /= 2
-	}
-
-	if !p.WhiteMove {
-		score = -score
-	}
-	return score
+	ei.Phase = matIndexWhite + matIndexBlack
 }
 
-func GetDoubledPawns(pawns uint64) uint64 {
+func getDoubledPawns(pawns uint64) uint64 {
 	return DownFill(Down(pawns)) & pawns
 }
 
-func GetIsolatedPawns(pawns uint64) uint64 {
+func getIsolatedPawns(pawns uint64) uint64 {
 	return ^FileFill(Left(pawns)|Right(pawns)) & pawns
 }
 
-func GetWhitePassedPawns(p *Position) uint64 {
+func getWhitePassedPawns(p *Position) uint64 {
 	var allFrontSpans = DownFill(Down(p.Black & p.Pawns))
 	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
 	return p.White & p.Pawns &^ allFrontSpans
 }
 
-func GetBlackPassedPawns(p *Position) uint64 {
+func getBlackPassedPawns(p *Position) uint64 {
 	var allFrontSpans = UpFill(Up(p.White & p.Pawns))
 	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
 	return p.Black & p.Pawns &^ allFrontSpans
 }
 
-func ShelterWKingSquare(p *Position, square int) int {
+func shelterWKingSquare(p *Position, square int) int {
 	var file = File(square)
 	if file == FileA {
 		file++
@@ -362,7 +427,7 @@ func ShelterWKingSquare(p *Position, square int) int {
 	return penalty
 }
 
-func ShelterBKingSquare(p *Position, square int) int {
+func shelterBKingSquare(p *Position, square int) int {
 	var file = File(square)
 	if file == FileA {
 		file++
@@ -384,109 +449,31 @@ func ShelterBKingSquare(p *Position, square int) int {
 	return penalty
 }
 
-func InterpolateSquare(arg, argFrom, argTo, valFrom, valTo float64) float64 {
-	// A*x*x + B*x + C
-	var x = arg - argFrom
-	var xMax = argTo - argFrom
-	var A = (valTo - valFrom) / (xMax * xMax)
-	var B = 0.0
-	var C = valFrom
-	return A*x*x + B*x + C
-}
-
-func InterpolateLinear(arg, argFrom, argTo, valFrom, valTo float64) float64 {
-	// A*x + B
-	return valFrom + (valTo-valFrom)*(arg-argFrom)/(argTo-argFrom)
-}
-
-func PrintPst(name string, source [64]int) {
-	fmt.Println(name)
-	for i := 0; i < 64; i++ {
-		var sq = FlipSquare(i)
-		fmt.Printf("%3v", source[sq])
-		if File(sq) == FileH {
-			fmt.Println()
-		} else {
-			fmt.Print(" ")
-		}
-	}
-}
-
-func PrintVector(name string, source []int) {
-	fmt.Printf("%v %v\n", name, source)
-}
-
-func TraceEvalSettings() {
-	PrintPst("KnightPst", knightPst)
-	PrintPst("QueenEndgamePst", queenEndgamePst)
-	PrintPst("KingOpeningPst", kingOpeningPst)
-	PrintPst("KingEndgamePst", kingEndgamePst)
-
-	PrintVector("BISHOP_MOBILITY", BISHOP_MOBILITY[:])
-	PrintVector("ROOK_MOBILITY", ROOK_MOBILITY[:])
-
-	PrintVector("KNIGHT_KING_TROPISM", KNIGHT_KING_TROPISM[:])
-	PrintVector("BISHOP_KING_TROPISM", BISHOP_KING_TROPISM[:])
-	PrintVector("ROOK_KING_TROPISM", ROOK_KING_TROPISM[:])
-	PrintVector("QUEEN_KING_TROPISM", QUEEN_KING_TROPISM[:])
-	PrintVector("KING_PAWN_SHIELD", KING_PAWN_SHIELD[:])
-	PrintVector("PAWN_PASSED", PAWN_PASSED[:])
-}
-
 func init() {
-	for sq := 0; sq < 64; sq++ {
-		knightPst[sq] = center[sq] * KnightCenter / 3
-		queenEndgamePst[sq] = center[sq] * QueenCenterEndgame / 3
-		kingOpeningPst[sq] = center_k[sq] * KingCenterMidgame / 4
-		kingEndgamePst[sq] = center[sq] * KingCenterEndgame / 3
-	}
-
-	for i := 0; i < len(BISHOP_MOBILITY); i++ {
-		BISHOP_MOBILITY[i] = int(InterpolateSquare(float64(i), 13, 1, BishopMobility, -BishopMobility))
-	}
-
-	for i := 0; i < len(ROOK_MOBILITY); i++ {
-		ROOK_MOBILITY[i] = int(InterpolateSquare(float64(i), 14, 2, RookMobility, -RookMobility))
-	}
-
-	for i := 0; i < 10; i++ {
-		KNIGHT_KING_TROPISM[i] = int(InterpolateLinear(float64(i), 9, 1, 0, KnightKingTropism))
-		BISHOP_KING_TROPISM[i] = int(InterpolateLinear(float64(i), 9, 1, 0, BishopKingTropism))
-		ROOK_KING_TROPISM[i] = int(InterpolateLinear(float64(i), 9, 1, 0, RookKingTropism))
-		QUEEN_KING_TROPISM[i] = int(InterpolateLinear(float64(i), 9, 1, 0, QueenKingTropism))
-	}
-
-	for i := 0; i < len(KING_PAWN_SHIELD); i++ {
-		KING_PAWN_SHIELD[i] = -int(InterpolateSquare(float64(i), 0, 9, 0, KingPawnShield))
-	}
-
-	for i := 0; i < len(PAWN_PASSED); i++ {
-		PAWN_PASSED[i] = int(InterpolateSquare(float64(i), 0, 7, 0, PawnPassed))
-	}
-
-	dist = make([][]int, 64)
 	for i := 0; i < 64; i++ {
-		dist[i] = make([]int, 64)
 		for j := 0; j < 64; j++ {
-			var rd = RankDistance(i, j)
-			var fd = FileDistance(i, j)
-			dist[i][j] = int(math.Sqrt(float64(rd*rd + fd*fd)))
+			dist[i][j] = SquareDistance(i, j)
 		}
 	}
-
 	for sq := 0; sq < 64; sq++ {
 		var x = UpFill(SquareMask[sq])
 		for j := 0; j < Rank(FlipSquare(sq)); j++ {
 			x |= Left(x) | Right(x)
 		}
-		BB_WPAWN_SQUARE[sq] = x
+		whitePawnSquare[sq] = x
 	}
-
 	for sq := 0; sq < 64; sq++ {
 		var x = DownFill(SquareMask[sq])
 		for j := 0; j < Rank(sq); j++ {
 			x |= Left(x) | Right(x)
 		}
-		BB_BPAWN_SQUARE[sq] = x
+		blackPawnSquare[sq] = x
 	}
+	for i := range bishopMobility {
+		bishopMobility[i] = int(math.Sqrt(float64(i)/13)*200 - 100) // [-100;+100]
+	}
+	for i := range rookMobility {
+		rookMobility[i] = int(math.Sqrt(float64(i)/14)*200 - 100) // [-100;+100]
+	}
+	featureWeights[FeaturePawnPassedSquare*2+1] = 20000
 }

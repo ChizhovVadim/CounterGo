@@ -74,6 +74,18 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 	return bestMove
 }
 
+func TestEval(t *testing.T) {
+	for _, test := range testFENs {
+		var p1 = NewPositionFromFEN(test)
+		var score1 = Evaluate(p1)
+		var p2 = MirrorPosition(p1)
+		var score2 = Evaluate(p2)
+		if score1 != score2 {
+			t.Error(test, p2.String(), score1, score2)
+		}
+	}
+}
+
 var testFENs = []string{
 	// Initial position
 	"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

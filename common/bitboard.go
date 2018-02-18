@@ -46,13 +46,6 @@ func PopCount(b uint64) int {
 	return int((b * 0x0101010101010101) >> 56)*/
 }
 
-func Popcount_1s_Max15(b uint64) int {
-	return bits.OnesCount64(b)
-	/*b -= (b >> 1) & 0x5555555555555555
-	b = ((b >> 2) & 0x3333333333333333) + (b & 0x3333333333333333)
-	return int((b * 0x1111111111111111) >> 60)*/
-}
-
 func FirstOne(b uint64) int {
 	return index64[(((b-1)^b)*0x03f79d71b4cb0a89)>>58]
 }

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"math"
+	"fmt"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
@@ -26,6 +26,7 @@ const (
 	FeatureKingPawnShiled
 	FeatureMinorOnStrongField
 	FeaturePawnIsolated
+	FeaturePawnDoubled
 	FeaturePawnCenter
 	FeaturePawnPassedBonus
 	FeaturePawnPassedFreeBonus
@@ -54,6 +55,7 @@ var FeatureNames = []string{
 	"KingPawnShiled",
 	"MinorOnStrongField",
 	"PawnIsolated",
+	"PawnDoubled",
 	"PawnCenter",
 	"PawnPassedBonus",
 	"PawnPassedFreeBonus",
@@ -93,12 +95,13 @@ var (
 		4, 4, 4, 4, 4, 4, 4, 4,
 	}
 
-	pawnPassedBonus  = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
-	kingAttackWeight = [...]int{0, 0, 2, 3, 4}
-	featureWeights   = [FeatureSize * 2]int{7562, 8403, 32752, 33879, 32721, 34956, 46452, 49740, 109394, 96886, 1445, 3578, 1061, 1347, 0, 687, -891, 0, 0, -488, 215, 0, 60, 8, 10, 105, 2165, 2933, 1472, 0, 641, 0, -505, 0, 1829, 0, -1702, -658, 3063, 0, 217, 349, 0, 107, 0, 56, 0, 0}
+	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
+	featureWeights  = [FeatureSize * 2]int{10000, 11000, 40000, 40000, 40000, 40000, 60000, 60000, 120000, 120000, 1500, 4000, 1000, 1000, 0, 600, -2000, 0, 0, 1000, 700, 0, 500, 500, 200, 400, 3000, 0, 2000, 0, 1000, 0, -1000, 0, 2000, 0, -1500, -1000, -1000, -1000, 1500, 0, 400, 800, 0, 100, 0, 100, 0, 3300}
 )
 
 const (
+	bishopUnit           = 6
+	rookUnit             = 7
 	kingAttackUnitKnight = 2
 	kingAttackUnitBishop = 2
 	kingAttackUnitRook   = 3
@@ -107,10 +110,9 @@ const (
 
 var (
 	dist            [64][64]int
-	bishopMobility  [13 + 1]int
-	rookMobility    [14 + 1]int
 	whitePawnSquare [64]uint64
 	blackPawnSquare [64]uint64
+	kingZone        [64]uint64
 )
 
 func Evaluate(p *Position) int {
@@ -175,6 +177,9 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	ei.Features[FeaturePawnIsolated] = PopCount(getIsolatedPawns(p.Pawns&p.White)) -
 		PopCount(getIsolatedPawns(p.Pawns&p.Black))
 
+	ei.Features[FeaturePawnDoubled] = PopCount(getDoubledPawns(p.Pawns&p.White)) -
+		PopCount(getDoubledPawns(p.Pawns&p.Black))
+
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
 		ei.Features[FeaturePawnCenter]++
@@ -190,15 +195,16 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.Features[FeaturePawnCenter]--
 	}
 
-	var wkingMoves = KingAttacks[wkingSq]
-	var bkingMoves = KingAttacks[bkingSq]
+	var wkingZone = kingZone[wkingSq]
+	var bkingZone = kingZone[bkingSq]
+
 	var wattackTot, wattackNb, battackTot, battackNb int
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		ei.wn++
 		sq = FirstOne(x)
 		ei.Features[FeaturePstKnight] += center[sq]
-		if (KnightAttacks[sq] & bkingMoves) != 0 {
+		if (KnightAttacks[sq] & bkingZone) != 0 {
 			wattackTot += kingAttackUnitKnight
 			wattackNb++
 		}
@@ -208,7 +214,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.bn++
 		sq = FirstOne(x)
 		ei.Features[FeaturePstKnight] -= center[sq]
-		if (KnightAttacks[sq] & wkingMoves) != 0 {
+		if (KnightAttacks[sq] & wkingZone) != 0 {
 			battackTot += kingAttackUnitKnight
 			battackNb++
 		}
@@ -218,8 +224,8 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		ei.Features[FeatureBishopMobility] += bishopMobility[PopCount(b)]
-		if (b & bkingMoves) != 0 {
+		ei.Features[FeatureBishopMobility] += PopCount(b) - bishopUnit
+		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitBishop
 			wattackNb++
 		}
@@ -229,8 +235,8 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		ei.Features[FeatureBishopMobility] -= bishopMobility[PopCount(b)]
-		if (b & wkingMoves) != 0 {
+		ei.Features[FeatureBishopMobility] -= PopCount(b) - bishopUnit
+		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
 			battackNb++
 		}
@@ -239,12 +245,13 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
 		ei.wr++
 		sq = FirstOne(x)
-		if Rank(sq) == Rank7 {
+		if Rank(sq) == Rank7 &&
+			((p.Pawns&p.Black&Rank7Mask) != 0 || Rank(bkingSq) == Rank8) {
 			ei.Features[FeatureRook7Th]++
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
-		ei.Features[FeatureRookMobility] += rookMobility[PopCount(b)]
-		if (b & bkingMoves) != 0 {
+		ei.Features[FeatureRookMobility] += PopCount(b) - rookUnit
+		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitRook
 			wattackNb++
 		}
@@ -261,12 +268,13 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	for x = p.Rooks & p.Black; x != 0; x &= x - 1 {
 		ei.br++
 		sq = FirstOne(x)
-		if Rank(sq) == Rank2 {
+		if Rank(sq) == Rank2 &&
+			((p.Pawns&p.White&Rank2Mask) != 0 || Rank(wkingSq) == Rank1) {
 			ei.Features[FeatureRook7Th]--
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
-		ei.Features[FeatureRookMobility] -= rookMobility[PopCount(b)]
-		if (b & wkingMoves) != 0 {
+		ei.Features[FeatureRookMobility] -= PopCount(b) - rookUnit
+		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitRook
 			battackNb++
 		}
@@ -284,7 +292,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.wq++
 		sq = FirstOne(x)
 		ei.Features[FeaturePstQueen] += center[sq]
-		if (QueenAttacks(sq, allPieces) & bkingMoves) != 0 {
+		if (QueenAttacks(sq, allPieces) & bkingZone) != 0 {
 			wattackTot += kingAttackUnitQueen
 			wattackNb++
 		}
@@ -294,14 +302,14 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.bq++
 		sq = FirstOne(x)
 		ei.Features[FeaturePstQueen] -= center[sq]
-		if (QueenAttacks(sq, allPieces) & wkingMoves) != 0 {
+		if (QueenAttacks(sq, allPieces) & wkingZone) != 0 {
 			battackTot += kingAttackUnitQueen
 			battackNb++
 		}
 	}
 
-	ei.Features[FeatureKingAttack] = wattackTot*kingAttackWeight[Min(wattackNb, len(kingAttackWeight)-1)] -
-		battackTot*kingAttackWeight[Min(battackNb, len(kingAttackWeight)-1)]
+	ei.Features[FeatureKingAttack] = wattackTot*limitValue(wattackNb-1, 0, 3) -
+		battackTot*limitValue(battackNb-1, 0, 3)
 
 	var matIndexWhite = Min(32, (ei.wn+ei.wb)*3+ei.wr*5+ei.wq*10)
 	var matIndexBlack = Min(32, (ei.bn+ei.bb)*3+ei.br*5+ei.bq*10)
@@ -312,7 +320,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.Features[FeaturePawnPassedBonus] += bonus
 		keySq = sq + 8
 		ei.Features[FeaturePawnPassedKingDistance] += bonus * (dist[keySq][bkingSq]*2 - dist[keySq][wkingSq])
-		if (SquareMask[keySq] & allPieces) == 0 {
+		if (SquareMask[keySq] & p.Black) == 0 {
 			ei.Features[FeaturePawnPassedFreeBonus] += bonus
 		}
 
@@ -322,7 +330,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 				f1 -= 8
 			}
 			if (whitePawnSquare[f1] & p.Kings & p.Black) == 0 {
-				ei.Features[FeaturePawnPassedSquare] += Rank(f1) / 6
+				ei.Features[FeaturePawnPassedSquare] += Rank(f1) - Rank1
 			}
 		}
 	}
@@ -333,7 +341,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.Features[FeaturePawnPassedBonus] -= bonus
 		keySq = sq - 8
 		ei.Features[FeaturePawnPassedKingDistance] -= bonus * (dist[keySq][wkingSq]*2 - dist[keySq][bkingSq])
-		if (SquareMask[keySq] & allPieces) == 0 {
+		if (SquareMask[keySq] & p.White) == 0 {
 			ei.Features[FeaturePawnPassedFreeBonus] -= bonus
 		}
 
@@ -343,7 +351,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 				f1 += 8
 			}
 			if (blackPawnSquare[f1] & p.Kings & p.White) == 0 {
-				ei.Features[FeaturePawnPassedSquare] -= Rank(FlipSquare(f1)) / 6
+				ei.Features[FeaturePawnPassedSquare] -= Rank(FlipSquare(f1)) - Rank1
 			}
 		}
 	}
@@ -384,6 +392,16 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	ei.Phase = matIndexWhite + matIndexBlack
 }
 
+func limitValue(v, min, max int) int {
+	if v <= min {
+		return min
+	}
+	if v >= max {
+		return max
+	}
+	return v
+}
+
 func getDoubledPawns(pawns uint64) uint64 {
 	return DownFill(Down(pawns)) & pawns
 }
@@ -415,16 +433,13 @@ func shelterWKingSquare(p *Position, square int) int {
 	for i := 0; i < 3; i++ {
 		var mask = FileMask[file+i-1] & p.White & p.Pawns
 		if (mask & Rank2Mask) != 0 {
-
 		} else if (mask & Rank3Mask) != 0 {
 			penalty += 1
-		} else if (mask & Rank4Mask) != 0 {
-			penalty += 2
 		} else {
 			penalty += 3
 		}
 	}
-	return penalty
+	return Max(0, penalty-1)
 }
 
 func shelterBKingSquare(p *Position, square int) int {
@@ -440,13 +455,17 @@ func shelterBKingSquare(p *Position, square int) int {
 		if (mask & Rank7Mask) != 0 {
 		} else if (mask & Rank6Mask) != 0 {
 			penalty += 1
-		} else if (mask & Rank5Mask) != 0 {
-			penalty += 2
 		} else {
 			penalty += 3
 		}
 	}
-	return penalty
+	return Max(0, penalty-1)
+}
+
+func TraceFeatures() {
+	for i, name := range FeatureNames {
+		fmt.Println(name, featureWeights[i*2], featureWeights[i*2+1])
+	}
 }
 
 func init() {
@@ -469,11 +488,8 @@ func init() {
 		}
 		blackPawnSquare[sq] = x
 	}
-	for i := range bishopMobility {
-		bishopMobility[i] = int(math.Sqrt(float64(i)/13)*200 - 100) // [-100;+100]
+	for sq := range kingZone {
+		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), limitValue(Rank(sq), Rank2, Rank7))
+		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
 	}
-	for i := range rookMobility {
-		rookMobility[i] = int(math.Sqrt(float64(i)/14)*200 - 100) // [-100;+100]
-	}
-	featureWeights[FeaturePawnPassedSquare*2+1] = 20000
 }

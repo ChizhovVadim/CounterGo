@@ -507,6 +507,22 @@ func initKeys() {
 	}
 }
 
+func MirrorPosition(p *Position) *Position {
+	var board [64]int
+	for i := range board {
+		var pt, side = p.GetPieceTypeAndSide(i)
+		if pt != Empty {
+			board[FlipSquare(i)] = MakePiece(pt, !side)
+		}
+	}
+	var cr = (p.CastleRights >> 2) | ((p.CastleRights & 3) << 2)
+	var ep = SquareNone
+	if p.EpSquare != SquareNone {
+		ep = FlipSquare(p.EpSquare)
+	}
+	return createPosition(board, !p.WhiteMove, cr, ep, p.Rule50)
+}
+
 func init() {
 	initKeys()
 	for i := range castleMask {

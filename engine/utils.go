@@ -12,7 +12,7 @@ const (
 	valueDraw     = 0
 	valueMate     = 30000
 	valueInfinity = valueMate + 1
-	valueWin      = valueMate - maxHeight
+	valueWin      = valueMate - 2*maxHeight
 	valueLoss     = -valueWin
 )
 
@@ -296,6 +296,15 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 
 func lmrOne(depth, moveCount int) int {
 	if depth >= 3 {
+		return 1
+	}
+	return 0
+}
+
+func lmrTwo(depth, moveCount int) int {
+	if depth >= 4 && moveCount > 16 {
+		return 2
+	} else if depth >= 3 {
 		return 1
 	}
 	return 0

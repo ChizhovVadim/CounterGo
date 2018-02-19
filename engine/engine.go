@@ -73,7 +73,7 @@ func (e *Engine) Prepare() {
 		e.initTree()
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = lmrOne
+		e.lateMoveReduction = lmrTwo
 	}
 	if e.evaluate == nil {
 		e.evaluate = Evaluate

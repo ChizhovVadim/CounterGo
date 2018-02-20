@@ -96,12 +96,10 @@ var (
 	}
 
 	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
-	featureWeights  = [FeatureSize * 2]int{10000, 11000, 40000, 40000, 40000, 40000, 60000, 60000, 120000, 120000, 1500, 4000, 1000, 1000, 0, 600, -2000, 0, 0, 1000, 700, 0, 500, 500, 200, 400, 3000, 0, 2000, 0, 1000, 0, -1000, 0, 2000, 0, -1500, -1000, -1000, -1000, 1500, 0, 400, 800, 0, 100, 0, 100, 0, 3300}
+	featureWeights  = [FeatureSize * 2]int{10000, 11000, 40000, 40000, 40000, 40000, 60000, 60000, 120000, 120000, 1500, 4000, 1000, 1000, 0, 600, -2000, 0, 0, 1000, 700, 0, 35, 35, 25, 50, 3000, 0, 2000, 0, 1000, 0, -1000, 0, 2000, 0, -1500, -1000, -1000, -1000, 1500, 0, 400, 800, 0, 100, 0, 100, 0, 3300}
 )
 
 const (
-	bishopUnit           = 6
-	rookUnit             = 7
 	kingAttackUnitKnight = 2
 	kingAttackUnitBishop = 2
 	kingAttackUnitRook   = 3
@@ -113,6 +111,8 @@ var (
 	whitePawnSquare [64]uint64
 	blackPawnSquare [64]uint64
 	kingZone        [64]uint64
+	bishopMobility  []int
+	rookMobility    []int
 )
 
 func Evaluate(p *Position) int {
@@ -198,6 +198,9 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	var wkingZone = kingZone[wkingSq]
 	var bkingZone = kingZone[bkingSq]
 
+	var wMobilityArea = ^((p.Pawns & p.White) | AllBlackPawnAttacks(p.Pawns&p.Black))
+	var bMobilityArea = ^((p.Pawns & p.Black) | AllWhitePawnAttacks(p.Pawns&p.White))
+
 	var wattackTot, wattackNb, battackTot, battackNb int
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
@@ -224,7 +227,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		ei.Features[FeatureBishopMobility] += PopCount(b) - bishopUnit
+		ei.Features[FeatureBishopMobility] += bishopMobility[PopCount(b&wMobilityArea)]
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitBishop
 			wattackNb++
@@ -235,7 +238,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 		ei.bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		ei.Features[FeatureBishopMobility] -= PopCount(b) - bishopUnit
+		ei.Features[FeatureBishopMobility] -= bishopMobility[PopCount(b&bMobilityArea)]
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
 			battackNb++
@@ -250,7 +253,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 			ei.Features[FeatureRook7Th]++
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
-		ei.Features[FeatureRookMobility] += PopCount(b) - rookUnit
+		ei.Features[FeatureRookMobility] += rookMobility[PopCount(b&wMobilityArea)]
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitRook
 			wattackNb++
@@ -273,7 +276,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 			ei.Features[FeatureRook7Th]--
 		}
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
-		ei.Features[FeatureRookMobility] -= PopCount(b) - rookUnit
+		ei.Features[FeatureRookMobility] -= rookMobility[PopCount(b&bMobilityArea)]
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitRook
 			battackNb++
@@ -330,7 +333,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 				f1 -= 8
 			}
 			if (whitePawnSquare[f1] & p.Kings & p.Black) == 0 {
-				ei.Features[FeaturePawnPassedSquare] += Rank(f1) - Rank1
+				ei.Features[FeaturePawnPassedSquare] += Rank(f1)
 			}
 		}
 	}
@@ -351,7 +354,7 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 				f1 += 8
 			}
 			if (blackPawnSquare[f1] & p.Kings & p.White) == 0 {
-				ei.Features[FeaturePawnPassedSquare] -= Rank(FlipSquare(f1)) - Rank1
+				ei.Features[FeaturePawnPassedSquare] -= Rank(FlipSquare(f1))
 			}
 		}
 	}
@@ -468,6 +471,23 @@ func TraceFeatures() {
 	}
 }
 
+func initProgressionSum(size int, ratio float64, min, max int) []int {
+	var n = size - 1
+	var a1 = 2 / ((1 + ratio) * float64(n))
+	var an = a1 * ratio
+	var d = (an - a1) / float64(n-1)
+
+	var result = make([]int, size)
+	for i := range result {
+		var sum float64
+		if i > 0 {
+			sum = (a1 + 0.5*d*float64(i-1)) * float64(i)
+		}
+		result[i] = min + int(float64(max-min)*sum)
+	}
+	return result
+}
+
 func init() {
 	for i := 0; i < 64; i++ {
 		for j := 0; j < 64; j++ {
@@ -492,4 +512,6 @@ func init() {
 		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), limitValue(Rank(sq), Rank2, Rank7))
 		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
 	}
+	bishopMobility = initProgressionSum(13+1, 0.25, -100, 100)
+	rookMobility = initProgressionSum(14+1, 0.25, -100, 100)
 }

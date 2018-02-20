@@ -75,6 +75,8 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 }
 
 func TestEval(t *testing.T) {
+	t.Log(bishopMobility)
+	t.Log(rookMobility)
 	for _, test := range testFENs {
 		var p1 = NewPositionFromFEN(test)
 		var score1 = Evaluate(p1)

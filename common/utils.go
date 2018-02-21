@@ -149,15 +149,19 @@ func (m Move) String() string {
 	return SquareName(m.From()) + SquareName(m.To()) + sPromotion
 }
 
-func ParseMove(s string) Move {
-	s = strings.ToLower(s)
-	var from = ParseSquare(s[0:2])
-	var to = ParseSquare(s[2:4])
-	if len(s) <= 4 {
-		return makeMove(from, to, Empty, Empty)
+func (p *Position) MakeMoveLAN(lan string) *Position {
+	var buffer [MaxMoves]Move
+	for _, mv := range p.GenerateMoves(buffer[:]) {
+		if strings.EqualFold(mv.String(), lan) {
+			var newPosition = &Position{}
+			if p.MakeMove(mv, newPosition) {
+				return newPosition
+			} else {
+				return nil
+			}
+		}
 	}
-	var promotion = strings.Index("nbrqk", strings.ToLower(s[4:5])) + Knight
-	return makePawnMove(from, to, Empty, promotion)
+	return nil
 }
 
 func moveToSAN(pos *Position, ml []Move, mv Move) string {

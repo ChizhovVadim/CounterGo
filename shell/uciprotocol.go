@@ -208,14 +208,12 @@ func (uci *UciProtocol) positionCommand() {
 	var positions = []*common.Position{p}
 	if movesIndex >= 0 && movesIndex+1 < len(args) {
 		for _, smove := range args[movesIndex+1:] {
-			var move = common.ParseMove(smove)
-			var newPos = positions[len(positions)-1].MakeMoveIfLegal(move)
+			var newPos = positions[len(positions)-1].MakeMoveLAN(smove)
 			if newPos == nil {
 				debugUci("Wrong move")
 				return
-			} else {
-				positions = append(positions, newPos)
 			}
+			positions = append(positions, newPos)
 		}
 	}
 	uci.positions = positions

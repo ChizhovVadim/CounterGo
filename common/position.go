@@ -424,21 +424,6 @@ func (p *Position) IsDiscoveredCheck() bool {
 	return (p.Checkers & ^SquareMask[p.LastMove.To()]) != 0
 }
 
-func (p *Position) MakeMoveIfLegal(move Move) *Position {
-	var buffer [MaxMoves]Move
-	for _, x := range p.GenerateMoves(buffer[:]) {
-		if move.From() == x.From() && move.To() == x.To() && move.Promotion() == x.Promotion() {
-			var newPosition = &Position{}
-			if p.MakeMove(x, newPosition) {
-				return newPosition
-			} else {
-				return nil
-			}
-		}
-	}
-	return nil
-}
-
 func (this *Position) IsRepetition(other *Position) bool {
 	return this.White == other.White &&
 		this.Black == other.Black &&

@@ -32,6 +32,7 @@ const (
 	FeaturePawnPassedFreeBonus
 	FeaturePawnPassedKingDistance
 	FeaturePawnPassedSquare
+	FeatureThreat
 	FeatureSize
 )
 
@@ -61,6 +62,7 @@ var FeatureNames = []string{
 	"PawnPassedFreeBonus",
 	"PawnPassedKingDistance",
 	"PawnPassedSquare",
+	"Threat",
 }
 
 type EvalInfo struct {
@@ -96,7 +98,7 @@ var (
 	}
 
 	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
-	featureWeights  = [FeatureSize * 2]int{10000, 11000, 40000, 40000, 40000, 40000, 60000, 60000, 120000, 120000, 1500, 4000, 1000, 1000, 0, 600, -2000, 0, 0, 1000, 700, 0, 35, 35, 25, 50, 3000, 0, 2000, 0, 1000, 0, -1000, 0, 2000, 0, -1500, -1000, -1000, -1000, 1500, 0, 400, 800, 0, 100, 0, 100, 0, 3300}
+	featureWeights  = [FeatureSize * 2]int{10000, 11000, 40000, 40000, 40000, 40000, 60000, 60000, 120000, 120000, 1500, 4000, 1000, 1000, 0, 600, -2000, 0, 0, 1000, 700, 0, 35, 35, 25, 50, 3000, 0, 2000, 0, 1000, 0, -1000, 0, 2000, 0, -1500, -1000, -1000, -1000, 1500, 0, 400, 800, 0, 100, 0, 100, 0, 3300, 5000, 5000}
 )
 
 const (
@@ -194,6 +196,10 @@ func EvaluateFeatures(p *Position, ei *EvalInfo) {
 	if (b & FileEMask) != 0 {
 		ei.Features[FeaturePawnCenter]--
 	}
+
+	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
+	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns
+	ei.Features[FeatureThreat] = PopCount(wStrongAttacks) - PopCount(bStrongAttacks)
 
 	var wkingZone = kingZone[wkingSq]
 	var bkingZone = kingZone[bkingSq]

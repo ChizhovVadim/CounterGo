@@ -2,51 +2,29 @@ package engine
 
 import . "github.com/ChizhovVadim/CounterGo/common"
 
-type moveSortQS struct {
-	node      *node
-	genChecks bool
-	moves     []orderedMove
-	state     int
-	head      int
-}
-
 type orderedMove struct {
 	move Move
 	key  int
 }
 
-func (ms *moveSortQS) Next() Move {
-	for {
-		switch ms.state {
-		case 0:
-			var ml = ms.node.buffer0[:]
-			if ms.node.position.IsCheck() {
-				ml = ms.node.position.GenerateMoves(ml)
-			} else {
-				ml = ms.node.position.GenerateCaptures(ml, ms.genChecks)
-			}
-			ms.moves = ms.node.buffer1[:0]
-			for _, m := range ml {
-				var score int
-				if isCaptureOrPromotion(m) {
-					score = 29000 + mvvlva(m)
-				} else {
-					score = ms.node.engine.historyTable.Score(ms.node.position.WhiteMove, m)
-				}
-				ms.moves = append(ms.moves, orderedMove{m, score})
-			}
-			sortMoves(ms.moves)
-			ms.state++
-			ms.head = 0
-		case 1:
-			if ms.head < len(ms.moves) {
-				var m = ms.moves[ms.head].move
-				ms.head++
-				return m
-			}
-			return MoveEmpty
-		}
+func initMovesQS(pos *Position, genChecks bool,
+	ml []Move, moves []orderedMove, historyTable historyTable) []orderedMove {
+	if pos.IsCheck() {
+		ml = pos.GenerateMoves(ml)
+	} else {
+		ml = pos.GenerateCaptures(ml, genChecks)
 	}
+	for _, m := range ml {
+		var score int
+		if isCaptureOrPromotion(m) {
+			score = 29000 + mvvlva(m)
+		} else {
+			score = historyTable.Score(pos.WhiteMove, m)
+		}
+		moves = append(moves, orderedMove{m, score})
+	}
+	sortMoves(moves)
+	return moves
 }
 
 type moveSort struct {
@@ -110,6 +88,31 @@ func (ms *moveSort) Next() Move {
 			return MoveEmpty
 		}
 	}
+}
+
+func initMoves(pos *Position, ml []Move, moves []orderedMove,
+	trans, killer1, killer2 Move, historyTable historyTable) []orderedMove {
+	for _, m := range pos.GenerateMoves(ml) {
+		var score int
+		if m == trans {
+			score = 30000
+		} else if isCaptureOrPromotion(m) {
+			if seeGEZero(pos, m) {
+				score = 29000 + mvvlva(m)
+			} else {
+				score = historyTable.Score(pos.WhiteMove, m)
+			}
+		} else if m == killer1 {
+			score = 28000
+		} else if m == killer2 {
+			score = 28000 - 1
+		} else {
+			score = historyTable.Score(pos.WhiteMove, m)
+		}
+		moves = append(moves, orderedMove{m, score})
+	}
+	sortMoves(moves)
+	return moves
 }
 
 func mvvlva(move Move) int {

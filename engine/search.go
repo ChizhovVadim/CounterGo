@@ -327,17 +327,12 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 			return alpha
 		}
 	}
-	var moveSort = moveSortQS{
-		node:      node,
-		genChecks: depth > 0,
-	}
+	var moves = initMovesQS(position, depth > 0,
+		node.buffer0[:], node.buffer1[:0], engine.historyTable)
 	var moveCount = 0
 	var child = node.next()
-	for {
-		var move = moveSort.Next()
-		if move == MoveEmpty {
-			break
-		}
+	for i := range moves {
+		var move = moves[i].move
 		var danger = isDangerCapture(position, move)
 		if !isCheck && !danger && !seeGEZero(position, move) {
 			continue

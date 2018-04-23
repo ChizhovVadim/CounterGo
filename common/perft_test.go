@@ -43,8 +43,11 @@ func TestPerft(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		var p = NewPositionFromFEN(test.fen)
-		var nodes = Perft(p, test.depth)
+		var p, err = NewPositionFromFEN(test.fen)
+		if err != nil {
+			t.Error(i, test)
+		}
+		var nodes = Perft(&p, test.depth)
 		if nodes != test.nodes {
 			t.Error(i, test, nodes)
 		}

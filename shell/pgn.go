@@ -23,7 +23,7 @@ func LoadPgn(r io.Reader) []PgnGame {
 		}
 		if strings.HasPrefix(line, "[Event") {
 			games = append(games, PgnGame{})
-			pos = *common.NewPositionFromFEN(common.InitialPositionFen)
+			pos, _ = common.NewPositionFromFEN(common.InitialPositionFen)
 		}
 		if strings.HasPrefix(line, "[") {
 			continue

@@ -10,8 +10,11 @@ func TestSEE(t *testing.T) {
 	var buffer [MaxMoves]Move
 	var child = &Position{}
 	for _, test := range testFENs {
-		var p = NewPositionFromFEN(test)
-		var eval = basicMaterial(p)
+		var p, err = NewPositionFromFEN(test)
+		if err != nil {
+			t.Error(err)
+		}
+		var eval = basicMaterial(&p)
 		for _, move := range p.GenerateCaptures(buffer[:], true) {
 			if !p.MakeMove(move, child) {
 				continue
@@ -20,11 +23,11 @@ func TestSEE(t *testing.T) {
 				continue
 			}
 			var directSEE = -searchSEE(child) - eval
-			var see = see(p, move)
+			var see = see(&p, move)
 			if see != directSEE {
 				t.Error(test, move.String(), directSEE, see)
 			}
-			if !seeGE(p, move, directSEE) || seeGE(p, move, directSEE+1) {
+			if !seeGE(&p, move, directSEE) || seeGE(&p, move, directSEE+1) {
 				t.Error(test, move.String(), directSEE)
 			}
 		}
@@ -75,13 +78,17 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 }
 
 func TestEval(t *testing.T) {
-	t.Log(bishopMobility)
-	t.Log(rookMobility)
 	for _, test := range testFENs {
-		var p1 = NewPositionFromFEN(test)
-		var score1 = Evaluate(p1)
-		var p2 = MirrorPosition(p1)
-		var score2 = Evaluate(p2)
+		var p1, err = NewPositionFromFEN(test)
+		if err != nil {
+			t.Error(err)
+		}
+		var score1 = Evaluate(&p1)
+		var p2, ok = MirrorPosition(&p1)
+		if !ok {
+			continue
+		}
+		var score2 = Evaluate(&p2)
 		if score1 != score2 {
 			t.Error(test, p2.String(), score1, score2)
 		}

@@ -29,11 +29,11 @@ type UciProtocol struct {
 }
 
 func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
-	var initPosition = common.NewPositionFromFEN(common.InitialPositionFen)
+	var initPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
 	var uci = &UciProtocol{
 		messages:  make(chan interface{}),
 		engine:    uciEngine,
-		positions: []*common.Position{initPosition},
+		positions: []*common.Position{&initPosition},
 	}
 	uci.commands = map[string]func(){
 		// UCI commands
@@ -200,12 +200,12 @@ func (uci *UciProtocol) positionCommand() {
 		debugUci("Wrong position command")
 		return
 	}
-	var p = common.NewPositionFromFEN(fen)
-	if p == nil {
+	var p, err = common.NewPositionFromFEN(fen)
+	if err != nil {
 		debugUci("Wrong fen")
 		return
 	}
-	var positions = []*common.Position{p}
+	var positions = []*common.Position{&p}
 	if movesIndex >= 0 && movesIndex+1 < len(args) {
 		for _, smove := range args[movesIndex+1:] {
 			var newPos = positions[len(positions)-1].MakeMoveLAN(smove)

@@ -85,14 +85,14 @@ func ParseSquare(s string) int {
 	return MakeSquare(file, rank)
 }
 
-func ParsePiece(ch rune) int {
+func parsePiece(ch rune) coloredPiece {
 	var side = unicode.IsUpper(ch)
 	var spiece = string(unicode.ToLower(ch))
 	var i = strings.Index("pnbrqk", spiece)
 	if i < 0 {
-		return Empty
+		return coloredPiece{Empty, false}
 	}
-	return MakePiece(i+Pawn, side)
+	return coloredPiece{i + Pawn, side}
 }
 
 func makeMove(from, to, movingPiece, capturedPiece int) Move {

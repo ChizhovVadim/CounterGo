@@ -9,36 +9,42 @@ import (
 	"unicode"
 )
 
+type coloredPiece struct {
+	Type int
+	Side bool
+}
+
 var castleMask [64]int
 
-func createPosition(board [64]int, wtm bool, castleRights, ep, fifty int) *Position {
-	var p = &Position{}
+func createPosition(board [64]coloredPiece, wtm bool,
+	castleRights, ep, fifty int) (Position, bool) {
+	var p = Position{
+		WhiteMove:    wtm,
+		CastleRights: castleRights,
+		EpSquare:     ep,
+		Rule50:       fifty,
+		LastMove:     MoveEmpty,
+	}
 
 	for sq, piece := range board {
-		if piece != Empty {
-			var pieceType, pieceSide = GetPieceTypeAndSide(piece)
-			xorPiece(p, pieceType, pieceSide, sq)
+		if piece.Type != Empty {
+			xorPiece(&p, piece.Type, piece.Side, sq)
 		}
 	}
 
-	p.WhiteMove = wtm
-	p.CastleRights = castleRights
-	p.EpSquare = ep
-	p.Rule50 = fifty
 	p.Key = p.computeKey()
 	p.Checkers = p.computeCheckers()
-	p.LastMove = MoveEmpty
 
 	if !p.isLegal() {
-		return nil
+		return Position{}, false
 	}
-	return p
+	return p, true
 }
 
-func NewPositionFromFEN(fen string) *Position {
+func NewPositionFromFEN(fen string) (Position, error) {
 	var tokens = s.Split(fen, " ")
 
-	var board [64]int
+	var board [64]coloredPiece
 
 	var i = 0
 	for _, ch := range tokens[0] {
@@ -46,7 +52,7 @@ func NewPositionFromFEN(fen string) *Position {
 			var n, _ = strconv.Atoi(string(ch))
 			i += n
 		} else if unicode.IsLetter(ch) {
-			var pt = ParsePiece(ch)
+			var pt = parsePiece(ch)
 			board[FlipSquare(i)] = pt
 			i++
 		}
@@ -76,7 +82,11 @@ func NewPositionFromFEN(fen string) *Position {
 		rule50, _ = strconv.Atoi(tokens[4])
 	}
 
-	return createPosition(board, whiteMove, cr, epSquare, rule50)
+	var pos, isLegal = createPosition(board, whiteMove, cr, epSquare, rule50)
+	if !isLegal {
+		return Position{}, fmt.Errorf("parse fen failed %v", fen)
+	}
+	return pos, nil
 }
 
 func (p *Position) String() string {
@@ -492,12 +502,12 @@ func initKeys() {
 	}
 }
 
-func MirrorPosition(p *Position) *Position {
-	var board [64]int
+func MirrorPosition(p *Position) (Position, bool) {
+	var board [64]coloredPiece
 	for i := range board {
 		var pt, side = p.GetPieceTypeAndSide(i)
 		if pt != Empty {
-			board[FlipSquare(i)] = MakePiece(pt, !side)
+			board[FlipSquare(i)] = coloredPiece{pt, !side}
 		}
 	}
 	var cr = (p.CastleRights >> 2) | ((p.CastleRights & 3) << 2)

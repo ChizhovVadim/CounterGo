@@ -12,7 +12,7 @@ import (
 
 type testItem struct {
 	content   string
-	position  *common.Position
+	position  common.Position
 	bestMoves []common.Move
 }
 
@@ -24,7 +24,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 	var total, solved int
 	for _, test := range epdTests {
 		var searchParams = common.SearchParams{
-			Positions: []*common.Position{test.position},
+			Positions: []*common.Position{&test.position},
 			Limits:    common.LimitsType{MoveTime: 3000},
 		}
 		var searchResult = uciEngine.Search(searchParams)
@@ -83,11 +83,14 @@ func parseEpdTest(s string) *testItem {
 	var bmBegin = strings.Index(s, "bm")
 	var bmEnd = strings.Index(s, ";")
 	var fen = strings.TrimSpace(s[:bmBegin])
-	var p = common.NewPositionFromFEN(fen)
+	var p, err = common.NewPositionFromFEN(fen)
+	if err != nil {
+		panic(err)
+	}
 	var sBestMoves = strings.Split(s[bmBegin:bmEnd], " ")[1:]
 	var bestMoves []common.Move
 	for _, sBestMove := range sBestMoves {
-		var move = common.ParseMoveSAN(p, sBestMove)
+		var move = common.ParseMoveSAN(&p, sBestMove)
 		if move == common.MoveEmpty {
 			return nil
 		}

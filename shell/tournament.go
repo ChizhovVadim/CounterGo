@@ -66,12 +66,15 @@ func RunTournament() {
 	}
 	for i := 0; i < numberOfGames; i++ {
 		var opening = openings[(i/2)%len(openings)]
-		var pos = common.NewPositionFromFEN(opening)
+		var pos, err = common.NewPositionFromFEN(opening)
+		if err != nil {
+			panic(err)
+		}
 
 		var whiteEngineIndex = i % 2
 		var blackEngineIndex = whiteEngineIndex ^ 1
 		var res = playGame(engines[whiteEngineIndex].engine,
-			engines[blackEngineIndex].engine, pos)
+			engines[blackEngineIndex].engine, &pos)
 		playedGames++
 		if res == gameResultWhiteWins {
 			engines[whiteEngineIndex].wins++

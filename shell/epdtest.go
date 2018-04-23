@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -27,7 +28,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 			Positions: []*common.Position{&test.position},
 			Limits:    common.LimitsType{MoveTime: 3000},
 		}
-		var searchResult = uciEngine.Search(searchParams)
+		var searchResult = uciEngine.Search(context.Background(), searchParams)
 
 		var passed = false
 		for _, bm := range test.bestMoves {

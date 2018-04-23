@@ -3,6 +3,7 @@ package shell
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -15,7 +16,7 @@ type UciEngine interface {
 	GetInfo() (name, version, author string)
 	GetOptions() []common.UciOption
 	Prepare()
-	Search(searchParams common.SearchParams) common.SearchInfo
+	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
 }
 
 type UciProtocol struct {
@@ -23,7 +24,7 @@ type UciProtocol struct {
 	messages  chan interface{}
 	engine    UciEngine
 	positions []*common.Position
-	cancel    *common.CancellationToken
+	cancel    context.CancelFunc
 	fields    []string
 	state     func(msg interface{})
 }
@@ -230,21 +231,20 @@ func findIndexString(slice []string, value string) int {
 
 func (uci *UciProtocol) goCommand() {
 	var limits = parseLimits(uci.fields)
-	var ct = &common.CancellationToken{}
+	var ctx, cancel = context.WithCancel(context.Background())
 	var searchParams = common.SearchParams{
-		Positions:         uci.positions,
-		Limits:            limits,
-		CancellationToken: ct,
+		Positions: uci.positions,
+		Limits:    limits,
 		Progress: func(si common.SearchInfo) {
 			if si.Time >= 500 || si.Depth >= 5 {
 				uci.messages <- si
 			}
 		},
 	}
-	uci.cancel = ct
+	uci.cancel = cancel
 	uci.state = uci.thinking
 	go func() {
-		var searchResult = uci.engine.Search(searchParams)
+		var searchResult = uci.engine.Search(ctx, searchParams)
 		uci.messages <- searchResult
 		if len(searchResult.MainLine) == 0 {
 			uci.messages <- common.MoveEmpty
@@ -301,7 +301,7 @@ func (uci *UciProtocol) ponderhitCommand() {
 
 func (uci *UciProtocol) stopCommand() {
 	if uci.cancel != nil {
-		uci.cancel.Cancel()
+		uci.cancel()
 	}
 }
 

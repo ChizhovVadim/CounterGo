@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"time"
@@ -13,11 +14,10 @@ var searchTimeout = errors.New("search timeout")
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start    time.Time
-	softTime time.Duration
-	nodes    int64
-	ct       *CancellationToken
-	timer    *time.Timer
+	start                   time.Time
+	softTime                time.Duration
+	nodes                   int64
+	isCancellationRequested bool
 }
 
 func (tm *timeManager) Nodes() int64 {
@@ -25,7 +25,7 @@ func (tm *timeManager) Nodes() int64 {
 }
 
 func (tm *timeManager) IsHardTimeout() bool {
-	return tm.ct.IsCancellationRequested()
+	return tm.isCancellationRequested
 }
 
 func (tm *timeManager) IncNodes() {
@@ -43,18 +43,12 @@ func (tm *timeManager) IsSoftTimeout() bool {
 	return tm.softTime > 0 && time.Since(tm.start) >= tm.softTime
 }
 
-func (tm *timeManager) Close() {
-	if t := tm.timer; t != nil {
-		t.Stop()
-	}
-}
-
-func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
-	side bool, ct *CancellationToken) *timeManager {
+func NewTimeManager(ctx context.Context, limits LimitsType,
+	timeControlStrategy timeControlStrategy, side bool) (*timeManager, context.CancelFunc) {
 	var start = time.Now()
 
-	if ct == nil {
-		ct = &CancellationToken{}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	var main, increment int
@@ -71,18 +65,22 @@ func NewTimeManager(limits LimitsType, timeControlStrategy timeControlStrategy,
 		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
-	var timer *time.Timer
+	var cancel = func() {}
 	if hardTime > 0 {
-		timer = time.AfterFunc(time.Duration(hardTime)*time.Millisecond, func() {
-			ct.Cancel()
-		})
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
 	}
-	return &timeManager{
+
+	var tm = &timeManager{
 		start:    start,
-		timer:    timer,
-		ct:       ct,
 		softTime: time.Duration(softTime) * time.Millisecond,
 	}
+
+	go func() {
+		<-ctx.Done()
+		tm.isCancellationRequested = true
+	}()
+
+	return tm, cancel
 }
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {

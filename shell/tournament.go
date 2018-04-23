@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -117,7 +118,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition *common.Position) int 
 			uciEngine = engine2
 		}
 		var start = time.Now()
-		var searchResult = uciEngine.Search(searchParams)
+		var searchResult = uciEngine.Search(context.Background(), searchParams)
 		var elapsed = int(time.Since(start) / time.Millisecond)
 		if side {
 			limits.WhiteTime -= elapsed

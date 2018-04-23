@@ -92,10 +92,9 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions         []*Position
-	Limits            LimitsType
-	CancellationToken *CancellationToken
-	Progress          func(si SearchInfo)
+	Positions []*Position
+	Limits    LimitsType
+	Progress  func(si SearchInfo)
 }
 
 type SearchInfo struct {
@@ -109,18 +108,6 @@ type SearchInfo struct {
 type UciScore struct {
 	Centipawns int
 	Mate       int
-}
-
-type CancellationToken struct {
-	active bool
-}
-
-func (ct *CancellationToken) Cancel() {
-	ct.active = true
-}
-
-func (ct *CancellationToken) IsCancellationRequested() bool {
-	return ct.active
 }
 
 type UciOption interface {

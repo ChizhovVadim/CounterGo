@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"runtime"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -81,11 +82,11 @@ func (e *Engine) Prepare() {
 	}
 }
 
-func (e *Engine) Search(searchParams SearchParams) SearchInfo {
+func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchInfo {
 	var p = searchParams.Positions[len(searchParams.Positions)-1]
-	e.timeManager = NewTimeManager(searchParams.Limits, timeControlSmart,
-		p.WhiteMove, searchParams.CancellationToken)
-	defer e.timeManager.Close()
+	var tm, cancel = NewTimeManager(ctx, searchParams.Limits, timeControlSmart, p.WhiteMove)
+	defer cancel()
+	e.timeManager = tm
 
 	e.Prepare()
 	e.clearKillers()

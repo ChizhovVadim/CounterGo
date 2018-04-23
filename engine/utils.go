@@ -80,7 +80,7 @@ func (node *node) nextOnThread(thread int) *node {
 }
 
 func (node *node) isDraw() bool {
-	var p = node.position
+	var p = &node.position
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
 		!MoreThanOne(p.Knights|p.Bishops) {
@@ -93,7 +93,7 @@ func (node *node) isDraw() bool {
 
 	var stacks = &node.engine.tree[node.thread]
 	for i := node.height - 1; i >= 0; i-- {
-		var temp = stacks[i].position
+		var temp = &stacks[i].position
 		if temp.Key == p.Key {
 			return true
 		}

@@ -22,17 +22,17 @@ type Engine struct {
 }
 
 type node struct {
-	engine             *Engine
-	thread             int
-	height             int
-	position           *Position
-	killer1            Move
-	killer2            Move
-	principalVariation []Move
-	quietsSearched     []Move
-	buffer0            [MaxMoves]Move
-	buffer1            [MaxMoves]orderedMove
-	buffer2            [MaxMoves]orderedMove
+	engine               *Engine
+	thread               int
+	height               int
+	position             Position
+	killer1              Move
+	killer2              Move
+	principalVariation   []Move
+	quietsSearchedBuffer [MaxMoves]Move
+	buffer0              [MaxMoves]Move
+	buffer1              [MaxMoves]orderedMove
+	buffer2              [MaxMoves]orderedMove
 }
 
 type evaluate func(p *Position) int
@@ -97,7 +97,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for thread := range e.tree {
-		e.tree[thread][0].position = p
+		e.tree[thread][0].position = *p
 	}
 	var node = &e.tree[0][0]
 	return node.IterateSearch(searchParams.Progress)
@@ -142,8 +142,6 @@ func (e *Engine) initTree() {
 				engine:             e,
 				thread:             thread,
 				height:             height,
-				position:           &Position{},
-				quietsSearched:     make([]Move, 0, MaxMoves),
 				principalVariation: make([]Move, 0, maxHeight),
 			}
 		}

@@ -41,7 +41,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 		{
 			var child = node.next()
 			var move = ml[0]
-			p.MakeMove(move, child.position)
+			p.MakeMove(move, &child.position)
 			var newDepth = node.newDepth(depth, child)
 			var score = -child.alphaBeta(-beta, -alpha, newDepth)
 			alpha = score
@@ -71,7 +71,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 					return
 				}
 				var move = ml[localIndex]
-				p.MakeMove(move, child.position)
+				p.MakeMove(move, &child.position)
 				var newDepth = node.newDepth(depth, child)
 				var score = -child.alphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
 				if score > localAlpha {
@@ -115,7 +115,7 @@ func (node *node) sortRootMoves(moves []Move) {
 	var child = node.next()
 	var list = make([]orderedMove, len(moves))
 	for i, m := range moves {
-		node.position.MakeMove(m, child.position)
+		node.position.MakeMove(m, &child.position)
 		var score = -child.quiescence(-valueInfinity, valueInfinity, 1)
 		list[i] = orderedMove{m, score}
 	}
@@ -138,10 +138,10 @@ func moveToBegin(ml []Move, index int) {
 
 func hashStorePV(node *node, depth, score int, pv []Move) {
 	for _, move := range pv {
-		node.engine.transTable.Update(node.position, depth,
+		node.engine.transTable.Update(&node.position, depth,
 			valueToTT(score, node.height), boundLower|boundUpper, move)
 		var child = node.next()
-		node.position.MakeMove(move, child.position)
+		node.position.MakeMove(move, &child.position)
 		depth = node.newDepth(depth, child)
 		if depth <= 0 {
 			break
@@ -165,7 +165,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	var engine = node.engine
 	engine.timeManager.IncNodes()
 
-	var position = node.position
+	var position = &node.position
 	var isCheck = position.IsCheck()
 
 	if winIn(node.height+1) <= alpha {
@@ -195,7 +195,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		beta < valueWin &&
 		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
-		position.MakeNullMove(child.position)
+		position.MakeNullMove(&child.position)
 		var rbeta = beta + 15 // STM-bonus
 		if newDepth <= 0 {
 			score = -child.quiescence(-rbeta, -(rbeta - 1), 1)
@@ -221,7 +221,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	}
 
 	var moveCount = 0
-	node.quietsSearched = node.quietsSearched[:0]
+	var quietsSearched = node.quietsSearchedBuffer[:0]
 	var staticEval = valueInfinity
 
 	for {
@@ -230,7 +230,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 			break
 		}
 
-		if position.MakeMove(move, child.position) {
+		if position.MakeMove(move, &child.position) {
 			moveCount++
 
 			newDepth = node.newDepth(depth, child)
@@ -257,7 +257,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 			}
 
 			if !isCaptureOrPromotion(move) {
-				node.quietsSearched = append(node.quietsSearched, move)
+				quietsSearched = append(quietsSearched, move)
 			}
 
 			if reduction > 0 {
@@ -289,7 +289,11 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	var bestMove = node.bestMove()
 
 	if bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
-		engine.historyTable.Update(node, bestMove, depth)
+		if node.killer1 != bestMove {
+			node.killer2 = node.killer1
+			node.killer1 = bestMove
+		}
+		engine.historyTable.Update(position.WhiteMove, bestMove, quietsSearched, depth)
 	}
 
 	var ttType = 0
@@ -311,7 +315,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 	if node.height >= maxHeight {
 		return valueDraw
 	}
-	var position = node.position
+	var position = &node.position
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {
@@ -338,7 +342,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 		if !isCheck && !danger && !seeGEZero(position, move) {
 			continue
 		}
-		if position.MakeMove(move, child.position) {
+		if position.MakeMove(move, &child.position) {
 			moveCount++
 			if !isCheck && !danger && !child.position.IsCheck() &&
 				eval+moveValue(move)+PawnValue <= alpha {
@@ -361,7 +365,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 }
 
 func (node *node) newDepth(depth int, child *node) int {
-	var p = node.position
+	var p = &node.position
 	var prevMove = p.LastMove
 	var move = child.position.LastMove
 	var givesCheck = child.position.IsCheck()

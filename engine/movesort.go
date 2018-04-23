@@ -62,7 +62,7 @@ func (ms *moveSort) Next() Move {
 	for {
 		switch ms.state {
 		case 0:
-			var pos = ms.node.position
+			var pos = &ms.node.position
 			ms.important = ms.node.buffer1[:0]
 			ms.remaining = ms.node.buffer2[:0]
 			for _, m := range pos.GenerateMoves(ms.node.buffer0[:]) {

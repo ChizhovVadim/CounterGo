@@ -22,13 +22,9 @@ func (ht historyTable) Clear() {
 	}
 }
 
-func (ht historyTable) Update(node *node, bestMove Move, depth int) {
-	if node.killer1 != bestMove {
-		node.killer2 = node.killer1
-		node.killer1 = bestMove
-	}
-	var side = node.position.WhiteMove
-	for _, move := range node.quietsSearched {
+func (ht historyTable) Update(side bool, bestMove Move,
+	quietsSearched []Move, depth int) {
+	for _, move := range quietsSearched {
 		atomic.AddInt32(&ht[pieceSquareIndex(side, move)].try, int32(depth))
 	}
 	atomic.AddInt32(&ht[pieceSquareIndex(side, bestMove)].success, int32(depth))

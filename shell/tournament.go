@@ -75,7 +75,7 @@ func RunTournament() {
 		var whiteEngineIndex = i % 2
 		var blackEngineIndex = whiteEngineIndex ^ 1
 		var res = playGame(engines[whiteEngineIndex].engine,
-			engines[blackEngineIndex].engine, &pos)
+			engines[blackEngineIndex].engine, pos)
 		playedGames++
 		if res == gameResultWhiteWins {
 			engines[whiteEngineIndex].wins++
@@ -89,13 +89,13 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-func playGame(engine1, engine2 UciEngine, initialPosition *common.Position) int {
+func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 	const Second = 1000
 	var timeControl = struct {
 		main, inc, moves int
 		//}{60 * Second, 1 * Second, 0}
 	}{60 * Second, 0 * Second, 40}
-	var positions = []*common.Position{initialPosition}
+	var positions = []common.Position{initialPosition}
 	var limits = common.LimitsType{
 		WhiteTime: timeControl.main,
 		BlackTime: timeControl.main,
@@ -144,19 +144,19 @@ func playGame(engine1, engine2 UciEngine, initialPosition *common.Position) int 
 		PrintSearchInfo(searchResult)
 		fmt.Printf("White: %v Black: %v\n", limits.WhiteTime, limits.BlackTime)
 		var move = searchResult.MainLine[0]
-		var newPos = &common.Position{}
-		var ok = positions[len(positions)-1].MakeMove(move, newPos)
+		var newPos = common.Position{}
+		var ok = positions[len(positions)-1].MakeMove(move, &newPos)
 		if !ok {
 			panic("engine illegal move")
 		}
 		positions = append(positions, newPos)
-		fmt.Println(newPos)
-		PrintPosition(newPos)
+		fmt.Println(&newPos)
+		PrintPosition(&newPos)
 	}
 }
 
-func computeGameResult(positions []*common.Position) int {
-	var position = positions[len(positions)-1]
+func computeGameResult(positions []common.Position) int {
+	var position = &positions[len(positions)-1]
 	var ml = position.GenerateLegalMoves()
 	if len(ml) == 0 {
 		if !position.IsCheck() {
@@ -172,12 +172,12 @@ func computeGameResult(positions []*common.Position) int {
 	return gameResultNone
 }
 
-func isRepetition(positions []*common.Position) bool {
-	var current = positions[len(positions)-1]
+func isRepetition(positions []common.Position) bool {
+	var current = &positions[len(positions)-1]
 	var repeats = 0
 
 	for i := len(positions) - 2; i >= 0; i-- {
-		if current.IsRepetition(positions[i]) {
+		if current.IsRepetition(&positions[i]) {
 			repeats++
 			if repeats >= 3 {
 				return true

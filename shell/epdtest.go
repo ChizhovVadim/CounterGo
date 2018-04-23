@@ -25,7 +25,7 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 	var total, solved int
 	for _, test := range epdTests {
 		var searchParams = common.SearchParams{
-			Positions: []*common.Position{&test.position},
+			Positions: []common.Position{test.position},
 			Limits:    common.LimitsType{MoveTime: 3000},
 		}
 		var searchResult = uciEngine.Search(context.Background(), searchParams)

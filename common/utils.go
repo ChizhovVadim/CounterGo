@@ -149,19 +149,19 @@ func (m Move) String() string {
 	return SquareName(m.From()) + SquareName(m.To()) + sPromotion
 }
 
-func (p *Position) MakeMoveLAN(lan string) *Position {
+func (p *Position) MakeMoveLAN(lan string) (Position, bool) {
 	var buffer [MaxMoves]Move
 	for _, mv := range p.GenerateMoves(buffer[:]) {
 		if strings.EqualFold(mv.String(), lan) {
-			var newPosition = &Position{}
-			if p.MakeMove(mv, newPosition) {
-				return newPosition
+			var newPosition = Position{}
+			if p.MakeMove(mv, &newPosition) {
+				return newPosition, true
 			} else {
-				return nil
+				return Position{}, false
 			}
 		}
 	}
-	return nil
+	return Position{}, false
 }
 
 func moveToSAN(pos *Position, ml []Move, mv Move) string {

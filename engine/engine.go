@@ -83,7 +83,7 @@ func (e *Engine) Prepare() {
 }
 
 func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchInfo {
-	var p = searchParams.Positions[len(searchParams.Positions)-1]
+	var p = &searchParams.Positions[len(searchParams.Positions)-1]
 	var tm, cancel = NewTimeManager(ctx, searchParams.Limits, timeControlSmart, p.WhiteMove)
 	defer cancel()
 	e.timeManager = tm
@@ -122,10 +122,10 @@ func (e *Engine) initKillers() {
 	}
 }
 
-func getHistoryKeys(positions []*Position) map[uint64]int {
+func getHistoryKeys(positions []Position) map[uint64]int {
 	var result = make(map[uint64]int)
 	for i := len(positions) - 1; i >= 0; i-- {
-		var p = positions[i]
+		var p = &positions[i]
 		result[p.Key]++
 		if p.Rule50 == 0 {
 			break

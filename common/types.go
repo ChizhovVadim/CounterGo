@@ -92,7 +92,7 @@ type LimitsType struct {
 }
 
 type SearchParams struct {
-	Positions []*Position
+	Positions []Position
 	Limits    LimitsType
 	Progress  func(si SearchInfo)
 }

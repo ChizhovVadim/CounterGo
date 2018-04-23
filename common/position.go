@@ -502,7 +502,7 @@ func initKeys() {
 	}
 }
 
-func MirrorPosition(p *Position) (Position, bool) {
+func MirrorPosition(p *Position) Position {
 	var board [64]coloredPiece
 	for i := range board {
 		var pt, side = p.GetPieceTypeAndSide(i)
@@ -515,7 +515,8 @@ func MirrorPosition(p *Position) (Position, bool) {
 	if p.EpSquare != SquareNone {
 		ep = FlipSquare(p.EpSquare)
 	}
-	return createPosition(board, !p.WhiteMove, cr, ep, p.Rule50)
+	var pos, _ = createPosition(board, !p.WhiteMove, cr, ep, p.Rule50)
+	return pos
 }
 
 func init() {

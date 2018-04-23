@@ -84,10 +84,7 @@ func TestEval(t *testing.T) {
 			t.Error(err)
 		}
 		var score1 = Evaluate(&p1)
-		var p2, ok = MirrorPosition(&p1)
-		if !ok {
-			continue
-		}
+		var p2 = MirrorPosition(&p1)
 		var score2 = Evaluate(&p2)
 		if score1 != score2 {
 			t.Error(test, p2.String(), score1, score2)

@@ -17,14 +17,14 @@ type testItem struct {
 	bestMoves []common.Move
 }
 
-func RunEpdTest(epdTests []testItem, uciEngine UciEngine) {
+func RunEpdTest(epdTests []testItem, uciEngine UciEngine, moveTime int) {
 	fmt.Println("Test started...")
 	var start = time.Now()
 	var total, solved int
 	for _, test := range epdTests {
 		var searchParams = common.SearchParams{
 			Positions: []common.Position{test.position},
-			Limits:    common.LimitsType{MoveTime: 3000},
+			Limits:    common.LimitsType{MoveTime: moveTime},
 		}
 		var searchResult = uciEngine.Search(context.Background(), searchParams)
 

@@ -315,7 +315,7 @@ func (uci *UciProtocol) epdCommand() {
 		fmt.Printf("load epd tests failed %v\n", err)
 	}
 	fmt.Printf("Loaded %v tests\n", len(tests))
-	RunEpdTest(tests, uci.engine)
+	RunEpdTest(tests, uci.engine, 3000)
 }
 
 func (uci *UciProtocol) arenaCommand() {

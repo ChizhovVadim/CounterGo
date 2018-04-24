@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
@@ -479,15 +480,14 @@ func TraceFeatures() {
 
 func initProgressionSum(size int, ratio float64, min, max int) []int {
 	var n = size - 1
-	var a1 = 2 / ((1 + ratio) * float64(n))
-	var an = a1 * ratio
-	var d = (an - a1) / float64(n-1)
+	var q = math.Pow(ratio, 1/float64(n-1))
+	var b1 = (1 - q) / (1 - math.Pow(q, float64(n)))
 
 	var result = make([]int, size)
 	for i := range result {
 		var sum float64
 		if i > 0 {
-			sum = (a1 + 0.5*d*float64(i-1)) * float64(i)
+			sum = b1 * (1 - math.Pow(q, float64(i))) / (1 - q)
 		}
 		result[i] = min + int(float64(max-min)*sum)
 	}

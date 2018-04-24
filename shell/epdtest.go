@@ -17,9 +17,7 @@ type testItem struct {
 	bestMoves []common.Move
 }
 
-func RunEpdTest(filePath string, uciEngine UciEngine) {
-	var epdTests = loadEpdTests(filePath)
-	fmt.Printf("Loaded %v tests\n", len(epdTests))
+func RunEpdTest(epdTests []testItem, uciEngine UciEngine) {
 	fmt.Println("Test started...")
 	var start = time.Now()
 	var total, solved int
@@ -52,57 +50,51 @@ func RunEpdTest(filePath string, uciEngine UciEngine) {
 	fmt.Printf("Test finished. Elapsed: %v\n", time.Since(start))
 }
 
-func loadEpdTests(filePath string) (result []*testItem) {
-	var err = processFileByLines(filePath, func(line string) {
-		var test = parseEpdTest(line)
-		if test != nil {
-			result = append(result, test)
-		}
-	})
-	if err != nil {
-		fmt.Println(err)
-	}
-	return
-}
-
-func processFileByLines(filePath string, processor func(line string)) (err error) {
+func LoadEpdTests(filePath string) ([]testItem, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer file.Close()
+
+	var result []testItem
 	var scanner = bufio.NewScanner(file)
 	for scanner.Scan() {
 		var line = scanner.Text()
-		processor(line)
+		var test, err = parseEpdTest(line)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			result = append(result, test)
+		}
 	}
-	err = scanner.Err()
-	return
+	//err = scanner.Err()
+	return result, nil
 }
 
-func parseEpdTest(s string) *testItem {
+func parseEpdTest(s string) (testItem, error) {
 	var bmBegin = strings.Index(s, "bm")
 	var bmEnd = strings.Index(s, ";")
 	var fen = strings.TrimSpace(s[:bmBegin])
 	var p, err = common.NewPositionFromFEN(fen)
 	if err != nil {
-		panic(err)
+		return testItem{}, err
 	}
 	var sBestMoves = strings.Split(s[bmBegin:bmEnd], " ")[1:]
 	var bestMoves []common.Move
 	for _, sBestMove := range sBestMoves {
 		var move = common.ParseMoveSAN(&p, sBestMove)
 		if move == common.MoveEmpty {
-			return nil
+			return testItem{}, fmt.Errorf("parse move failed %v", s)
 		}
 		bestMoves = append(bestMoves, move)
 	}
 	if len(bestMoves) == 0 {
-		return nil
+		return testItem{}, fmt.Errorf("empty best moves %v", s)
 	}
-	return &testItem{
+	return testItem{
 		content:   s,
 		position:  p,
 		bestMoves: bestMoves,
-	}
+	}, nil
 }

@@ -310,7 +310,12 @@ func (uci *UciProtocol) epdCommand() {
 	if len(uci.fields) > 0 {
 		filePath = uci.fields[0]
 	}
-	RunEpdTest(filePath, uci.engine)
+	var tests, err = LoadEpdTests(filePath)
+	if err != nil {
+		fmt.Printf("load epd tests failed %v\n", err)
+	}
+	fmt.Printf("Loaded %v tests\n", len(tests))
+	RunEpdTest(tests, uci.engine)
 }
 
 func (uci *UciProtocol) arenaCommand() {

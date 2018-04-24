@@ -65,9 +65,11 @@ func NewTimeManager(ctx context.Context, limits LimitsType,
 		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
-	var cancel = func() {}
+	var cancel context.CancelFunc
 	if hardTime > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
 	}
 
 	var tm = &timeManager{

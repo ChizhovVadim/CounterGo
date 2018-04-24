@@ -109,19 +109,21 @@ func (node *node) isDraw() bool {
 	return false
 }
 
-func (node *node) clearPV() {
-	node.principalVariation = node.principalVariation[:0]
+type principalVariation []Move
+
+func (pv *principalVariation) clear() {
+	*pv = (*pv)[:0]
 }
 
-func (node *node) bestMove() Move {
-	if len(node.principalVariation) == 0 {
+func (pv *principalVariation) compose(move Move, child principalVariation) {
+	*pv = append(append((*pv)[:0], move), child...)
+}
+
+func (pv principalVariation) bestMove() Move {
+	if len(pv) == 0 {
 		return MoveEmpty
 	}
-	return node.principalVariation[0]
-}
-
-func (node *node) composePV(move Move, child *node) {
-	node.principalVariation = append(append(node.principalVariation[:0], move), child.principalVariation...)
+	return pv[0]
 }
 
 func isLateEndgame(p *Position, side bool) bool {

@@ -28,7 +28,7 @@ type node struct {
 	position             Position
 	killer1              Move
 	killer2              Move
-	principalVariation   []Move
+	pv                   principalVariation
 	quietsSearchedBuffer [MaxMoves]Move
 	buffer0              [MaxMoves]Move
 	buffer1              [MaxMoves]orderedMove
@@ -139,10 +139,10 @@ func (e *Engine) initTree() {
 	for thread := range e.tree {
 		for height := range e.tree[thread] {
 			e.tree[thread][height] = node{
-				engine:             e,
-				thread:             thread,
-				height:             height,
-				principalVariation: make([]Move, 0, maxHeight),
+				engine: e,
+				thread: thread,
+				height: height,
+				pv:     make([]Move, 0, maxHeight),
 			}
 		}
 	}

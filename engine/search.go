@@ -48,7 +48,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 			result = SearchInfo{
 				Depth:    depth,
 				Score:    newUciScore(score),
-				MainLine: append([]Move{move}, child.principalVariation...),
+				MainLine: append([]Move{move}, child.pv...),
 				Time:     engine.timeManager.ElapsedMilliseconds(),
 				Nodes:    engine.timeManager.Nodes(),
 			}
@@ -83,7 +83,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 					result = SearchInfo{
 						Depth:    depth,
 						Score:    newUciScore(score),
-						MainLine: append([]Move{move}, child.principalVariation...),
+						MainLine: append([]Move{move}, child.pv...),
 						Time:     engine.timeManager.ElapsedMilliseconds(),
 						Nodes:    engine.timeManager.Nodes(),
 					}
@@ -152,7 +152,7 @@ func hashStorePV(node *node, depth, score int, pv []Move) {
 
 func (node *node) alphaBeta(alpha, beta, depth int) int {
 	var newDepth, score int
-	node.clearPV()
+	node.pv.clear()
 
 	if node.height >= maxHeight || node.isDraw() {
 		return valueDraw
@@ -211,8 +211,8 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		beta > alpha+PawnValue/2 {
 		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
 		node.alphaBeta(alpha, beta, depth-2)
-		hashMove = node.bestMove()
-		node.clearPV() //!
+		hashMove = node.pv.bestMove()
+		node.pv.clear() //!
 	}
 
 	var moveSort = moveSort{
@@ -271,7 +271,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 
 			if score > alpha {
 				alpha = score
-				node.composePV(move, child)
+				node.pv.compose(move, child.pv)
 				if alpha >= beta {
 					break
 				}
@@ -286,8 +286,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		return valueDraw
 	}
 
-	var bestMove = node.bestMove()
-
+	var bestMove = node.pv.bestMove()
 	if bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
 		if node.killer1 != bestMove {
 			node.killer2 = node.killer1
@@ -311,7 +310,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 func (node *node) quiescence(alpha, beta, depth int) int {
 	var engine = node.engine
 	engine.timeManager.IncNodes()
-	node.clearPV()
+	node.pv.clear()
 	if node.height >= maxHeight {
 		return valueDraw
 	}
@@ -346,7 +345,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 			var score = -child.quiescence(-beta, -alpha, depth-1)
 			if score > alpha {
 				alpha = score
-				node.composePV(move, child)
+				node.pv.compose(move, child.pv)
 				if score >= beta {
 					break
 				}

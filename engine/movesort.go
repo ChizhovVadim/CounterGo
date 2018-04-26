@@ -123,17 +123,13 @@ func mvvlva(move Move) int {
 	return captureScore*8 - move.MovingPiece()
 }
 
-var shellSortGaps = [...]int{10, 4, 1}
-
 func sortMoves(moves []orderedMove) {
-	for _, gap := range shellSortGaps {
-		for i := gap; i < len(moves); i++ {
-			j, t := i, moves[i]
-			for ; j >= gap && moves[j-gap].key < t.key; j -= gap {
-				moves[j] = moves[j-gap]
-			}
-			moves[j] = t
+	for i := 1; i < len(moves); i++ {
+		j, t := i, moves[i]
+		for ; j > 0 && moves[j-1].key < t.key; j-- {
+			moves[j] = moves[j-1]
 		}
+		moves[j] = t
 	}
 }
 

@@ -55,6 +55,7 @@ var (
 	threat                 = score{5000, 5000}
 )
 
+const sideToMoveBonus = 1400
 const PawnValue = 100
 const darkSquares uint64 = 0xAA55AA55AA55AA55
 
@@ -364,6 +365,11 @@ func Evaluate(p *Position) int {
 	if !p.WhiteMove {
 		result = -result
 	}
+
+	if !p.IsCheck() {
+		result += sideToMoveBonus
+	}
+
 	return result / 100
 }
 

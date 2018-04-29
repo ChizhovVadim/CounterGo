@@ -105,13 +105,7 @@ func (p *Position) String() string {
 				emptyCount = 0
 			}
 
-			var pieceSide bool
-			if (p.White & SquareMask[sq]) != 0 {
-				pieceSide = true
-			} else {
-				pieceSide = false
-			}
-
+			var pieceSide = (p.White & SquareMask[sq]) != 0
 			sb.WriteString(pieceToChar(piece, pieceSide))
 		}
 

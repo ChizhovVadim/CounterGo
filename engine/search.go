@@ -196,13 +196,12 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
 		position.MakeNullMove(&child.position)
-		var rbeta = beta + 15 // STM-bonus
 		if newDepth <= 0 {
-			score = -child.quiescence(-rbeta, -(rbeta - 1), 1)
+			score = -child.quiescence(-beta, -(beta - 1), 1)
 		} else {
-			score = -child.alphaBeta(-rbeta, -(rbeta - 1), newDepth)
+			score = -child.alphaBeta(-beta, -(beta - 1), newDepth)
 		}
-		if score >= rbeta && score < valueWin {
+		if score >= beta && score < valueWin {
 			return beta
 		}
 	}
@@ -339,7 +338,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 		if position.MakeMove(move, &child.position) {
 			moveCount++
 			if !isCheck && !danger && !child.position.IsCheck() &&
-				eval+moveValue(move)+PawnValue <= alpha {
+				eval+moveValue(move)+2*PawnValue <= alpha {
 				continue
 			}
 			var score = -child.quiescence(-beta, -alpha, depth-1)

@@ -39,6 +39,7 @@ var (
 	pstKingEndgame         = score{0, 1000}
 	kingAttack             = score{700, 0}
 	bishopMob              = score{35, 35}
+	bishopPawnsOnColor     = score{-400, -600}
 	rookMob                = score{25, 50}
 	rook7Th                = score{3000, 0}
 	rookOpen               = score{2000, 0}
@@ -177,6 +178,12 @@ func Evaluate(p *Position) int {
 			wattackTot += kingAttackUnitBishop
 			wattackNb++
 		}
+
+		if IsDarkSquare(sq) {
+			score.AddN(bishopPawnsOnColor, PopCount(p.Pawns&p.White&darkSquares)-4)
+		} else {
+			score.AddN(bishopPawnsOnColor, PopCount(p.Pawns&p.White&^darkSquares)-4)
+		}
 	}
 
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
@@ -187,6 +194,12 @@ func Evaluate(p *Position) int {
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
 			battackNb++
+		}
+
+		if IsDarkSquare(sq) {
+			score.AddN(bishopPawnsOnColor, 4-PopCount(p.Pawns&p.Black&darkSquares))
+		} else {
+			score.AddN(bishopPawnsOnColor, 4-PopCount(p.Pawns&p.Black&^darkSquares))
 		}
 	}
 

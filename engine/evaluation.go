@@ -48,6 +48,7 @@ var (
 	minorOnStrongField     = score{2000, 0}
 	pawnIsolated           = score{-1500, -1000}
 	pawnDoubled            = score{-1000, -1000}
+	pawnBackward           = score{-1000, -1000}
 	pawnCenter             = score{1500, 0}
 	pawnPassedAdvanceBonus = score{400, 800}
 	pawnPassedFreeBonus    = score{0, 100}
@@ -138,6 +139,10 @@ func Evaluate(p *Position) int {
 	if (b & FileEMask) != 0 {
 		score.Sub(pawnCenter)
 	}
+
+	score.AddN(pawnBackward,
+		PopCount(p.Pawns&p.White&^AllWhitePawnAttacks(p.Pawns&p.White)&^FileFill(p.Pawns&p.Black))-
+			PopCount(p.Pawns&p.Black&^AllBlackPawnAttacks(p.Pawns&p.Black)&^FileFill(p.Pawns&p.White)))
 
 	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
 	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns

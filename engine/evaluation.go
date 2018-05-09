@@ -11,6 +11,11 @@ type score struct {
 	endgame int32
 }
 
+func (l *score) AddInt(v int) {
+	l.midgame += int32(v)
+	l.endgame += int32(v)
+}
+
 func (l *score) Add(r score) {
 	l.midgame += r.midgame
 	l.endgame += r.endgame
@@ -27,7 +32,6 @@ func (l *score) AddN(r score, n int) {
 }
 
 var (
-	materialPawn           = score{10000, 11000}
 	materialKnight         = score{40000, 40000}
 	materialBishop         = score{40000, 40000}
 	materialRook           = score{60000, 60000}
@@ -101,6 +105,7 @@ var (
 	kingZone        [64]uint64
 	bishopMobility  []int
 	rookMobility    []int
+	pawnMaterial    []int
 )
 
 func Evaluate(p *Position) int {
@@ -338,7 +343,7 @@ func Evaluate(p *Position) int {
 	score.AddN(minorOnStrongField, PopCount(wMinorOnStrongFields)-
 		PopCount(bMinorOnStrongFields))
 
-	score.AddN(materialPawn, wp-bp)
+	score.AddInt(pawnMaterial[Min(wp, 8)] - pawnMaterial[Min(bp, 8)])
 	score.AddN(materialKnight, wn-bn)
 	score.AddN(materialBishop, wb-bb)
 	score.AddN(materialRook, wr-br)
@@ -477,6 +482,19 @@ func initProgressionSum(size int, ratio float64, min, max int) []int {
 	return result
 }
 
+func initProgressionSum2(n, first, last int) []int {
+	var q = math.Pow(float64(last)/float64(first), 1/float64(n-1))
+	var result = make([]int, n+1)
+	var item = float64(first)
+	var sum = item
+	for i := 1; i <= n; i++ {
+		result[i] = int(sum)
+		item *= q
+		sum += item
+	}
+	return result
+}
+
 func init() {
 	for i := 0; i < 64; i++ {
 		for j := 0; j < 64; j++ {
@@ -503,4 +521,5 @@ func init() {
 	}
 	bishopMobility = initProgressionSum(13+1, 0.25, -100, 100)
 	rookMobility = initProgressionSum(14+1, 0.25, -100, 100)
+	pawnMaterial = initProgressionSum2(8, 20000, 10000)
 }

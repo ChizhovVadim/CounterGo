@@ -78,14 +78,15 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 }
 
 func TestEval(t *testing.T) {
+	var e = NewEvaluator()
 	for _, test := range testFENs {
 		var p1, err = NewPositionFromFEN(test)
 		if err != nil {
 			t.Error(err)
 		}
-		var score1 = Evaluate(&p1)
+		var score1 = e.Evaluate(&p1)
 		var p2 = MirrorPosition(&p1)
-		var score2 = Evaluate(&p2)
+		var score2 = e.Evaluate(&p2)
 		if score1 != score2 {
 			t.Error(test, p2.String(), score1, score2)
 		}

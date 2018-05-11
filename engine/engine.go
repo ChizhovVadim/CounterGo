@@ -14,7 +14,7 @@ type Engine struct {
 	ClearTransTable    bool
 	historyTable       historyTable
 	transTable         TransTable
-	evaluate           evaluate
+	evaluator          Evaluator
 	historyKeys        map[uint64]int
 	timeManager        *timeManager
 	tree               [][maxHeight + 1]node
@@ -35,7 +35,9 @@ type node struct {
 	buffer2              [MaxMoves]orderedMove
 }
 
-type evaluate func(p *Position) int
+type Evaluator interface {
+	Evaluate(p *Position) int
+}
 
 type TransTable interface {
 	Megabytes() int
@@ -76,9 +78,8 @@ func (e *Engine) Prepare() {
 	if e.lateMoveReduction == nil {
 		e.lateMoveReduction = lmrTwo
 	}
-	if e.evaluate == nil {
-		e.evaluate = Evaluate
-		//e.evaluate = evalCacheDecorator(Evaluate)
+	if e.evaluator == nil {
+		e.evaluator = NewEvaluator()
 	}
 }
 

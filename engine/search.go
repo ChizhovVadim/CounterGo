@@ -243,7 +243,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 
 				if depth <= 2 {
 					if staticEval == valueInfinity {
-						staticEval = engine.evaluate(position)
+						staticEval = engine.evaluator.Evaluate(position)
 					}
 					if staticEval+PawnValue <= alpha {
 						continue
@@ -317,7 +317,7 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {
-		eval = engine.evaluate(position)
+		eval = engine.evaluator.Evaluate(position)
 		if eval > alpha {
 			alpha = eval
 		}

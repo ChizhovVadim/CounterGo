@@ -1,6 +1,6 @@
 package engine
 
-import (
+/*import (
 	"sync/atomic"
 
 	"github.com/ChizhovVadim/CounterGo/common"
@@ -25,4 +25,4 @@ func evalCacheDecorator(evaluate evaluate) evaluate {
 		atomic.StoreUint64(entry, (p.Key&KeyMask)|uint64(eval+EvalZero))
 		return eval
 	}
-}
+}*/

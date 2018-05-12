@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"math"
-
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
@@ -28,6 +26,7 @@ func (l *score) AddN(r score, n int) {
 
 type evaluator struct {
 	sideToMoveBonus        int
+	materialPawn           int
 	materialKnight         int
 	materialBishop         int
 	materialRook           int
@@ -36,7 +35,6 @@ type evaluator struct {
 	bishopMobility         []score
 	rookMobility           []score
 	pstKing                []score
-	pawnMaterial           []int
 	pstKnight              score
 	pstQueen               score
 	kingAttack             score
@@ -60,15 +58,15 @@ type evaluator struct {
 func NewEvaluator() *evaluator {
 	return &evaluator{
 		sideToMoveBonus:        14,
+		materialPawn:           100,
 		materialKnight:         400,
 		materialBishop:         400,
 		materialRook:           600,
 		materialQueen:          1200,
 		materialBishopPair:     score{15, 40},
-		bishopMobility:         initMobility(13, -35, -35, 35, 35, 0.25),
-		rookMobility:           initMobility(14, -25, -50, 25, 50, 0.25),
+		bishopMobility:         initMobility(13, -35, -35, 35, 35),
+		rookMobility:           initMobility(14, -25, -50, 25, 50),
 		pstKing:                initPstKing(-20, 10),
-		pawnMaterial:           initProgressionSum2(8, 150, 100),
 		pstKnight:              score{10, 10},
 		pstQueen:               score{0, 6},
 		kingAttack:             score{7, 0},
@@ -378,8 +376,8 @@ func (e *evaluator) Evaluate(p *Position) int {
 	var phase = matIndexWhite + matIndexBlack
 	var result = (int(score.midgame)*phase + int(score.endgame)*(64-phase)) / 64
 
-	result += e.pawnMaterial[Min(wp, 8)] - e.pawnMaterial[Min(bp, 8)]
-	result += e.materialKnight*(wn-bn) +
+	result += e.materialPawn*(wp-bp) +
+		e.materialKnight*(wn-bn) +
 		e.materialBishop*(wb-bb) +
 		e.materialRook*(wr-br) +
 		e.materialQueen*(wq-bq)
@@ -492,32 +490,12 @@ func shelterBKingSquare(p *Position, square int) int {
 	return Max(0, penalty-1)
 }
 
-func initMobility(maxMob, minMg, minEg, maxMg, maxEg int, ratio float64) []score {
-	var q = math.Pow(ratio, 1/float64(maxMob-1))
-	var b1 = (1 - q) / (1 - math.Pow(q, float64(maxMob)))
-
+func initMobility(maxMob, minMg, minEg, maxMg, maxEg int) []score {
 	var result = make([]score, 1+maxMob)
-	var sum = 0.0
 	for i := range result {
-		if i > 0 {
-			sum = b1 * (1 - math.Pow(q, float64(i))) / (1 - q)
-		}
-		var mg = float64(minMg) + float64(maxMg-minMg)*sum
-		var eg = float64(minEg) + float64(maxEg-minEg)*sum
+		var mg = lirp(i, 0, maxMob, minMg, maxMg)
+		var eg = lirp(i, 0, maxMob, minEg, maxEg)
 		result[i] = score{int32(mg), int32(eg)}
-	}
-	return result
-}
-
-func initProgressionSum2(n, first, last int) []int {
-	var q = math.Pow(float64(last)/float64(first), 1/float64(n-1))
-	var result = make([]int, n+1)
-	var item = float64(first)
-	var sum = item
-	for i := 1; i <= n; i++ {
-		result[i] = int(sum)
-		item *= q
-		sum += item
 	}
 	return result
 }
@@ -528,6 +506,15 @@ func initPstKing(kingCentreOpening, kingCentreEndgame int) []score {
 		pstKing[sq] = score{int32(kingCentreOpening * center_k[sq]), int32(kingCentreEndgame * center[sq])}
 	}
 	return pstKing
+}
+
+func lirp(x, x_min, x_max, y_min, y_max int) int {
+	if x > x_max {
+		x = x_max
+	} else if x < x_min {
+		x = x_min
+	}
+	return ((y_max-y_min)*(x-x_min)+(x_max-x_min)/2)/(x_max-x_min) + y_min
 }
 
 func init() {

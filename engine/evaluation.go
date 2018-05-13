@@ -25,12 +25,6 @@ func (l *score) AddN(r score, n int) {
 }
 
 type evaluator struct {
-	sideToMoveBonus        int
-	materialPawn           int
-	materialKnight         int
-	materialBishop         int
-	materialRook           int
-	materialQueen          int
 	materialBishopPair     score
 	bishopMobility         []score
 	rookMobility           []score
@@ -38,7 +32,6 @@ type evaluator struct {
 	pstKnight              score
 	pstQueen               score
 	kingAttack             score
-	bishopPawnsOnColor     score
 	rook7Th                score
 	rookOpen               score
 	rookSemiopen           score
@@ -46,7 +39,6 @@ type evaluator struct {
 	minorOnStrongField     score
 	pawnIsolated           score
 	pawnDoubled            score
-	pawnBackward           score
 	pawnCenter             score
 	pawnPassedAdvanceBonus score
 	pawnPassedFreeBonus    score
@@ -57,28 +49,20 @@ type evaluator struct {
 
 func NewEvaluator() *evaluator {
 	return &evaluator{
-		sideToMoveBonus:        14,
-		materialPawn:           100,
-		materialKnight:         400,
-		materialBishop:         400,
-		materialRook:           600,
-		materialQueen:          1200,
-		materialBishopPair:     score{15, 40},
-		bishopMobility:         initMobility(13, -35, -35, 35, 35),
-		rookMobility:           initMobility(14, -25, -50, 25, 50),
+		materialBishopPair:     score{50, 50},
+		bishopMobility:         initMobility(13, -30, -30, 35, 35),
+		rookMobility:           initMobility(14, -14, -28, 14, 28),
 		pstKing:                initPstKing(-20, 10),
 		pstKnight:              score{10, 10},
 		pstQueen:               score{0, 6},
 		kingAttack:             score{7, 0},
-		bishopPawnsOnColor:     score{-4, -6},
-		rook7Th:                score{30, 0},
-		rookOpen:               score{20, 0},
-		rookSemiopen:           score{10, 0},
+		rook7Th:                score{20, 40},
+		rookOpen:               score{20, 20},
+		rookSemiopen:           score{10, 10},
 		kingPawnShiled:         score{-10, 0},
 		minorOnStrongField:     score{20, 0},
-		pawnIsolated:           score{-15, -10},
-		pawnDoubled:            score{-10, -10},
-		pawnBackward:           score{-10, -10},
+		pawnIsolated:           score{-10, -20},
+		pawnDoubled:            score{-10, -20},
 		pawnCenter:             score{15, 0},
 		pawnPassedAdvanceBonus: score{4, 8},
 		pawnPassedFreeBonus:    score{0, 1},
@@ -168,10 +152,6 @@ func (e *evaluator) Evaluate(p *Position) int {
 		score.Sub(e.pawnCenter)
 	}
 
-	score.AddN(e.pawnBackward,
-		PopCount(p.Pawns&p.White&^AllWhitePawnAttacks(p.Pawns&p.White)&^FileFill(p.Pawns&p.Black))-
-			PopCount(p.Pawns&p.Black&^AllBlackPawnAttacks(p.Pawns&p.Black)&^FileFill(p.Pawns&p.White)))
-
 	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
 	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns
 	score.AddN(e.threat, PopCount(wStrongAttacks)-PopCount(bStrongAttacks))
@@ -211,12 +191,6 @@ func (e *evaluator) Evaluate(p *Position) int {
 			wattackTot += kingAttackUnitBishop
 			wattackNb++
 		}
-
-		if IsDarkSquare(sq) {
-			score.AddN(e.bishopPawnsOnColor, PopCount(p.Pawns&p.White&darkSquares)-4)
-		} else {
-			score.AddN(e.bishopPawnsOnColor, PopCount(p.Pawns&p.White&^darkSquares)-4)
-		}
 	}
 
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
@@ -227,12 +201,6 @@ func (e *evaluator) Evaluate(p *Position) int {
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
 			battackNb++
-		}
-
-		if IsDarkSquare(sq) {
-			score.AddN(e.bishopPawnsOnColor, 4-PopCount(p.Pawns&p.Black&darkSquares))
-		} else {
-			score.AddN(e.bishopPawnsOnColor, 4-PopCount(p.Pawns&p.Black&^darkSquares))
 		}
 	}
 
@@ -305,9 +273,6 @@ func (e *evaluator) Evaluate(p *Position) int {
 	score.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
 		battackTot*limitValue(battackNb-1, 0, 3))
 
-	var matIndexWhite = Min(32, (wn+wb)*3+wr*5+wq*10)
-	var matIndexBlack = Min(32, (bn+bb)*3+br*5+bq*10)
-
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
 		bonus = pawnPassedBonus[Rank(sq)]
@@ -318,7 +283,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 			score.AddN(e.pawnPassedFreeBonus, bonus)
 		}
 
-		if matIndexBlack == 0 {
+		if bn+bb+br+bq == 0 {
 			var f1 = sq
 			if !p.WhiteMove {
 				f1 -= 8
@@ -339,7 +304,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 			score.AddN(e.pawnPassedFreeBonus, -bonus)
 		}
 
-		if matIndexWhite == 0 {
+		if wn+wb+wr+wq == 0 {
 			var f1 = sq
 			if p.WhiteMove {
 				f1 += 8
@@ -373,14 +338,11 @@ func (e *evaluator) Evaluate(p *Position) int {
 		score.Sub(e.materialBishopPair)
 	}
 
-	var phase = matIndexWhite + matIndexBlack
-	var result = (int(score.midgame)*phase + int(score.endgame)*(64-phase)) / 64
+	var phase = Min(24, wn+bn+wb+bb+2*(wr+br)+4*(wq+bq))
+	var result = (int(score.midgame)*phase + int(score.endgame)*(24-phase)) / 24
 
-	result += e.materialPawn*(wp-bp) +
-		e.materialKnight*(wn-bn) +
-		e.materialBishop*(wb-bb) +
-		e.materialRook*(wr-br) +
-		e.materialQueen*(wq-bq)
+	var pm = 2*(wn-bn+wb-bb) + 3*(wr-br) + 6*(wq-bq)
+	result += 100*(wp-bp) + 150*pm + 50*limitValue(pm, -1, 1)
 
 	if wp == 0 && result > 0 {
 		if wn+wb <= 1 && wr+wq == 0 {
@@ -411,10 +373,6 @@ func (e *evaluator) Evaluate(p *Position) int {
 
 	if !p.WhiteMove {
 		result = -result
-	}
-
-	if !p.IsCheck() {
-		result += e.sideToMoveBonus
 	}
 
 	return result
@@ -463,6 +421,8 @@ func shelterWKingSquare(p *Position, square int) int {
 		if (mask & Rank2Mask) != 0 {
 		} else if (mask & Rank3Mask) != 0 {
 			penalty += 1
+		} else if (mask & Rank4Mask) != 0 {
+			penalty += 2
 		} else {
 			penalty += 3
 		}
@@ -483,6 +443,8 @@ func shelterBKingSquare(p *Position, square int) int {
 		if (mask & Rank7Mask) != 0 {
 		} else if (mask & Rank6Mask) != 0 {
 			penalty += 1
+		} else if (mask & Rank5Mask) != 0 {
+			penalty += 2
 		} else {
 			penalty += 3
 		}
@@ -538,7 +500,7 @@ func init() {
 		blackPawnSquare[sq] = x
 	}
 	for sq := range kingZone {
-		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), limitValue(Rank(sq), Rank2, Rank7))
+		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), Rank(sq))
 		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
 	}
 }

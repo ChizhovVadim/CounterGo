@@ -79,7 +79,7 @@ func (e *Engine) Prepare() {
 		e.lateMoveReduction = lmrTwo
 	}
 	if e.evaluator == nil {
-		e.evaluator = NewEvaluator()
+		e.evaluator = NewEvaluationService()
 	}
 }
 

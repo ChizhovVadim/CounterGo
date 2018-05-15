@@ -19,21 +19,27 @@ type UciEngine interface {
 	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
 }
 
+type Evaluator interface {
+	Evaluate(p *common.Position) int
+}
+
 type UciProtocol struct {
 	commands  map[string]func()
 	messages  chan interface{}
 	engine    UciEngine
+	evaluator Evaluator
 	positions []common.Position
 	cancel    context.CancelFunc
 	fields    []string
 	state     func(msg interface{})
 }
 
-func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
+func NewUciProtocol(uciEngine UciEngine, evaluator Evaluator) *UciProtocol {
 	var initPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
 	var uci = &UciProtocol{
 		messages:  make(chan interface{}),
 		engine:    uciEngine,
+		evaluator: evaluator,
 		positions: []common.Position{initPosition},
 	}
 	uci.commands = map[string]func(){
@@ -50,6 +56,7 @@ func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 		// My commands
 		"epd":   uci.epdCommand,
 		"arena": uci.arenaCommand,
+		"eval":  uci.evalCommand,
 	}
 	return uci
 }
@@ -320,4 +327,9 @@ func (uci *UciProtocol) epdCommand() {
 
 func (uci *UciProtocol) arenaCommand() {
 	RunTournament()
+}
+
+func (uci *UciProtocol) evalCommand() {
+	var p = &uci.positions[len(uci.positions)-1]
+	uci.evaluator.Evaluate(p)
 }

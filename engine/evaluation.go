@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
@@ -24,8 +26,9 @@ func (l *score) AddN(r score, n int) {
 	l.endgame += r.endgame * int32(n)
 }
 
-type evaluator struct {
-	materialBishopPair     score
+type evaluationService struct {
+	TraceEnabled           bool
+	bishopPair             int
 	bishopMobility         []score
 	rookMobility           []score
 	pstKing                []score
@@ -44,12 +47,12 @@ type evaluator struct {
 	pawnPassedFreeBonus    score
 	pawnPassedKingDistance score
 	pawnPassedSquare       score
-	threat                 score
+	threat                 int
 }
 
-func NewEvaluator() *evaluator {
-	return &evaluator{
-		materialBishopPair:     score{50, 50},
+func NewEvaluationService() *evaluationService {
+	return &evaluationService{
+		bishopPair:             50,
 		bishopMobility:         initMobility(13, -30, -30, 35, 35),
 		rookMobility:           initMobility(14, -14, -28, 14, 28),
 		pstKing:                initPstKing(-20, 10),
@@ -68,7 +71,7 @@ func NewEvaluator() *evaluator {
 		pawnPassedFreeBonus:    score{0, 1},
 		pawnPassedKingDistance: score{0, 1},
 		pawnPassedSquare:       score{0, 33},
-		threat:                 score{50, 50},
+		threat:                 50,
 	}
 }
 
@@ -115,12 +118,12 @@ var (
 	kingZone        [64]uint64
 )
 
-func (e *evaluator) Evaluate(p *Position) int {
+func (e *evaluationService) Evaluate(p *Position) int {
 	var (
 		x, b                                         uint64
 		sq, keySq, bonus                             int
 		wn, bn, wb, bb, wr, br, wq, bq               int
-		score                                        score
+		pieceScore, kingScore, pawnScore             score
 		wattackTot, wattackNb, battackTot, battackNb int
 	)
 	var allPieces = p.White | p.Black
@@ -129,32 +132,32 @@ func (e *evaluator) Evaluate(p *Position) int {
 	var wp = PopCount(p.Pawns & p.White)
 	var bp = PopCount(p.Pawns & p.Black)
 
-	score.AddN(e.pawnIsolated,
+	pawnScore.AddN(e.pawnIsolated,
 		PopCount(getIsolatedPawns(p.Pawns&p.White))-
 			PopCount(getIsolatedPawns(p.Pawns&p.Black)))
 
-	score.AddN(e.pawnDoubled,
+	pawnScore.AddN(e.pawnDoubled,
 		PopCount(getDoubledPawns(p.Pawns&p.White))-
 			PopCount(getDoubledPawns(p.Pawns&p.Black)))
 
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
-		score.Add(e.pawnCenter)
+		pawnScore.Add(e.pawnCenter)
 	}
 	if (b & FileEMask) != 0 {
-		score.Add(e.pawnCenter)
+		pawnScore.Add(e.pawnCenter)
 	}
 	b = p.Pawns & p.Black & (Rank5Mask | Rank4Mask | Rank3Mask)
 	if (b & FileDMask) != 0 {
-		score.Sub(e.pawnCenter)
+		pawnScore.Sub(e.pawnCenter)
 	}
 	if (b & FileEMask) != 0 {
-		score.Sub(e.pawnCenter)
+		pawnScore.Sub(e.pawnCenter)
 	}
 
 	var wStrongAttacks = AllWhitePawnAttacks(p.Pawns&p.White) & p.Black &^ p.Pawns
 	var bStrongAttacks = AllBlackPawnAttacks(p.Pawns&p.Black) & p.White &^ p.Pawns
-	score.AddN(e.threat, PopCount(wStrongAttacks)-PopCount(bStrongAttacks))
+	var threatScore = e.threat * (PopCount(wStrongAttacks) - PopCount(bStrongAttacks))
 
 	var wkingZone = kingZone[wkingSq]
 	var bkingZone = kingZone[bkingSq]
@@ -165,7 +168,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
 		sq = FirstOne(x)
-		score.AddN(e.pstKnight, center[sq])
+		pieceScore.AddN(e.pstKnight, center[sq])
 		if (KnightAttacks[sq] & bkingZone) != 0 {
 			wattackTot += kingAttackUnitKnight
 			wattackNb++
@@ -175,7 +178,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
 		bn++
 		sq = FirstOne(x)
-		score.AddN(e.pstKnight, -center[sq])
+		pieceScore.AddN(e.pstKnight, -center[sq])
 		if (KnightAttacks[sq] & wkingZone) != 0 {
 			battackTot += kingAttackUnitKnight
 			battackNb++
@@ -186,7 +189,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 		wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
+		pieceScore.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitBishop
 			wattackNb++
@@ -197,7 +200,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 		bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
-		score.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
+		pieceScore.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
 			battackNb++
@@ -209,10 +212,10 @@ func (e *evaluator) Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		if Rank(sq) == Rank7 &&
 			((p.Pawns&p.Black&Rank7Mask) != 0 || Rank(bkingSq) == Rank8) {
-			score.Add(e.rook7Th)
+			pieceScore.Add(e.rook7Th)
 		}
 		b = RookAttacks(sq, allPieces)
-		score.Add(e.rookMobility[PopCount(b&wMobilityArea)])
+		pieceScore.Add(e.rookMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitRook
 			wattackNb++
@@ -220,9 +223,9 @@ func (e *evaluator) Evaluate(p *Position) int {
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
 			if (b & p.Pawns) == 0 {
-				score.Add(e.rookOpen)
+				pieceScore.Add(e.rookOpen)
 			} else {
-				score.Add(e.rookSemiopen)
+				pieceScore.Add(e.rookSemiopen)
 			}
 		}
 	}
@@ -232,10 +235,10 @@ func (e *evaluator) Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		if Rank(sq) == Rank2 &&
 			((p.Pawns&p.White&Rank2Mask) != 0 || Rank(wkingSq) == Rank1) {
-			score.Sub(e.rook7Th)
+			pieceScore.Sub(e.rook7Th)
 		}
 		b = RookAttacks(sq, allPieces)
-		score.Sub(e.rookMobility[PopCount(b&bMobilityArea)])
+		pieceScore.Sub(e.rookMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitRook
 			battackNb++
@@ -243,9 +246,9 @@ func (e *evaluator) Evaluate(p *Position) int {
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
 			if (b & p.Pawns) == 0 {
-				score.Sub(e.rookOpen)
+				pieceScore.Sub(e.rookOpen)
 			} else {
-				score.Sub(e.rookSemiopen)
+				pieceScore.Sub(e.rookSemiopen)
 			}
 		}
 	}
@@ -253,7 +256,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 	for x = p.Queens & p.White; x != 0; x &= x - 1 {
 		wq++
 		sq = FirstOne(x)
-		score.AddN(e.pstQueen, center[sq])
+		pieceScore.AddN(e.pstQueen, center[sq])
 		if (QueenAttacks(sq, allPieces) & bkingZone) != 0 {
 			wattackTot += kingAttackUnitQueen
 			wattackNb++
@@ -263,24 +266,24 @@ func (e *evaluator) Evaluate(p *Position) int {
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
 		bq++
 		sq = FirstOne(x)
-		score.AddN(e.pstQueen, -center[sq])
+		pieceScore.AddN(e.pstQueen, -center[sq])
 		if (QueenAttacks(sq, allPieces) & wkingZone) != 0 {
 			battackTot += kingAttackUnitQueen
 			battackNb++
 		}
 	}
 
-	score.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
+	kingScore.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
 		battackTot*limitValue(battackNb-1, 0, 3))
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
 		bonus = pawnPassedBonus[Rank(sq)]
-		score.AddN(e.pawnPassedAdvanceBonus, bonus)
+		pawnScore.AddN(e.pawnPassedAdvanceBonus, bonus)
 		keySq = sq + 8
-		score.AddN(e.pawnPassedKingDistance, bonus*(dist[keySq][bkingSq]*2-dist[keySq][wkingSq]))
+		pawnScore.AddN(e.pawnPassedKingDistance, bonus*(dist[keySq][bkingSq]*2-dist[keySq][wkingSq]))
 		if (SquareMask[keySq] & p.Black) == 0 {
-			score.AddN(e.pawnPassedFreeBonus, bonus)
+			pawnScore.AddN(e.pawnPassedFreeBonus, bonus)
 		}
 
 		if bn+bb+br+bq == 0 {
@@ -289,7 +292,7 @@ func (e *evaluator) Evaluate(p *Position) int {
 				f1 -= 8
 			}
 			if (whitePawnSquare[f1] & p.Kings & p.Black) == 0 {
-				score.AddN(e.pawnPassedSquare, Rank(f1))
+				pawnScore.AddN(e.pawnPassedSquare, Rank(f1))
 			}
 		}
 	}
@@ -297,11 +300,11 @@ func (e *evaluator) Evaluate(p *Position) int {
 	for x = getBlackPassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
 		bonus = pawnPassedBonus[Rank(FlipSquare(sq))]
-		score.AddN(e.pawnPassedAdvanceBonus, -bonus)
+		pawnScore.AddN(e.pawnPassedAdvanceBonus, -bonus)
 		keySq = sq - 8
-		score.AddN(e.pawnPassedKingDistance, -bonus*(dist[keySq][wkingSq]*2-dist[keySq][bkingSq]))
+		pawnScore.AddN(e.pawnPassedKingDistance, -bonus*(dist[keySq][wkingSq]*2-dist[keySq][bkingSq]))
 		if (SquareMask[keySq] & p.White) == 0 {
-			score.AddN(e.pawnPassedFreeBonus, -bonus)
+			pawnScore.AddN(e.pawnPassedFreeBonus, -bonus)
 		}
 
 		if wn+wb+wr+wq == 0 {
@@ -310,14 +313,14 @@ func (e *evaluator) Evaluate(p *Position) int {
 				f1 += 8
 			}
 			if (blackPawnSquare[f1] & p.Kings & p.White) == 0 {
-				score.AddN(e.pawnPassedSquare, -Rank(FlipSquare(f1)))
+				pawnScore.AddN(e.pawnPassedSquare, -Rank(FlipSquare(f1)))
 			}
 		}
 	}
 
-	score.AddN(e.kingPawnShiled, shelterWKingSquare(p, wkingSq)-shelterBKingSquare(p, bkingSq))
-	score.Add(e.pstKing[wkingSq])
-	score.Sub(e.pstKing[FlipSquare(bkingSq)])
+	kingScore.AddN(e.kingPawnShiled, shelterWKingSquare(p, wkingSq)-shelterBKingSquare(p, bkingSq))
+	kingScore.Add(e.pstKing[wkingSq])
+	kingScore.Sub(e.pstKing[FlipSquare(bkingSq)])
 
 	var wStrongFields = AllWhitePawnAttacks(p.Pawns&p.White) &^
 		DownFill(AllBlackPawnAttacks(p.Pawns&p.Black)) & 0xffffffff00000000
@@ -328,21 +331,23 @@ func (e *evaluator) Evaluate(p *Position) int {
 	var wMinorOnStrongFields = wStrongFields & (p.Knights | p.Bishops) & p.White
 	var bMinorOnStrongFields = bStrongFields & (p.Knights | p.Bishops) & p.Black
 
-	score.AddN(e.minorOnStrongField, PopCount(wMinorOnStrongFields)-
+	pieceScore.AddN(e.minorOnStrongField, PopCount(wMinorOnStrongFields)-
 		PopCount(bMinorOnStrongFields))
 
-	if wb >= 2 {
-		score.Add(e.materialBishopPair)
-	}
-	if bb >= 2 {
-		score.Sub(e.materialBishopPair)
-	}
-
 	var phase = Min(24, wn+bn+wb+bb+2*(wr+br)+4*(wq+bq))
-	var result = (int(score.midgame)*phase + int(score.endgame)*(24-phase)) / 24
+	var result = (int(pieceScore.midgame+pawnScore.midgame+kingScore.midgame)*phase +
+		int(pieceScore.endgame+pawnScore.endgame+kingScore.endgame)*(24-phase)) / 24
 
 	var pm = 2*(wn-bn+wb-bb) + 3*(wr-br) + 6*(wq-bq)
-	result += 100*(wp-bp) + 150*pm + 50*limitValue(pm, -1, 1)
+	var materialScore = 100*(wp-bp) + 150*pm + 50*limitValue(pm, -1, 1)
+	if wb >= 2 {
+		materialScore += e.bishopPair
+	}
+	if bb >= 2 {
+		materialScore -= e.bishopPair
+	}
+	result += materialScore
+	result += threatScore
 
 	if wp == 0 && result > 0 {
 		if wn+wb <= 1 && wr+wq == 0 {
@@ -369,6 +374,15 @@ func (e *evaluator) Evaluate(p *Position) int {
 		(p.Bishops&darkSquares) != 0 &&
 		(p.Bishops & ^darkSquares) != 0 {
 		result /= 2
+	}
+
+	if e.TraceEnabled {
+		fmt.Println("Pawns:", pawnScore)
+		fmt.Println("Pieces:", pieceScore)
+		fmt.Println("King:", kingScore)
+		fmt.Println("Material:", materialScore)
+		fmt.Println("Threats:", threatScore)
+		fmt.Println("TOTAL:", result)
 	}
 
 	if !p.WhiteMove {

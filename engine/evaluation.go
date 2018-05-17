@@ -28,6 +28,7 @@ func (l *score) AddN(r score, n int) {
 
 type evaluationService struct {
 	TraceEnabled           bool
+	experimentSettings     bool
 	bishopPair             int
 	bishopMobility         []score
 	rookMobility           []score
@@ -41,6 +42,7 @@ type evaluationService struct {
 	kingPawnShiled         score
 	minorOnStrongField     score
 	pawnIsolated           score
+	pawnBackward           score
 	pawnDoubled            score
 	pawnCenter             score
 	pawnPassedAdvanceBonus score
@@ -65,6 +67,7 @@ func NewEvaluationService() *evaluationService {
 		kingPawnShiled:         score{-10, 0},
 		minorOnStrongField:     score{20, 0},
 		pawnIsolated:           score{-10, -20},
+		pawnBackward:           score{-10, -20},
 		pawnDoubled:            score{-10, -20},
 		pawnCenter:             score{15, 0},
 		pawnPassedAdvanceBonus: score{4, 8},
@@ -139,6 +142,10 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	pawnScore.AddN(e.pawnDoubled,
 		PopCount(getDoubledPawns(p.Pawns&p.White))-
 			PopCount(getDoubledPawns(p.Pawns&p.Black)))
+
+	pawnScore.AddN(e.pawnBackward,
+		PopCount(getWhiteBackwardPawns(p))-
+			PopCount(getBlackBackwardPawns(p)))
 
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
@@ -411,15 +418,43 @@ func getIsolatedPawns(pawns uint64) uint64 {
 }
 
 func getWhitePassedPawns(p *Position) uint64 {
-	var allFrontSpans = DownFill(Down(p.Black & p.Pawns))
-	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
-	return p.White & p.Pawns &^ allFrontSpans
+	return p.Pawns & p.White &^
+		DownFill(Down(Left(p.Pawns&p.Black)|p.Pawns|Right(p.Pawns&p.Black)))
 }
 
 func getBlackPassedPawns(p *Position) uint64 {
-	var allFrontSpans = UpFill(Up(p.White & p.Pawns))
-	allFrontSpans |= Right(allFrontSpans) | Left(allFrontSpans)
-	return p.Black & p.Pawns &^ allFrontSpans
+	return p.Pawns & p.Black &^
+		UpFill(Up(Left(p.Pawns&p.White)|p.Pawns|Right(p.Pawns&p.White)))
+}
+
+func getWhiteBackwardPawns(p *Position) uint64 {
+	var ownPawns = p.Pawns & p.White
+	var safe = ^AllBlackPawnAttacks(p.Pawns & p.Black)
+	var forward = ownPawns
+	for {
+		var next = forward | (Up(forward) & safe)
+		if next == forward {
+			break
+		}
+		forward = next
+	}
+	return ownPawns &^ DownFill((Left(ownPawns)|Right(ownPawns))&forward) &
+		DownFill(Down(Left(ownPawns)|Right(ownPawns)))
+}
+
+func getBlackBackwardPawns(p *Position) uint64 {
+	var ownPawns = p.Pawns & p.Black
+	var safe = ^AllWhitePawnAttacks(p.Pawns & p.White)
+	var forward = ownPawns
+	for {
+		var next = forward | (Down(forward) & safe)
+		if next == forward {
+			break
+		}
+		forward = next
+	}
+	return ownPawns &^ UpFill((Left(ownPawns)|Right(ownPawns))&forward) &
+		UpFill(Up(Left(ownPawns)|Right(ownPawns)))
 }
 
 func shelterWKingSquare(p *Position, square int) int {
@@ -491,6 +526,18 @@ func lirp(x, x_min, x_max, y_min, y_max int) int {
 		x = x_min
 	}
 	return ((y_max-y_min)*(x-x_min)+(x_max-x_min)/2)/(x_max-x_min) + y_min
+}
+
+func BitboardToString(b uint64) string {
+	result := ""
+	for x := b; x != 0; x &= x - 1 {
+		sq := FirstOne(x)
+		if result != "" {
+			result += ","
+		}
+		result += SquareName(sq)
+	}
+	return result
 }
 
 func init() {

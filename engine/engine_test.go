@@ -95,9 +95,9 @@ func TestEval(t *testing.T) {
 
 func TestEval2(t *testing.T) {
 	var e = NewEvaluationService()
+	e.TraceEnabled = true
 	var p, _ = NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")
-	var score = e.Evaluate(&p)
-	t.Log(score)
+	e.Evaluate(&p)
 }
 
 var testFENs = []string{

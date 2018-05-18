@@ -26,6 +26,10 @@ func (l *score) AddN(r score, n int) {
 	l.endgame += r.endgame * int32(n)
 }
 
+func (s *score) Mix(phase int) int {
+	return (int(s.midgame)*phase + int(s.endgame)*(maxPhase-phase)) / maxPhase
+}
+
 type evaluationService struct {
 	TraceEnabled           bool
 	experimentSettings     bool
@@ -60,7 +64,7 @@ func NewEvaluationService() *evaluationService {
 		pstKing:                initPstKing(-20, 10),
 		pstKnight:              score{10, 10},
 		pstQueen:               score{0, 6},
-		kingAttack:             score{7, 0},
+		kingAttack:             score{5, 0},
 		rook7Th:                score{20, 40},
 		rookOpen:               score{20, 20},
 		rookSemiopen:           score{10, 10},
@@ -80,6 +84,7 @@ func NewEvaluationService() *evaluationService {
 
 const PawnValue = 100
 const darkSquares uint64 = 0xAA55AA55AA55AA55
+const maxPhase = 24
 
 var (
 	center = [64]int{
@@ -108,9 +113,9 @@ var (
 )
 
 const (
-	kingAttackUnitKnight = 2
-	kingAttackUnitBishop = 2
-	kingAttackUnitRook   = 3
+	kingAttackUnitKnight = 1
+	kingAttackUnitBishop = 1
+	kingAttackUnitRook   = 2
 	kingAttackUnitQueen  = 4
 )
 
@@ -143,10 +148,6 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	pawnScore.AddN(e.pawnDoubled,
 		PopCount(getDoubledPawns(p.Pawns&p.White))-
 			PopCount(getDoubledPawns(p.Pawns&p.Black)))
-
-	pawnScore.AddN(e.pawnBackward,
-		PopCount(getWhiteBackwardPawns(p))-
-			PopCount(getBlackBackwardPawns(p)))
 
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
@@ -293,8 +294,17 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	kingScore.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
-		battackTot*limitValue(battackNb-1, 0, 3))
+	if wattackNb == 1 {
+		wattackNb = 0
+	} else if wattackNb > 4 {
+		wattackNb = 4
+	}
+	if battackNb == 1 {
+		battackNb = 0
+	} else if battackNb > 4 {
+		battackNb = 4
+	}
+	kingScore.AddN(e.kingAttack, wattackTot*wattackNb-battackTot*battackNb)
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
@@ -354,12 +364,18 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	pieceScore.AddN(e.minorOnStrongField, PopCount(wMinorOnStrongFields)-
 		PopCount(bMinorOnStrongFields))
 
-	var phase = Min(24, wn+bn+wb+bb+2*(wr+br)+4*(wq+bq))
-	var result = (int(pieceScore.midgame+pawnScore.midgame+kingScore.midgame)*phase +
-		int(pieceScore.endgame+pawnScore.endgame+kingScore.endgame)*(24-phase)) / 24
+	var phase = wn + bn + wb + bb + 2*(wr+br) + 4*(wq+bq)
+	if phase > maxPhase {
+		phase = maxPhase
+	}
 
-	var pm = 2*(wn-bn+wb-bb) + 3*(wr-br) + 6*(wq-bq)
-	var materialScore = 100*(wp-bp) + 150*pm + 50*limitValue(pm, -1, 1)
+	var total = pawnScore
+	total.Add(pieceScore)
+	total.Add(kingScore)
+	var result = total.Mix(phase)
+
+	var pieceBalance = 2*(wn-bn+wb-bb) + 3*(wr-br) + 6*(wq-bq)
+	var materialScore = 100*(wp-bp) + 150*pieceBalance + 50*limitValue(pieceBalance, -1, 1)
 	if wb >= 2 {
 		materialScore += e.bishopPair
 	}
@@ -397,9 +413,9 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	}
 
 	if e.TraceEnabled {
-		fmt.Println("Pawns:", pawnScore)
-		fmt.Println("Pieces:", pieceScore)
-		fmt.Println("King:", kingScore)
+		fmt.Println("Pawns:", pawnScore.Mix(phase))
+		fmt.Println("Pieces:", pieceScore.Mix(phase))
+		fmt.Println("King:", kingScore.Mix(phase))
 		fmt.Println("Material:", materialScore)
 		fmt.Println("Threats:", threatScore)
 		fmt.Println("TOTAL:", result)
@@ -574,7 +590,6 @@ func init() {
 		blackPawnSquare[sq] = x
 	}
 	for sq := range kingZone {
-		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), Rank(sq))
-		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
+		kingZone[sq] = SquareMask[sq] | KingAttacks[sq]
 	}
 }

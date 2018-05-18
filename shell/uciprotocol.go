@@ -57,6 +57,7 @@ func NewUciProtocol(uciEngine UciEngine, evaluator Evaluator) *UciProtocol {
 		"epd":   uci.epdCommand,
 		"arena": uci.arenaCommand,
 		"eval":  uci.evalCommand,
+		"move":  uci.moveCommand,
 	}
 	return uci
 }
@@ -332,4 +333,35 @@ func (uci *UciProtocol) arenaCommand() {
 func (uci *UciProtocol) evalCommand() {
 	var p = &uci.positions[len(uci.positions)-1]
 	uci.evaluator.Evaluate(p)
+}
+
+func (uci *UciProtocol) moveCommand() {
+	if len(uci.fields) == 0 {
+		return
+	}
+	var newPos, ok = uci.positions[len(uci.positions)-1].MakeMoveLAN(uci.fields[0])
+	if !ok {
+		debugUci("Wrong move")
+		return
+	}
+	uci.positions = append(uci.positions, newPos)
+
+	var searchParams = common.SearchParams{
+		Positions: uci.positions,
+		Limits:    common.LimitsType{MoveTime: 3000},
+		Progress: func(si common.SearchInfo) {
+			if si.Time >= 500 || si.Depth >= 5 {
+				PrintSearchInfo(si)
+			}
+		},
+	}
+	var searchResult = uci.engine.Search(context.Background(), searchParams)
+	if len(searchResult.MainLine) == 0 {
+		return
+	}
+	var child common.Position
+	newPos.MakeMove(searchResult.MainLine[0], &child)
+	uci.positions = append(uci.positions, child)
+	PrintPosition(&child)
+	fmt.Println(&child)
 }

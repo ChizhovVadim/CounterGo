@@ -128,6 +128,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wn, bn, wb, bb, wr, br, wq, bq               int
 		pieceScore, kingScore, pawnScore             score
 		wattackTot, wattackNb, battackTot, battackNb int
+		wpieceAttacks, bpieceAttacks                 uint64
 	)
 	var allPieces = p.White | p.Black
 	var wkingSq = FirstOne(p.Kings & p.White)
@@ -176,7 +177,9 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wn++
 		sq = FirstOne(x)
 		pieceScore.AddN(e.pstKnight, center[sq])
-		if (KnightAttacks[sq] & bkingZone) != 0 {
+		b = KnightAttacks[sq]
+		wpieceAttacks |= b
+		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitKnight
 			wattackNb++
 		}
@@ -186,7 +189,9 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		bn++
 		sq = FirstOne(x)
 		pieceScore.AddN(e.pstKnight, -center[sq])
-		if (KnightAttacks[sq] & wkingZone) != 0 {
+		b = KnightAttacks[sq]
+		bpieceAttacks |= b
+		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitKnight
 			battackNb++
 		}
@@ -196,6 +201,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
+		wpieceAttacks |= b
 		pieceScore.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitBishop
@@ -207,6 +213,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		bb++
 		sq = FirstOne(x)
 		b = BishopAttacks(sq, allPieces)
+		bpieceAttacks |= b
 		pieceScore.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitBishop
@@ -222,6 +229,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 			pieceScore.Add(e.rook7Th)
 		}
 		b = RookAttacks(sq, allPieces)
+		wpieceAttacks |= b
 		pieceScore.Add(e.rookMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitRook
@@ -245,6 +253,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 			pieceScore.Sub(e.rook7Th)
 		}
 		b = RookAttacks(sq, allPieces)
+		bpieceAttacks |= b
 		pieceScore.Sub(e.rookMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitRook
@@ -264,7 +273,9 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wq++
 		sq = FirstOne(x)
 		pieceScore.AddN(e.pstQueen, center[sq])
-		if (QueenAttacks(sq, allPieces) & bkingZone) != 0 {
+		b = QueenAttacks(sq, allPieces)
+		wpieceAttacks |= b
+		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitQueen
 			wattackNb++
 		}
@@ -274,7 +285,9 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		bq++
 		sq = FirstOne(x)
 		pieceScore.AddN(e.pstQueen, -center[sq])
-		if (QueenAttacks(sq, allPieces) & wkingZone) != 0 {
+		b = QueenAttacks(sq, allPieces)
+		bpieceAttacks |= b
+		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitQueen
 			battackNb++
 		}

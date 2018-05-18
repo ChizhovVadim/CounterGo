@@ -14,6 +14,7 @@ Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features
 + `arena` - start tournament against themself
 + `epd [/home/vadim/wac.epd]` - analyze collection of [test chess positions](https://chessprogramming.wikispaces.com/Win+at+Chess)
 + `eval` - trace evaluation function
++ `move e2e4` - play chess with engine in REPL mode
 
 ## Information about chess programming
 + [Chess Programming Wiki](https://chessprogramming.wikispaces.com/)

@@ -105,11 +105,11 @@ func FileFill(gen uint64) uint64 {
 }
 
 func AllWhitePawnAttacks(b uint64) uint64 {
-	return Up(Left(b) | Right(b))
+	return ((b & ^FileAMask) << 7) | ((b & ^FileHMask) << 9)
 }
 
 func AllBlackPawnAttacks(b uint64) uint64 {
-	return Down(Left(b) | Right(b))
+	return ((b & ^FileAMask) >> 9) | ((b & ^FileHMask) >> 7)
 }
 
 func PawnAttacks(from int, side bool) uint64 {

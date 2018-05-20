@@ -79,9 +79,7 @@ func (e *Engine) Prepare() {
 		e.lateMoveReduction = lmrTwo
 	}
 	if e.evaluator == nil {
-		var ev = NewEvaluationService()
-		ev.experimentSettings = e.ExperimentSettings.Value
-		e.evaluator = ev
+		e.evaluator = NewEvaluationService()
 	}
 }
 

@@ -3,6 +3,7 @@ package shell
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/common"
@@ -85,8 +86,20 @@ func RunTournament() {
 
 		fmt.Printf("Engine1: %v Engine2: %v Total games: %v\n",
 			engines[0].wins, engines[1].wins, playedGames)
+		computeStat(engines[1].wins, engines[0].wins, playedGames-engines[1].wins-engines[0].wins)
 	}
 	fmt.Println("Tournament finished.")
+}
+
+//https://chessprogramming.wikispaces.com/Match%20Statistics
+func computeStat(wins, losses, draws int) {
+	var games = wins + losses + draws
+	var winning_fraction = (float64(wins) + 0.5*float64(draws)) / float64(games)
+	var elo_difference = -math.Log(1/winning_fraction-1) * 400 / math.Ln10
+	var los = 0.5 + 0.5*math.Erf(float64(wins-losses)/math.Sqrt(2*float64(wins+losses)))
+	fmt.Printf("Winning fraction: %.1f%%\n", winning_fraction*100)
+	fmt.Printf("Elo difference: %.f\n", elo_difference)
+	fmt.Printf("LOS: %.1f%%\n", los*100)
 }
 
 func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {

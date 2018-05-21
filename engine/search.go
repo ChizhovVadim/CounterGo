@@ -245,7 +245,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 					if staticEval == valueInfinity {
 						staticEval = engine.evaluator.Evaluate(position)
 					}
-					if staticEval+PawnValue <= alpha {
+					if staticEval+PawnValue*depth <= alpha {
 						continue
 					}
 				}

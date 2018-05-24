@@ -33,7 +33,12 @@ func (s *score) Mix(phase int) int {
 type evaluationService struct {
 	TraceEnabled           bool
 	experimentSettings     bool
-	bishopPair             int
+	materialPawn           score
+	materialKnight         score
+	materialBishop         score
+	materialRook           score
+	materialQueen          score
+	bishopPair             score
 	bishopMobility         [1 + 13]score
 	rookMobility           [1 + 14]score
 	pstKnight              [64]score
@@ -52,51 +57,39 @@ type evaluationService struct {
 	pawnPassedFreeBonus    score
 	pawnPassedKingDistance score
 	pawnPassedSquare       score
-	threat                 int
+	threat                 score
 }
 
 func NewEvaluationService() *evaluationService {
 	var srv = &evaluationService{
-		bishopPair:             50,
+		materialPawn:           score{100, 110},
+		materialKnight:         score{400, 400},
+		materialBishop:         score{400, 400},
+		materialRook:           score{600, 600},
+		materialQueen:          score{1200, 1200},
+		bishopPair:             score{15, 40},
 		kingAttack:             score{5, 0},
-		rook7Th:                score{20, 40},
-		rookOpen:               score{20, 20},
-		rookSemiopen:           score{10, 10},
+		rook7Th:                score{30, 0},
+		rookOpen:               score{20, 0},
+		rookSemiopen:           score{10, 0},
 		kingPawnShiled:         score{-10, 0},
 		minorOnStrongField:     score{20, 0},
-		pawnIsolated:           score{-10, -20},
-		pawnDoubled:            score{-10, -20},
+		pawnIsolated:           score{-15, -10},
+		pawnDoubled:            score{-10, -10},
 		pawnCenter:             score{15, 0},
 		pawnPassedAdvanceBonus: score{4, 8},
 		pawnPassedFreeBonus:    score{0, 1},
 		pawnPassedKingDistance: score{0, 1},
 		pawnPassedSquare:       score{0, 33},
-		threat:                 50,
+		threat:                 score{50, 50},
 	}
-	const (
-		queenCenterEndgame = 6
-		kingCenterOpening  = -20
-		kingCenterEndgame  = 10
-	)
-	var (
-		bishopMobility = score{5, 5}
-		rookMobility   = score{2, 4}
-		knightCenter   = [7]score{
-			score{-50, -50}, score{-35, -35}, score{-20, -20},
-			score{-5, -5}, score{5, 5}, score{10, 10}, score{15, 15},
-		}
-	)
 	for sq := 0; sq < 64; sq++ {
-		srv.pstKnight[sq] = knightCenter[center[sq]+3]
-		srv.pstQueen[sq].endgame += int32(queenCenterEndgame * center[sq])
-		srv.pstKing[sq] = score{int32(kingCenterOpening * center_k[sq]), int32(kingCenterEndgame * center[sq])}
+		srv.pstKnight[sq].AddN(score{10, 10}, center[sq])
+		srv.pstQueen[sq].AddN(score{0, 6}, center[sq])
+		srv.pstKing[sq] = score{int32(-20 * center_k[sq]), int32(10 * center[sq])}
 	}
-	for m := range srv.bishopMobility {
-		srv.bishopMobility[m].AddN(bishopMobility, m-6)
-	}
-	for m := range srv.rookMobility {
-		srv.rookMobility[m].AddN(rookMobility, m-7)
-	}
+	initProgressionSum(srv.bishopMobility[:], 0.25, score{-35, -35}, score{35, 35})
+	initProgressionSum(srv.rookMobility[:], 0.25, score{-25, -50}, score{25, 50})
 	return srv
 }
 
@@ -131,10 +124,10 @@ var (
 )
 
 const (
-	kingAttackUnitKnight = 1
-	kingAttackUnitBishop = 1
-	kingAttackUnitRook   = 2
-	kingAttackUnitQueen  = 4
+	kingAttackUnitKnight = 2
+	kingAttackUnitBishop = 2
+	kingAttackUnitRook   = 3
+	kingAttackUnitQueen  = 6
 )
 
 var (
@@ -184,8 +177,10 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	var wpawnAttacks = AllWhitePawnAttacks(p.Pawns & p.White)
 	var bpawnAttacks = AllBlackPawnAttacks(p.Pawns & p.Black)
 
-	var threatScore = e.threat * (PopCount(wpawnAttacks&p.Black&^p.Pawns) -
-		PopCount(bpawnAttacks&p.White&^p.Pawns))
+	var threatScore score
+	threatScore.AddN(e.threat,
+		PopCount(wpawnAttacks&p.Black&^p.Pawns)-
+			PopCount(bpawnAttacks&p.White&^p.Pawns))
 
 	var wkingZone = kingZone[wkingSq]
 	var bkingZone = kingZone[bkingSq]
@@ -244,7 +239,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 			((p.Pawns&p.Black&Rank7Mask) != 0 || Rank(bkingSq) == Rank8) {
 			pieceScore.Add(e.rook7Th)
 		}
-		b = RookAttacks(sq, allPieces)
+		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
+		//b = RookAttacks(sq, allPieces)
 		pieceScore.Add(e.rookMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackTot += kingAttackUnitRook
@@ -267,7 +263,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 			((p.Pawns&p.White&Rank2Mask) != 0 || Rank(wkingSq) == Rank1) {
 			pieceScore.Sub(e.rook7Th)
 		}
-		b = RookAttacks(sq, allPieces)
+		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
+		//b = RookAttacks(sq, allPieces)
 		pieceScore.Sub(e.rookMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackTot += kingAttackUnitRook
@@ -305,17 +302,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	if wattackNb == 1 {
-		wattackNb = 0
-	} else if wattackNb > 4 {
-		wattackNb = 4
-	}
-	if battackNb == 1 {
-		battackNb = 0
-	} else if battackNb > 4 {
-		battackNb = 4
-	}
-	kingScore.AddN(e.kingAttack, wattackTot*wattackNb-battackTot*battackNb)
+	kingScore.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
+		battackTot*limitValue(battackNb-1, 0, 3))
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
@@ -372,21 +360,25 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		phase = maxPhase
 	}
 
+	var materialScore score
+	materialScore.AddN(e.materialPawn, wp-bp)
+	materialScore.AddN(e.materialKnight, wn-bn)
+	materialScore.AddN(e.materialBishop, wb-bb)
+	materialScore.AddN(e.materialRook, wr-br)
+	materialScore.AddN(e.materialQueen, wq-bq)
+	if wb >= 2 {
+		materialScore.Add(e.bishopPair)
+	}
+	if bb >= 2 {
+		materialScore.Sub(e.bishopPair)
+	}
+
 	var total = pawnScore
 	total.Add(pieceScore)
 	total.Add(kingScore)
+	total.Add(materialScore)
+	total.Add(threatScore)
 	var result = total.Mix(phase)
-
-	var pieceBalance = 2*(wn-bn+wb-bb) + 3*(wr-br) + 6*(wq-bq)
-	var materialScore = 100*(wp-bp) + 150*pieceBalance + 50*limitValue(pieceBalance, -1, 1)
-	if wb >= 2 {
-		materialScore += e.bishopPair
-	}
-	if bb >= 2 {
-		materialScore -= e.bishopPair
-	}
-	result += materialScore
-	result += threatScore
 
 	if wp == 0 && result > 0 {
 		if wn+wb <= 1 && wr+wq == 0 {
@@ -419,8 +411,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		fmt.Println("Pawns:", pawnScore.Mix(phase))
 		fmt.Println("Pieces:", pieceScore.Mix(phase))
 		fmt.Println("King:", kingScore.Mix(phase))
-		fmt.Println("Material:", materialScore)
-		fmt.Println("Threats:", threatScore)
+		fmt.Println("Material:", materialScore.Mix(phase))
+		fmt.Println("Threats:", threatScore.Mix(phase))
 		fmt.Println("TOTAL:", result)
 	}
 
@@ -472,8 +464,6 @@ func shelterWKingSquare(p *Position, square int) int {
 		if (mask & Rank2Mask) != 0 {
 		} else if (mask & Rank3Mask) != 0 {
 			penalty += 1
-		} else if (mask & Rank4Mask) != 0 {
-			penalty += 2
 		} else {
 			penalty += 3
 		}
@@ -494,8 +484,6 @@ func shelterBKingSquare(p *Position, square int) int {
 		if (mask & Rank7Mask) != 0 {
 		} else if (mask & Rank6Mask) != 0 {
 			penalty += 1
-		} else if (mask & Rank5Mask) != 0 {
-			penalty += 2
 		} else {
 			penalty += 3
 		}
@@ -524,6 +512,23 @@ func BitboardToString(b uint64) string {
 	return result
 }
 
+func initProgressionSum(source []score, ratio float64, min, max score) {
+	var n = len(source) - 1
+	var a1 = 2 / ((1 + ratio) * float64(n))
+	var an = a1 * ratio
+	var d = (an - a1) / float64(n-1)
+
+	source[0] = min
+	source[n] = max
+	for i := 1; i < n; i++ {
+		var sum = (a1 + 0.5*d*float64(i-1)) * float64(i)
+		source[i] = score{
+			midgame: min.midgame + int32(float64(max.midgame-min.midgame)*sum),
+			endgame: min.endgame + int32(float64(max.endgame-min.endgame)*sum),
+		}
+	}
+}
+
 func init() {
 	for i := 0; i < 64; i++ {
 		for j := 0; j < 64; j++ {
@@ -545,6 +550,7 @@ func init() {
 		blackPawnSquare[sq] = x
 	}
 	for sq := range kingZone {
-		kingZone[sq] = SquareMask[sq] | KingAttacks[sq]
+		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), limitValue(Rank(sq), Rank2, Rank7))
+		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
 	}
 }

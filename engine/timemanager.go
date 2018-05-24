@@ -87,7 +87,7 @@ func NewTimeManager(ctx context.Context, limits LimitsType,
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 	const (
-		MovesToGo       = 50
+		MovesToGo       = 35
 		LastMoveReserve = 300
 	)
 
@@ -100,7 +100,7 @@ func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 		maxLimit = Min(maxLimit, main/2+inc)
 	}
 
-	var safeMoves = float64(moves) * (2 - float64(moves)/MovesToGo)
+	var safeMoves = 1 + float64(moves-1)*1.41
 	softLimit = int(float64(main)/safeMoves) + inc
 	hardLimit = softLimit * 4
 

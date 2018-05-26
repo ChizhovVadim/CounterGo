@@ -101,6 +101,22 @@ func TestEval2(t *testing.T) {
 	e.Evaluate(&p)
 }
 
+func TestTimeControl(t *testing.T) {
+	var time = 60 * 1000
+	var moves = 40
+	for moves > 0 {
+		var soft, hard = timeControlSmart(time, 0, moves)
+		if soft <= 1 || hard <= 1 {
+			t.Fatal(time, moves, soft, hard)
+		}
+		moves--
+		time -= hard
+		if time < 0 {
+			t.Fatal("Timeout")
+		}
+	}
+}
+
 var testFENs = []string{
 	// Initial position
 	"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

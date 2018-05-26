@@ -95,7 +95,8 @@ func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 		moves = MovesToGo
 	}
 
-	var maxLimit = main - LastMoveReserve
+	main = Max(1, main-LastMoveReserve)
+	var maxLimit = main
 	if moves > 1 {
 		maxLimit = Min(maxLimit, main/2+inc)
 	}

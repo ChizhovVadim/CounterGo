@@ -35,6 +35,12 @@ type node struct {
 	buffer2              [MaxMoves]orderedMove
 }
 
+type HistoryTable interface {
+	Clear()
+	Update(side bool, bestMove Move, quietsSearched []Move, depth int)
+	Score(side bool, move Move) int
+}
+
 type Evaluator interface {
 	Evaluate(p *Position) int
 }

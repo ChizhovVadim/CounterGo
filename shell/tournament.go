@@ -107,7 +107,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 	var timeControl = struct {
 		main, inc, moves int
 		//}{60 * Second, 1 * Second, 0}
-	}{60 * Second, 0 * Second, 40}
+	}{30 * Second, 0 * Second, 40}
 	var positions = []common.Position{initialPosition}
 	var limits = common.LimitsType{
 		WhiteTime: timeControl.main,

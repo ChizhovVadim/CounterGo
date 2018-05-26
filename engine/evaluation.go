@@ -67,13 +67,13 @@ func NewEvaluationService() *evaluationService {
 		materialBishop:         score{400, 400},
 		materialRook:           score{600, 600},
 		materialQueen:          score{1200, 1200},
-		bishopPair:             score{15, 40},
+		bishopPair:             score{25, 50},
 		kingAttack:             score{5, 0},
 		rook7Th:                score{30, 0},
 		rookOpen:               score{20, 0},
 		rookSemiopen:           score{10, 0},
 		kingPawnShiled:         score{-10, 0},
-		minorOnStrongField:     score{20, 0},
+		minorOnStrongField:     score{20, 15},
 		pawnIsolated:           score{-15, -10},
 		pawnDoubled:            score{-10, -10},
 		pawnCenter:             score{15, 0},
@@ -94,7 +94,11 @@ func NewEvaluationService() *evaluationService {
 }
 
 const PawnValue = 100
-const darkSquares uint64 = 0xAA55AA55AA55AA55
+const (
+	darkSquares uint64 = 0xAA55AA55AA55AA55
+	centerC4_F6        = (Rank4Mask | Rank5Mask | Rank6Mask) & (FileCMask | FileDMask | FileEMask | FileFMask)
+	centerC3_F5        = (Rank3Mask | Rank4Mask | Rank5Mask) & (FileCMask | FileDMask | FileEMask | FileFMask)
+)
 const maxPhase = 24
 
 var (
@@ -352,13 +356,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	kingScore.Sub(e.pstKing[FlipSquare(bkingSq)])
 
 	pieceScore.AddN(e.minorOnStrongField,
-		PopCount((p.Knights|p.Bishops)&p.White&0xffffffff00000000&wpawnAttacks&^DownFill(bpawnAttacks))-
-			PopCount((p.Knights|p.Bishops)&p.Black&0x00000000ffffffff&bpawnAttacks&^UpFill(wpawnAttacks)))
-
-	var phase = wn + bn + wb + bb + 2*(wr+br) + 4*(wq+bq)
-	if phase > maxPhase {
-		phase = maxPhase
-	}
+		PopCount((p.Knights|p.Bishops)&p.White&centerC4_F6&wpawnAttacks&^DownFill(bpawnAttacks))-
+			PopCount((p.Knights|p.Bishops)&p.Black&centerC3_F5&bpawnAttacks&^UpFill(wpawnAttacks)))
 
 	var materialScore score
 	materialScore.AddN(e.materialPawn, wp-bp)
@@ -378,6 +377,11 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	total.Add(kingScore)
 	total.Add(materialScore)
 	total.Add(threatScore)
+
+	var phase = wn + bn + wb + bb + 2*(wr+br) + 4*(wq+bq)
+	if phase > maxPhase {
+		phase = maxPhase
+	}
 	var result = total.Mix(phase)
 
 	if wp == 0 && result > 0 {
@@ -408,12 +412,13 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	}
 
 	if e.TraceEnabled {
-		fmt.Println("Pawns:", pawnScore.Mix(phase))
-		fmt.Println("Pieces:", pieceScore.Mix(phase))
-		fmt.Println("King:", kingScore.Mix(phase))
-		fmt.Println("Material:", materialScore.Mix(phase))
-		fmt.Println("Threats:", threatScore.Mix(phase))
-		fmt.Println("TOTAL:", result)
+		fmt.Println("Pawns:", pawnScore)
+		fmt.Println("Pieces:", pieceScore)
+		fmt.Println("King:", kingScore)
+		fmt.Println("Material:", materialScore)
+		fmt.Println("Threats:", threatScore)
+		fmt.Println("Total:", total)
+		fmt.Println("Total Evaluation:", result)
 	}
 
 	if !p.WhiteMove {
@@ -453,10 +458,10 @@ func getBlackPassedPawns(p *Position) uint64 {
 
 func shelterWKingSquare(p *Position, square int) int {
 	var file = File(square)
-	if file == FileA {
-		file++
-	} else if file == FileH {
-		file--
+	if file <= FileC {
+		file = FileB
+	} else if file >= FileF {
+		file = FileG
 	}
 	var penalty = 0
 	for i := 0; i < 3; i++ {
@@ -473,10 +478,10 @@ func shelterWKingSquare(p *Position, square int) int {
 
 func shelterBKingSquare(p *Position, square int) int {
 	var file = File(square)
-	if file == FileA {
-		file++
-	} else if file == FileH {
-		file--
+	if file <= FileC {
+		file = FileB
+	} else if file >= FileF {
+		file = FileG
 	}
 	var penalty = 0
 	for i := 0; i < 3; i++ {

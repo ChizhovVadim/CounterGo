@@ -44,7 +44,6 @@ type evaluationService struct {
 	pstKnight              [64]score
 	pstQueen               [64]score
 	pstKing                [64]score
-	kingAttack             score
 	rook7Th                score
 	rookOpen               score
 	rookSemiopen           score
@@ -62,13 +61,12 @@ type evaluationService struct {
 
 func NewEvaluationService() *evaluationService {
 	var srv = &evaluationService{
-		materialPawn:           score{100, 110},
-		materialKnight:         score{400, 400},
-		materialBishop:         score{400, 400},
-		materialRook:           score{600, 600},
-		materialQueen:          score{1200, 1200},
+		materialPawn:           score{95, 110},
+		materialKnight:         score{380, 400},
+		materialBishop:         score{380, 400},
+		materialRook:           score{570, 600},
+		materialQueen:          score{1140, 1200},
 		bishopPair:             score{25, 50},
-		kingAttack:             score{5, 0},
 		rook7Th:                score{30, 0},
 		rookOpen:               score{20, 0},
 		rookSemiopen:           score{10, 0},
@@ -125,13 +123,12 @@ var (
 	}
 
 	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
-)
 
-const (
-	kingAttackUnitKnight = 2
-	kingAttackUnitBishop = 2
-	kingAttackUnitRook   = 3
-	kingAttackUnitQueen  = 6
+	king_tropism_n = [8]int{3, 3, 3, 2, 1, 0, 0, 0}
+	king_tropism_q = [8]int{6, 6, 5, 4, 3, 2, 2, 2}
+	tropism_vector = [16]int{
+		0, 1, 2, 3, 4, 5, 11, 20,
+		32, 47, 65, 86, 110, 137, 167, 200}
 )
 
 var (
@@ -143,11 +140,11 @@ var (
 
 func (e *evaluationService) Evaluate(p *Position) int {
 	var (
-		x, b                                         uint64
-		sq, keySq, bonus                             int
-		wn, bn, wb, bb, wr, br, wq, bq               int
-		pieceScore, kingScore, pawnScore             score
-		wattackTot, wattackNb, battackTot, battackNb int
+		x, b                             uint64
+		sq, keySq, bonus                 int
+		wn, bn, wb, bb, wr, br, wq, bq   int
+		pieceScore, kingScore, pawnScore score
+		wtropism, btropism               int
 	)
 	var allPieces = p.White | p.Black
 	var wkingSq = FirstOne(p.Kings & p.White)
@@ -196,22 +193,14 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wn++
 		sq = FirstOne(x)
 		pieceScore.Add(e.pstKnight[sq])
-		b = KnightAttacks[sq]
-		if (b & bkingZone) != 0 {
-			wattackTot += kingAttackUnitKnight
-			wattackNb++
-		}
+		wtropism += king_tropism_n[dist[sq][bkingSq]]
 	}
 
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
 		bn++
 		sq = FirstOne(x)
 		pieceScore.Sub(e.pstKnight[sq])
-		b = KnightAttacks[sq]
-		if (b & wkingZone) != 0 {
-			battackTot += kingAttackUnitKnight
-			battackNb++
-		}
+		btropism += king_tropism_n[dist[sq][wkingSq]]
 	}
 
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
@@ -220,8 +209,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
-			wattackTot += kingAttackUnitBishop
-			wattackNb++
+			wtropism += 2
 		}
 	}
 
@@ -231,8 +219,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
-			battackTot += kingAttackUnitBishop
-			battackNb++
+			btropism += 2
 		}
 	}
 
@@ -247,8 +234,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		//b = RookAttacks(sq, allPieces)
 		pieceScore.Add(e.rookMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
-			wattackTot += kingAttackUnitRook
-			wattackNb++
+			wtropism += 4
 		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
@@ -271,8 +257,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		//b = RookAttacks(sq, allPieces)
 		pieceScore.Sub(e.rookMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
-			battackTot += kingAttackUnitRook
-			battackNb++
+			btropism += 4
 		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
@@ -288,26 +273,17 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		wq++
 		sq = FirstOne(x)
 		pieceScore.Add(e.pstQueen[sq])
-		b = QueenAttacks(sq, allPieces)
-		if (b & bkingZone) != 0 {
-			wattackTot += kingAttackUnitQueen
-			wattackNb++
-		}
+		wtropism += king_tropism_q[dist[sq][bkingSq]]
 	}
 
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
 		bq++
 		sq = FirstOne(x)
 		pieceScore.Sub(e.pstQueen[sq])
-		b = QueenAttacks(sq, allPieces)
-		if (b & wkingZone) != 0 {
-			battackTot += kingAttackUnitQueen
-			battackNb++
-		}
+		btropism += king_tropism_q[dist[sq][wkingSq]]
 	}
 
-	kingScore.AddN(e.kingAttack, wattackTot*limitValue(wattackNb-1, 0, 3)-
-		battackTot*limitValue(battackNb-1, 0, 3))
+	kingScore.midgame += int32(tropism_vector[Min(15, wtropism)] - tropism_vector[Min(15, btropism)])
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)

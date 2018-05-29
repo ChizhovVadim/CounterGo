@@ -51,6 +51,7 @@ type evaluationService struct {
 	minorOnStrongField     score
 	pawnIsolated           score
 	pawnDoubled            score
+	pawnDoubledIsolated    score
 	pawnCenter             score
 	pawnPassedAdvanceBonus score
 	pawnPassedFreeBonus    score
@@ -74,6 +75,7 @@ func NewEvaluationService() *evaluationService {
 		minorOnStrongField:     score{20, 15},
 		pawnIsolated:           score{-15, -10},
 		pawnDoubled:            score{-10, -10},
+		pawnDoubledIsolated:    score{-30, -30},
 		pawnCenter:             score{15, 0},
 		pawnPassedAdvanceBonus: score{4, 8},
 		pawnPassedFreeBonus:    score{0, 1},
@@ -87,7 +89,7 @@ func NewEvaluationService() *evaluationService {
 		srv.pstKing[sq] = score{int32(-20 * center_k[sq]), int32(10 * center[sq])}
 	}
 	initProgressionSum(srv.bishopMobility[:], 0.25, score{-35, -35}, score{35, 35})
-	initProgressionSum(srv.rookMobility[:], 0.25, score{-25, -50}, score{25, 50})
+	initProgressionSum(srv.rookMobility[:], 0.25, score{-25, -25}, score{25, 25})
 	return srv
 }
 
@@ -159,6 +161,10 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	pawnScore.AddN(e.pawnDoubled,
 		PopCount(getDoubledPawns(p.Pawns&p.White))-
 			PopCount(getDoubledPawns(p.Pawns&p.Black)))
+
+	pawnScore.AddN(e.pawnDoubledIsolated,
+		PopCount(getIsolatedPawns(p.Pawns&p.White)&getDoubledPawns(p.Pawns&p.White))-
+			PopCount(getIsolatedPawns(p.Pawns&p.Black)&getDoubledPawns(p.Pawns&p.Black)))
 
 	b = p.Pawns & p.White & (Rank4Mask | Rank5Mask | Rank6Mask)
 	if (b & FileDMask) != 0 {
@@ -283,8 +289,6 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		btropism += king_tropism_q[dist[sq][wkingSq]]
 	}
 
-	kingScore.midgame += int32(tropism_vector[Min(15, wtropism)] - tropism_vector[Min(15, btropism)])
-
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
 		bonus = pawnPassedBonus[Rank(sq)]
@@ -327,6 +331,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		}
 	}
 
+	kingScore.midgame += int32(tropism_vector[Min(15, wtropism)] - tropism_vector[Min(15, btropism)])
 	kingScore.AddN(e.kingPawnShiled, shelterWKingSquare(p, wkingSq)-shelterBKingSquare(p, bkingSq))
 	kingScore.Add(e.pstKing[wkingSq])
 	kingScore.Sub(e.pstKing[FlipSquare(bkingSq)])
@@ -491,6 +496,19 @@ func BitboardToString(b uint64) string {
 		result += SquareName(sq)
 	}
 	return result
+}
+
+func initLinear(source []score, min, max score) {
+	var n = len(source) - 1
+
+	source[0] = min
+	source[n] = max
+	for i := 1; i < n; i++ {
+		source[i] = score{
+			midgame: int32(lirp(i, 0, n, int(min.midgame), int(max.midgame))),
+			endgame: int32(lirp(i, 0, n, int(min.endgame), int(max.endgame))),
+		}
+	}
 }
 
 func initProgressionSum(source []score, ratio float64, min, max score) {

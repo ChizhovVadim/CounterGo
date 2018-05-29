@@ -110,3 +110,29 @@ func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
 
 	return
 }
+
+func timeControlMain(main, inc, moves int) (softLimit, hardLimit int) {
+	const (
+		MovesToGo       = 50
+		LastMoveReserve = 300
+	)
+
+	if moves == 0 || moves > MovesToGo {
+		moves = MovesToGo
+	}
+
+	main = Max(1, main-LastMoveReserve)
+	var maxLimit = main
+	if moves > 1 {
+		maxLimit = Min(maxLimit, main/2+inc)
+	}
+
+	var safeMoves = float64(moves) * (2 - float64(moves)/MovesToGo)
+	softLimit = int(float64(main)/safeMoves) + inc
+	hardLimit = softLimit * 4
+
+	softLimit = Max(1, Min(maxLimit, softLimit))
+	hardLimit = Max(1, Min(maxLimit, hardLimit))
+
+	return
+}

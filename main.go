@@ -6,9 +6,6 @@ import (
 )
 
 func main() {
-	var engineService = engine.NewEngine()
-	var evaluationService = engine.NewEvaluationService()
-	evaluationService.TraceEnabled = true
-	var uci = shell.NewUciProtocol(engineService, evaluationService)
+	var uci = shell.NewUciProtocol(engine.NewEngine())
 	uci.Run()
 }

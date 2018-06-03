@@ -22,6 +22,10 @@ func S(op, eg float64) score {
 	return score{int32(op * PawnValue * scoreMult), int32(eg * PawnValue * scoreMult)}
 }
 
+func S1(v float64) score {
+	return S(v, v)
+}
+
 func (s score) String() string {
 	return fmt.Sprint(s.opening/scoreMult, s.endgame/scoreMult)
 }
@@ -77,24 +81,18 @@ type evaluationService struct {
 
 func NewEvaluationService() *evaluationService {
 	const (
-		KnightCenter         = 1.0
-		QueenCenter          = 0.25
-		KingCenterEndgame    = 1.0
-		KingAttack           = 1.6
-		KingPawnShield       = 0.8
-		BishopMobility       = 0.8
-		RookMobility         = 0.5
-		RookDevelopment      = 0.5
-		Threat               = 0.5
-		PawnPassed           = 2.1
-		PawnPassedUnstopable = 2.0
-		PawnWeak             = -0.5
-		UndevelopedPiece     = -0.1
-	)
-	var (
-		KnightLine = [8]int32{-4, -2, 0, 1, 1, 0, -2, -4}
-		QueenLine  = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
-		KingLine   = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
+		PawnWeak          = -0.5
+		PawnPassed        = 2.1
+		KnightCenter      = 1.0
+		BishopMobility    = 0.8
+		RookDevelopment   = 0.5
+		RookMobility      = 0.5
+		QueenCenter       = 0.25
+		KingAttack        = 1.6
+		KingPawnShield    = 0.8
+		KingCenterEndgame = 1.0
+		Threat            = 0.5
+		UndevelopedPiece  = -0.1
 	)
 	var srv = &evaluationService{
 		materialPawn:           S(0.83, 1),
@@ -106,37 +104,73 @@ func NewEvaluationService() *evaluationService {
 		rook7Th:                S(0.3*RookDevelopment, 0.7*RookDevelopment),
 		rookOpen:               S(0.7*RookDevelopment, 0.3*RookDevelopment),
 		rookSemiopen:           S(0.05*RookDevelopment, 0.2*RookDevelopment),
-		pawnIsolated:           S(0.2*PawnWeak, 0.2*PawnWeak),
-		pawnDoubled:            S(0.2*PawnWeak, 0.2*PawnWeak),
-		pawnDoubledIsolated:    S(0.6*PawnWeak, 0.6*PawnWeak),
+		pawnIsolated:           S1(0.2 * PawnWeak),
+		pawnDoubled:            S1(0.2 * PawnWeak),
+		pawnDoubledIsolated:    S1(0.6 * PawnWeak),
 		pawnPassedAdvanceBonus: S(0.4*PawnPassed/float64(pawnPassedBonus[Rank7]), 0.8*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedFreeBonus:    S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedKingDistance: S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
-		pawnPassedSquare:       S(0, PawnPassedUnstopable/6),
+		pawnPassedSquare:       S(0, 2.0/6),
 		kingAttack:             S(KingAttack/(3*kingAttackUnitMax), 0),
 		kingPawnShield:         S(-KingPawnShield/8, 0),
-		threat:                 S(Threat, Threat),
+		threat:                 S1(Threat),
 		undevelopedPiece:       S(UndevelopedPiece, 0),
 	}
+	var (
+		KnightLine = [8]float64{0, 0.6, 0.85, 1}
+		QueenLine  = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
+		KingLine   = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
+	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
+		if f >= FileE {
+			f = FileH - f
+		}
 		var r = Rank(sq)
-		srv.pstKnight[sq] = S(KnightCenter*float64(KnightLine[f]+KnightLine[r])/10,
-			KnightCenter*float64(KnightLine[f]+KnightLine[r])/10)
+		if r >= Rank5 {
+			r = Rank8 - r
+		}
+		srv.pstKnight[sq] = S1(KnightCenter * 0.5 * (KnightLine[f] + KnightLine[r] -
+			KnightLine[FileD] - KnightLine[Rank2])) // Nd2=zero
+
 		srv.pstQueen[sq] = S(0,
 			QueenCenter*float64(QueenLine[f]+QueenLine[r])/8)
 		srv.pstKing[sq] = S(0,
 			KingCenterEndgame*float64(KingLine[f]+KingLine[r])/8)
 	}
+	const (
+		BishopUnit = 6
+		RookUnit   = 7
+	)
+	var kernel = initProgression(len(srv.bishopMobility), 0.25)
 	for m := range srv.bishopMobility {
-		var bonus = math.Sqrt(float64(m)/13) - 0.5
-		srv.bishopMobility[m] = S(BishopMobility*bonus, BishopMobility*bonus)
+		srv.bishopMobility[m] = S1(BishopMobility * (kernel[m] - kernel[BishopUnit]))
 	}
+	kernel = initProgression(len(srv.rookMobility), 0.25)
 	for m := range srv.rookMobility {
-		var bonus = math.Sqrt(float64(m)/14) - 0.5
-		srv.rookMobility[m] = S(RookMobility*bonus, RookMobility*bonus)
+		srv.rookMobility[m] = S1(RookMobility * (kernel[m] - kernel[RookUnit]))
 	}
 	return srv
+}
+
+func NewExperimentEvaluationService() *evaluationService {
+	var srv = NewEvaluationService()
+	srv.experimentSettings = true
+	return srv
+}
+
+func initProgression(len int, ratio float64) []float64 {
+	var result = make([]float64, len)
+	var n = len - 1
+	var q = math.Pow(ratio, 1/float64(n-1))
+	var b = (1 - q) / (1 - math.Pow(q, float64(n)))
+	var sum = 0.0
+	for i := range result {
+		result[i] = sum
+		sum += b
+		b *= q
+	}
+	return result
 }
 
 const (
@@ -196,10 +230,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	var wpawnAttacks = AllWhitePawnAttacks(p.Pawns & p.White)
 	var bpawnAttacks = AllBlackPawnAttacks(p.Pawns & p.Black)
 
-	//var wkingZone = kingZone[wkingSq]
-	//var bkingZone = kingZone[bkingSq]
-	var wkingZone = KingAttacks[wkingSq] | SquareMask[wkingSq]
-	var bkingZone = KingAttacks[bkingSq] | SquareMask[bkingSq]
+	var wkingZone = kingZone[wkingSq]
+	var bkingZone = kingZone[bkingSq]
 
 	if (wpawnAttacks & bkingZone) != 0 {
 		wattackNb++
@@ -575,7 +607,6 @@ func init() {
 		blackPawnSquare[sq] = x
 	}
 	for sq := range kingZone {
-		var keySq = MakeSquare(limitValue(File(sq), FileB, FileG), limitValue(Rank(sq), Rank2, Rank7))
-		kingZone[sq] = SquareMask[keySq] | KingAttacks[keySq]
+		kingZone[sq] = SquareMask[sq] | KingAttacks[sq]
 	}
 }

@@ -63,7 +63,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "2.7", "Vadim Chizhov"
+	return "Counter", "2.8dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -85,9 +85,11 @@ func (e *Engine) Prepare() {
 		e.lateMoveReduction = lmrTwo
 	}
 	if e.evaluator == nil {
-		var ev = NewEvaluationService()
-		ev.experimentSettings = e.ExperimentSettings.Value
-		e.evaluator = ev
+		if e.ExperimentSettings.Value {
+			e.evaluator = NewExperimentEvaluationService()
+		} else {
+			e.evaluator = NewEvaluationService()
+		}
 	}
 }
 

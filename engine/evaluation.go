@@ -88,7 +88,7 @@ func NewEvaluationService() *evaluationService {
 		KnightMobility    = 0.2
 		KnightCenter      = 0.8
 		BishopMobility    = 0.7
-		BishopCenter      = 0.1
+		BishopCenter      = 0.3
 		RookDevelopment   = 0.5
 		RookMobility      = 0.5
 		QueenCenter       = 0.2
@@ -130,7 +130,7 @@ func NewEvaluationService() *evaluationService {
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
 		var r = Rank(sq)
-		srv.pstBishop[sq] = S1(BishopCenter * float64(Min(BishopLine[f], BishopLine[r])))
+		srv.pstBishop[sq] = S1(BishopCenter * float64(Min(BishopLine[f], BishopLine[r])) / 3)
 		srv.pstKnight[sq] = S1(KnightCenter * float64(KnightLine[f]+KnightLine[r]) / 8)
 		srv.pstQueen[sq] = S(0.5*QueenCenter*float64(QueenLine[f]+QueenLine[r])/6,
 			QueenCenter*float64(QueenLine[f]+QueenLine[r])/6)
@@ -149,7 +149,7 @@ func NewEvaluationService() *evaluationService {
 	for m := range srv.rookMobility {
 		srv.rookMobility[m] = S1(RookMobility * (kernel(m) - 0.5))
 	}
-	kernel = initPowerKernel(27, 10)
+	kernel = initPowerKernel(27, 7)
 	for m := range srv.queenMobility {
 		srv.queenMobility[m] = S1(QueenMobility * (kernel(m) - 0.5))
 	}

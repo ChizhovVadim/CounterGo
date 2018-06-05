@@ -316,6 +316,7 @@ func (uci *UciProtocol) epdCommand() {
 	var tests, err = LoadEpdTests(filePath)
 	if err != nil {
 		fmt.Printf("load epd tests failed %v\n", err)
+		return
 	}
 	fmt.Printf("Loaded %v tests\n", len(tests))
 	RunEpdTest(tests, uci.engine, 3000)

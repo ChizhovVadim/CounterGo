@@ -58,9 +58,12 @@ type evaluationService struct {
 	materialRook           score
 	materialQueen          score
 	bishopPair             score
+	knightMobility         [1 + 8]score
 	bishopMobility         [1 + 13]score
 	rookMobility           [1 + 14]score
+	queenMobility          [1 + 27]score
 	pstKnight              [64]score
+	pstBishop              [64]score
 	pstQueen               [64]score
 	pstKing                [64]score
 	rook7Th                score
@@ -76,23 +79,25 @@ type evaluationService struct {
 	kingAttack             score
 	kingPawnShield         score
 	threat                 score
-	undevelopedPiece       score
 }
 
 func NewEvaluationService() *evaluationService {
 	const (
 		PawnWeak          = -0.5
 		PawnPassed        = 2.1
-		KnightCenter      = 1.0
-		BishopMobility    = 0.8
+		KnightMobility    = 0.2
+		KnightCenter      = 0.8
+		BishopMobility    = 0.7
+		BishopCenter      = 0.1
 		RookDevelopment   = 0.5
 		RookMobility      = 0.5
-		QueenCenter       = 0.25
-		KingAttack        = 1.6
+		QueenCenter       = 0.2
+		QueenMobility     = 0.2
+		KingAttack        = 2.0
 		KingPawnShield    = 0.8
+		KingCenterOpening = 0.5
 		KingCenterEndgame = 1.0
 		Threat            = 0.5
-		UndevelopedPiece  = -0.1
 	)
 	var srv = &evaluationService{
 		materialPawn:           S(0.83, 1),
@@ -111,44 +116,42 @@ func NewEvaluationService() *evaluationService {
 		pawnPassedFreeBonus:    S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedKingDistance: S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedSquare:       S(0, 2.0/6),
-		kingAttack:             S(KingAttack/(3*kingAttackUnitMax), 0),
+		kingAttack:             S(KingAttack/kingAttackMax, 0),
 		kingPawnShield:         S(-KingPawnShield/8, 0),
 		threat:                 S1(Threat),
-		undevelopedPiece:       S(UndevelopedPiece, 0),
 	}
 	var (
-		KnightLine = [8]float64{0, 0.6, 0.85, 1}
-		QueenLine  = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
-		KingLine   = [8]int32{-3, -1, 0, 1, 1, 0, -1, -3}
+		BishopLine = [8]int{-1, 0, 1, 2, 2, 1, 0, -1}
+		KnightLine = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
+		QueenLine  = [8]int{-1, 0, 1, 2, 2, 1, 0, -1}
+		KingLine   = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
+		KingFile   = [8]int{3, 4, 2, 0, 0, 2, 4, 3}
 	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
-		if f >= FileE {
-			f = FileH - f
-		}
 		var r = Rank(sq)
-		if r >= Rank5 {
-			r = Rank8 - r
-		}
-		srv.pstKnight[sq] = S1(KnightCenter * 0.5 * (KnightLine[f] + KnightLine[r] -
-			KnightLine[FileD] - KnightLine[Rank2])) // Nd2=zero
-
-		srv.pstQueen[sq] = S(0,
-			QueenCenter*float64(QueenLine[f]+QueenLine[r])/8)
-		srv.pstKing[sq] = S(0,
+		srv.pstBishop[sq] = S1(BishopCenter * float64(Min(BishopLine[f], BishopLine[r])))
+		srv.pstKnight[sq] = S1(KnightCenter * float64(KnightLine[f]+KnightLine[r]) / 8)
+		srv.pstQueen[sq] = S(0.5*QueenCenter*float64(QueenLine[f]+QueenLine[r])/6,
+			QueenCenter*float64(QueenLine[f]+QueenLine[r])/6)
+		srv.pstKing[sq] = S(KingCenterOpening*float64(KingFile[f])/4,
 			KingCenterEndgame*float64(KingLine[f]+KingLine[r])/8)
 	}
-	const (
-		BishopUnit = 6
-		RookUnit   = 7
-	)
-	var kernel = initProgression(len(srv.bishopMobility), 0.25)
-	for m := range srv.bishopMobility {
-		srv.bishopMobility[m] = S1(BishopMobility * (kernel[m] - kernel[BishopUnit]))
+	var kernel = initPowerKernel(8, 3)
+	for m := range srv.knightMobility {
+		srv.knightMobility[m] = S1(KnightMobility * (kernel(m) - 0.5))
 	}
-	kernel = initProgression(len(srv.rookMobility), 0.25)
+	kernel = initPowerKernel(13, 4)
+	for m := range srv.bishopMobility {
+		srv.bishopMobility[m] = S1(BishopMobility * (kernel(m) - 0.5))
+	}
+	kernel = initPowerKernel(14, 5)
 	for m := range srv.rookMobility {
-		srv.rookMobility[m] = S1(RookMobility * (kernel[m] - kernel[RookUnit]))
+		srv.rookMobility[m] = S1(RookMobility * (kernel(m) - 0.5))
+	}
+	kernel = initPowerKernel(27, 10)
+	for m := range srv.queenMobility {
+		srv.queenMobility[m] = S1(QueenMobility * (kernel(m) - 0.5))
 	}
 	return srv
 }
@@ -159,18 +162,12 @@ func NewExperimentEvaluationService() *evaluationService {
 	return srv
 }
 
-func initProgression(len int, ratio float64) []float64 {
-	var result = make([]float64, len)
-	var n = len - 1
-	var q = math.Pow(ratio, 1/float64(n-1))
-	var b = (1 - q) / (1 - math.Pow(q, float64(n)))
-	var sum = 0.0
-	for i := range result {
-		result[i] = sum
-		sum += b
-		b *= q
+func initPowerKernel(fullX, halfX float64) func(int) float64 {
+	var b = math.Log(0.5) / math.Log(halfX/fullX)
+	var a = 1 / math.Pow(fullX, b)
+	return func(x int) float64 {
+		return a * math.Pow(float64(x), b)
 	}
-	return result
 }
 
 const (
@@ -185,9 +182,9 @@ const (
 	kingAttackUnitKnight = 2
 	kingAttackUnitBishop = 2
 	kingAttackUnitRook   = 3
-	kingAttackUnitQueen  = 4
-	kingAttackUnitMax    = kingAttackUnitKnight + kingAttackUnitBishop +
-		kingAttackUnitRook + kingAttackUnitQueen
+	kingAttackUnitQueen  = 6
+	kingAttackMax        = 4 * (kingAttackUnitKnight + kingAttackUnitBishop +
+		kingAttackUnitRook + kingAttackUnitQueen)
 )
 
 var (
@@ -210,10 +207,6 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	var bkingSq = FirstOne(p.Kings & p.Black)
 	var wp = PopCount(p.Pawns & p.White)
 	var bp = PopCount(p.Pawns & p.Black)
-
-	pieceScore.AddN(e.undevelopedPiece,
-		PopCount(getWhiteUndevelopedPieces(p))-
-			PopCount(getBlackUndevelopedPieces(p)))
 
 	pawnScore.AddN(e.pawnIsolated,
 		PopCount(getIsolatedPawns(p.Pawns&p.White))-
@@ -245,14 +238,15 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		PopCount(wpawnAttacks&p.Black&^p.Pawns)-
 			PopCount(bpawnAttacks&p.White&^p.Pawns))
 
-	var wMobilityArea = ^p.White
-	var bMobilityArea = ^p.Black
+	var wMobilityArea = ^((p.Pawns & p.White) | bpawnAttacks)
+	var bMobilityArea = ^((p.Pawns & p.Black) | wpawnAttacks)
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
 		sq = FirstOne(x)
 		pieceScore.Add(e.pstKnight[sq])
 		b = KnightAttacks[sq]
+		pieceScore.Add(e.knightMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackNb++
 			wattackTot += kingAttackUnitKnight
@@ -264,6 +258,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		pieceScore.Sub(e.pstKnight[sq])
 		b = KnightAttacks[sq]
+		pieceScore.Sub(e.knightMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackNb++
 			battackTot += kingAttackUnitKnight
@@ -273,6 +268,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		wb++
 		sq = FirstOne(x)
+		pieceScore.Add(e.pstBishop[sq])
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
@@ -284,6 +280,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
 		bb++
 		sq = FirstOne(x)
+		pieceScore.Sub(e.pstBishop[sq])
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
@@ -345,6 +342,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		pieceScore.Add(e.pstQueen[sq])
 		b = QueenAttacks(sq, allPieces)
+		pieceScore.Add(e.queenMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
 			wattackNb++
 			wattackTot += kingAttackUnitQueen
@@ -356,6 +354,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		sq = FirstOne(x)
 		pieceScore.Sub(e.pstQueen[sq])
 		b = QueenAttacks(sq, allPieces)
+		pieceScore.Sub(e.queenMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
 			battackNb++
 			battackTot += kingAttackUnitQueen
@@ -406,15 +405,12 @@ func (e *evaluationService) Evaluate(p *Position) int {
 
 	kingScore.AddN(e.kingPawnShield, shelterWKingSquare(p, wkingSq)-shelterBKingSquare(p, bkingSq))
 
-	wattackNb = limitValue(wattackNb-1, 0, 3)
-	battackNb = limitValue(battackNb-1, 0, 3)
-	if wattackTot > kingAttackUnitMax {
-		wattackTot = kingAttackUnitMax
+	if wattackNb > 1 {
+		kingScore.AddN(e.kingAttack, Min(wattackNb*wattackTot, kingAttackMax))
 	}
-	if battackTot > kingAttackUnitMax {
-		battackTot = kingAttackUnitMax
+	if battackNb > 1 {
+		kingScore.AddN(e.kingAttack, -Min(battackNb*battackTot, kingAttackMax))
 	}
-	kingScore.AddN(e.kingAttack, wattackNb*wattackTot-battackNb*battackTot)
 
 	kingScore.Add(e.pstKing[wkingSq])
 	kingScore.Sub(e.pstKing[FlipSquare(bkingSq)])
@@ -488,22 +484,6 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	}
 
 	return result
-}
-
-func getWhiteUndevelopedPieces(p *Position) uint64 {
-	var b uint64
-	b |= (p.Knights | p.Bishops | p.Queens) & Rank1Mask
-	b |= p.Pawns & (FileEMask | FileDMask) & Rank2Mask
-	b |= p.Kings & (FileEMask | FileDMask | ^Rank1Mask)
-	return b & p.White
-}
-
-func getBlackUndevelopedPieces(p *Position) uint64 {
-	var b uint64
-	b |= (p.Knights | p.Bishops | p.Queens) & Rank8Mask
-	b |= p.Pawns & (FileEMask | FileDMask) & Rank7Mask
-	b |= p.Kings & (FileEMask | FileDMask | ^Rank8Mask)
-	return b & p.Black
 }
 
 func limitValue(v, min, max int) int {

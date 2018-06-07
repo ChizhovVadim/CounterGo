@@ -66,6 +66,7 @@ type evaluationService struct {
 	pstBishop              [64]score
 	pstQueen               [64]score
 	pstKing                [64]score
+	kingOpeningPenalty     [64]int
 	rook7Th                score
 	rookOpen               score
 	rookSemiopen           score
@@ -76,8 +77,6 @@ type evaluationService struct {
 	pawnPassedFreeBonus    score
 	pawnPassedKingDistance score
 	pawnPassedSquare       score
-	kingAttack             score
-	kingPawnShield         score
 	threat                 score
 }
 
@@ -93,9 +92,6 @@ func NewEvaluationService() *evaluationService {
 		RookMobility      = 0.5
 		QueenCenter       = 0.2
 		QueenMobility     = 0.2
-		KingAttack        = 2.0
-		KingPawnShield    = 0.8
-		KingCenterOpening = 0.5
 		KingCenterEndgame = 1.0
 		Threat            = 0.5
 	)
@@ -116,8 +112,6 @@ func NewEvaluationService() *evaluationService {
 		pawnPassedFreeBonus:    S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedKingDistance: S(0, 0.1*PawnPassed/float64(pawnPassedBonus[Rank7])),
 		pawnPassedSquare:       S(0, 2.0/6),
-		kingAttack:             S(KingAttack/kingAttackMax, 0),
-		kingPawnShield:         S(-KingPawnShield/8, 0),
 		threat:                 S1(Threat),
 	}
 	var (
@@ -125,7 +119,6 @@ func NewEvaluationService() *evaluationService {
 		KnightLine = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
 		QueenLine  = [8]int{-1, 0, 1, 2, 2, 1, 0, -1}
 		KingLine   = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
-		KingFile   = [8]int{3, 4, 2, 0, 0, 2, 4, 3}
 	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
@@ -134,7 +127,7 @@ func NewEvaluationService() *evaluationService {
 		srv.pstKnight[sq] = S1(KnightCenter * float64(KnightLine[f]+KnightLine[r]) / 8)
 		srv.pstQueen[sq] = S(0.5*QueenCenter*float64(QueenLine[f]+QueenLine[r])/6,
 			QueenCenter*float64(QueenLine[f]+QueenLine[r])/6)
-		srv.pstKing[sq] = S(KingCenterOpening*float64(KingFile[f])/4,
+		srv.pstKing[sq] = S(0,
 			KingCenterEndgame*float64(KingLine[f]+KingLine[r])/8)
 	}
 	var kernel = initPowerKernel(8, 3)
@@ -153,6 +146,9 @@ func NewEvaluationService() *evaluationService {
 	for m := range srv.queenMobility {
 		srv.queenMobility[m] = S1(QueenMobility * (kernel(m) - 0.5))
 	}
+	for sq := range srv.kingOpeningPenalty {
+		srv.kingOpeningPenalty[sq] = Min(dist[sq][SquareB1], dist[sq][SquareG1])
+	}
 	return srv
 }
 
@@ -164,9 +160,8 @@ func NewExperimentEvaluationService() *evaluationService {
 
 func initPowerKernel(fullX, halfX float64) func(int) float64 {
 	var b = math.Log(0.5) / math.Log(halfX/fullX)
-	var a = 1 / math.Pow(fullX, b)
 	return func(x int) float64 {
-		return a * math.Pow(float64(x), b)
+		return math.Pow(float64(x)/fullX, b)
 	}
 }
 
@@ -238,8 +233,8 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		PopCount(wpawnAttacks&p.Black&^p.Pawns)-
 			PopCount(bpawnAttacks&p.White&^p.Pawns))
 
-	var wMobilityArea = ^((p.Pawns & p.White) | bpawnAttacks)
-	var bMobilityArea = ^((p.Pawns & p.Black) | wpawnAttacks)
+	var wMobilityArea = p.Black | (^allPieces & ^bpawnAttacks)
+	var bMobilityArea = p.White | (^allPieces & ^wpawnAttacks)
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
@@ -403,17 +398,35 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	kingScore.AddN(e.kingPawnShield, shelterWKingSquare(p, wkingSq)-shelterBKingSquare(p, bkingSq))
-
-	if wattackNb > 1 {
-		kingScore.AddN(e.kingAttack, Min(wattackNb*wattackTot, kingAttackMax))
+	kingScore.endgame += e.pstKing[wkingSq].endgame
+	if (bq > 0 && br+bn+bb > 0) ||
+		(br > 1 && bn+bb > 1) {
+		if battackNb == 1 {
+			battackNb = 0
+		}
+		kingDanger := 15*shelterWKingSquare(p, wkingSq) +
+			10*e.kingOpeningPenalty[wkingSq] +
+			4*battackNb*battackTot
+		if kingDanger > 300 {
+			kingDanger = 300
+		}
+		kingScore.opening -= int32(kingDanger * scoreMult)
 	}
-	if battackNb > 1 {
-		kingScore.AddN(e.kingAttack, -Min(battackNb*battackTot, kingAttackMax))
-	}
 
-	kingScore.Add(e.pstKing[wkingSq])
-	kingScore.Sub(e.pstKing[FlipSquare(bkingSq)])
+	kingScore.endgame -= e.pstKing[FlipSquare(bkingSq)].endgame
+	if (wq > 0 && wr+wn+wb > 0) ||
+		(wr > 1 && wn+wb > 1) {
+		if wattackNb == 1 {
+			wattackNb = 0
+		}
+		kingDanger := 15*shelterBKingSquare(p, bkingSq) +
+			10*e.kingOpeningPenalty[FlipSquare(bkingSq)] +
+			4*wattackNb*wattackTot
+		if kingDanger > 300 {
+			kingDanger = 300
+		}
+		kingScore.opening += int32(kingDanger * scoreMult)
+	}
 
 	var materialScore score
 	materialScore.AddN(e.materialPawn, wp-bp)
@@ -524,14 +537,20 @@ func shelterWKingSquare(p *Position, square int) int {
 	var penalty = 0
 	for i := 0; i < 3; i++ {
 		var mask = FileMask[file+i-1] & p.White & p.Pawns
-		if (mask & Rank2Mask) != 0 {
-		} else if (mask & Rank3Mask) != 0 {
-			penalty += 1
-		} else {
-			penalty += 3
+		if (mask & Rank2Mask) == 0 {
+			penalty++
+			if (mask & Rank3Mask) == 0 {
+				penalty++
+				if mask == 0 {
+					penalty++
+				}
+			}
 		}
 	}
-	return Max(0, penalty-1)
+	if penalty == 1 {
+		penalty = 0
+	}
+	return penalty
 }
 
 func shelterBKingSquare(p *Position, square int) int {
@@ -544,14 +563,20 @@ func shelterBKingSquare(p *Position, square int) int {
 	var penalty = 0
 	for i := 0; i < 3; i++ {
 		var mask = FileMask[file+i-1] & p.Black & p.Pawns
-		if (mask & Rank7Mask) != 0 {
-		} else if (mask & Rank6Mask) != 0 {
-			penalty += 1
-		} else {
-			penalty += 3
+		if (mask & Rank7Mask) == 0 {
+			penalty++
+			if (mask & Rank6Mask) == 0 {
+				penalty++
+				if mask == 0 {
+					penalty++
+				}
+			}
 		}
 	}
-	return Max(0, penalty-1)
+	if penalty == 1 {
+		penalty = 0
+	}
+	return penalty
 }
 
 func BitboardToString(b uint64) string {

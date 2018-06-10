@@ -6,7 +6,7 @@ import (
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-func TestSEE(t *testing.T) {
+/*func TestSEE(t *testing.T) {
 	var buffer [MaxMoves]Move
 	var child = &Position{}
 	for _, test := range testFENs {
@@ -32,7 +32,7 @@ func TestSEE(t *testing.T) {
 			}
 		}
 	}
-}
+}*/
 
 func basicMaterial(p *Position) int {
 	var score = 0
@@ -95,8 +95,8 @@ func TestEval(t *testing.T) {
 
 func TestEval2(t *testing.T) {
 	var e = NewEvaluationService()
-	t.Logf("%+v", e)
 	e.TraceEnabled = true
+	t.Logf("%+v", e)
 	var p, _ = NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")
 	e.Evaluate(&p)
 }

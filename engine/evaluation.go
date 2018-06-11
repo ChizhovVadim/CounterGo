@@ -84,9 +84,7 @@ func NewEvaluationService() *evaluationService {
 	const (
 		KnightMobility    = 40
 		KnightCenter      = 60
-		BishopMobility    = 60
 		BishopCenter      = 30
-		RookMobility      = 90
 		QueenMobility     = 90
 		QueenCenter       = 20
 		KingCenterEndgame = 100
@@ -113,33 +111,34 @@ func NewEvaluationService() *evaluationService {
 		srv.pstKing[sq] = score{0, KingCenterEndgame * (KingLine[f] + KingLine[r]) / 8}
 	}
 
-	var mobilityBase = -BishopMobility / 2
-	var kernel = initPowerKernel(8, 3)
+	var b = math.Log(float64(KnightMobility)/float64(QueenMobility)) / math.Log(float64(8)/float64(27))
+	var kernel = func(x int) int {
+		return int(QueenMobility * math.Pow(float64(x)/27, b))
+	}
+
+	var mobilityBase = -kernel(13) / 2
 	for m := range srv.knightMobility {
 		srv.knightMobility[m] = score{
-			int(KnightMobility*kernel(m)) + mobilityBase,
-			int(KnightMobility*kernel(m)) + mobilityBase,
+			kernel(m) + mobilityBase,
+			kernel(m) + mobilityBase,
 		}
 	}
-	kernel = initPowerKernel(13, 4)
 	for m := range srv.bishopMobility {
 		srv.bishopMobility[m] = score{
-			int(BishopMobility*kernel(m)) + mobilityBase,
-			int(BishopMobility*kernel(m)) + mobilityBase,
+			kernel(m) + mobilityBase,
+			kernel(m) + mobilityBase,
 		}
 	}
-	kernel = initPowerKernel(14, 5)
 	for m := range srv.rookMobility {
 		srv.rookMobility[m] = score{
-			int(0.5*RookMobility*kernel(m)) + mobilityBase,
-			int(RookMobility*kernel(m)) + mobilityBase,
+			kernel(m)/2 + mobilityBase,
+			kernel(m) + mobilityBase,
 		}
 	}
-	kernel = initPowerKernel(27, 7)
 	for m := range srv.queenMobility {
 		srv.queenMobility[m] = score{
-			int(0.66*QueenMobility*kernel(m)) + mobilityBase,
-			int(QueenMobility*kernel(m)) + mobilityBase,
+			kernel(m)*2/3 + mobilityBase,
+			kernel(m) + mobilityBase,
 		}
 	}
 

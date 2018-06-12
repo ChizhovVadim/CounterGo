@@ -113,6 +113,7 @@ func NewEvaluationService() *evaluationService {
 		srv.kingOpeningPenalty[sq] = Min(dist[sq][SquareB1], dist[sq][SquareG1])
 		srv.pstKing[sq] = score{0, KingCenterEndgame * (KingLine[f] + KingLine[r]) / 8}
 	}
+	srv.kingOpeningPenalty[SquareE1] = srv.kingOpeningPenalty[SquareF1]
 
 	var b = math.Log(float64(KnightMobility)/float64(QueenMobility)) / math.Log(float64(8)/float64(27))
 	var kernel = func(x int) int {

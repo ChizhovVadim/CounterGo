@@ -90,23 +90,26 @@ func NewEvaluationService() *evaluationService {
 		KingCenterEndgame = 100
 	)
 	var (
-		KnightLine = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
-		BishopLine = [8]int{-1, 0, 1, 2, 2, 1, 0, -1}
-		QueenLine  = [8]int{-1, 0, 1, 2, 2, 1, 0, -1}
+		KnightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+		BishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
+		QueenLine  = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
 		KingLine   = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
 	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
 		var r = Rank(sq)
 		srv.pstKnight[sq] = score{
-			KnightCenter * (KnightLine[f] + KnightLine[r]) / 8,
-			KnightCenter * (KnightLine[f] + KnightLine[r]) / 8,
+			-KnightCenter/2 + KnightCenter*(KnightLine[f]+KnightLine[r])/8,
+			-KnightCenter/2 + KnightCenter*(KnightLine[f]+KnightLine[r])/8,
 		}
 		srv.pstBishop[sq] = score{
-			BishopCenter * Min(BishopLine[f], BishopLine[r]) / 3,
-			BishopCenter * Min(BishopLine[f], BishopLine[r]) / 3,
+			-BishopCenter/2 + BishopCenter*Min(BishopLine[f], BishopLine[r])/3,
+			-BishopCenter/2 + BishopCenter*Min(BishopLine[f], BishopLine[r])/3,
 		}
-		srv.pstQueen[sq] = score{0, QueenCenter * (QueenLine[f] + QueenLine[r]) / 6}
+		srv.pstQueen[sq] = score{
+			0,
+			-QueenCenter/2 + QueenCenter*(QueenLine[f]+QueenLine[r])/6,
+		}
 		srv.kingOpeningPenalty[sq] = Min(dist[sq][SquareB1], dist[sq][SquareG1])
 		srv.pstKing[sq] = score{0, KingCenterEndgame * (KingLine[f] + KingLine[r]) / 8}
 	}
@@ -141,6 +144,10 @@ func NewEvaluationService() *evaluationService {
 			kernel(m) + mobilityBase,
 		}
 	}
+
+	srv.materialKnight = srv.materialBishop
+	srv.materialKnight.Add(srv.pstBishop[SquareH4])
+	srv.materialKnight.Sub(srv.pstKnight[SquareF3])
 
 	return srv
 }

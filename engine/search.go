@@ -6,22 +6,16 @@ import (
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-func recoverFromSearchTimeout() {
-	var r = recover()
-	if r != nil && r != searchTimeout {
-		panic(r)
-	}
-}
-
-func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
+func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	defer recoverFromSearchTimeout()
-	var engine = node.engine
+	var mainThread = &engine.threads[0]
 	defer func() {
 		result.Time = engine.timeManager.ElapsedMilliseconds()
 		result.Nodes = engine.timeManager.Nodes()
 	}()
 
-	var p = node.position
+	const height = 0
+	var p = &mainThread.stack[height].position
 	var ml = p.GenerateLegalMoves()
 	if len(ml) == 0 {
 		return
@@ -30,8 +24,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	if len(ml) == 1 {
 		return
 	}
-	node.sortRootMoves(ml)
-	const height = 0
+	mainThread.sortRootMoves(ml)
 	const beta = valueInfinity
 	var gate sync.Mutex
 	var prevScore int
@@ -39,16 +32,18 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 		var alpha = -valueInfinity
 		var bestMoveIndex = 0
 		{
-			var child = node.next()
+			var child = &mainThread.stack[height+1].position
 			var move = ml[0]
-			p.MakeMove(move, &child.position)
-			var newDepth = node.newDepth(depth, child)
-			var score = -child.alphaBeta(-beta, -alpha, newDepth)
+			p.MakeMove(move, child)
+			var newDepth = mainThread.newDepth(depth, height)
+			var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
+			engine.timeManager.nodes += int64(mainThread.nodes)
+			mainThread.nodes = 0
 			alpha = score
 			result = SearchInfo{
 				Depth:    depth,
 				Score:    newUciScore(score),
-				MainLine: append([]Move{move}, child.pv...),
+				MainLine: append([]Move{move}, mainThread.pvTable.Read(child)...),
 				Time:     engine.timeManager.ElapsedMilliseconds(),
 				Nodes:    engine.timeManager.Nodes(),
 			}
@@ -56,11 +51,11 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 				progress(result)
 			}
 		}
-		engine.initKillers()
 		var index = 1
 		parallelDo(engine.Threads.Value, func(threadIndex int) {
 			defer recoverFromSearchTimeout()
-			var child = node.nextOnThread(threadIndex)
+			var thread = &engine.threads[threadIndex]
+			var child = &thread.stack[height+1].position
 			for {
 				gate.Lock()
 				var localAlpha = alpha
@@ -71,19 +66,21 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 					return
 				}
 				var move = ml[localIndex]
-				p.MakeMove(move, &child.position)
-				var newDepth = node.newDepth(depth, child)
-				var score = -child.alphaBeta(-(localAlpha + 1), -localAlpha, newDepth)
+				p.MakeMove(move, child)
+				var newDepth = thread.newDepth(depth, height)
+				var score = -thread.alphaBeta(-(localAlpha + 1), -localAlpha, newDepth, height+1)
 				if score > localAlpha {
-					score = -child.alphaBeta(-beta, -localAlpha, newDepth)
+					score = -thread.alphaBeta(-beta, -localAlpha, newDepth, height+1)
 				}
 				gate.Lock()
+				engine.timeManager.nodes += int64(thread.nodes)
+				thread.nodes = 0
 				if score > alpha {
 					alpha = score
 					result = SearchInfo{
 						Depth:    depth,
 						Score:    newUciScore(score),
-						MainLine: append([]Move{move}, child.pv...),
+						MainLine: append([]Move{move}, thread.pvTable.Read(child)...),
 						Time:     engine.timeManager.ElapsedMilliseconds(),
 						Nodes:    engine.timeManager.Nodes(),
 					}
@@ -95,7 +92,7 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 				gate.Unlock()
 			}
 		})
-		if engine.timeManager.IsHardTimeout() {
+		if mainThread.isTimeout() {
 			break
 		}
 		if alpha >= winIn(depth-3) || alpha <= lossIn(depth-3) {
@@ -105,82 +102,41 @@ func (node *node) IterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 			break
 		}
 		moveToBegin(ml, bestMoveIndex)
-		hashStorePV(node, result.Depth, alpha, result.MainLine)
+		//TODO hashStorePV(node, result.Depth, alpha, result.MainLine)
 		prevScore = alpha
 	}
 	return
 }
 
-func (node *node) sortRootMoves(moves []Move) {
-	var child = node.next()
-	var list = make([]orderedMove, len(moves))
-	for i, m := range moves {
-		node.position.MakeMove(m, &child.position)
-		var score = -child.quiescence(-valueInfinity, valueInfinity, 1)
-		list[i] = orderedMove{m, score}
-	}
-	sortMoves(list)
-	for i := range moves {
-		moves[i] = list[i].move
-	}
-}
-
-func moveToBegin(ml []Move, index int) {
-	if index == 0 {
-		return
-	}
-	var item = ml[index]
-	for i := index; i > 0; i-- {
-		ml[i] = ml[i-1]
-	}
-	ml[0] = item
-}
-
-func hashStorePV(node *node, depth, score int, pv []Move) {
-	for _, move := range pv {
-		node.engine.transTable.Update(&node.position, depth,
-			valueToTT(score, node.height), boundLower|boundUpper, move)
-		var child = node.next()
-		node.position.MakeMove(move, &child.position)
-		depth = node.newDepth(depth, child)
-		if depth <= 0 {
-			break
-		}
-		node = child
-	}
-}
-
-func (node *node) alphaBeta(alpha, beta, depth int) int {
+func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var newDepth, score int
-	node.pv.clear()
 
-	if node.height >= maxHeight || node.isDraw() {
+	if height >= maxHeight || t.isDraw(height) {
 		return valueDraw
 	}
 
 	if depth <= 0 {
-		return node.quiescence(alpha, beta, 1)
+		return t.quiescence(alpha, beta, 1, height)
 	}
 
-	var engine = node.engine
-	engine.timeManager.IncNodes()
+	t.incNodes()
 
-	var position = &node.position
+	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
 
-	if winIn(node.height+1) <= alpha {
+	if winIn(height+1) <= alpha {
 		return alpha
 	}
-	if lossIn(node.height+2) >= beta && !isCheck {
+	if lossIn(height+2) >= beta && !isCheck {
 		return beta
 	}
 
 	var hashMove = MoveEmpty
 
-	if ttDepth, ttScore, ttType, ttMove, ok := engine.transTable.Read(position); ok {
+	if ttDepth, ttScore, ttType, ttMove, ok := t.transTable.Read(position); ok {
 		hashMove = ttMove
 		if ttDepth >= depth {
-			ttScore = valueFromTT(ttScore, node.height)
+			ttScore = valueFromTT(ttScore, height)
 			if ttScore >= beta && (ttType&boundLower) != 0 {
 				return beta
 			}
@@ -190,16 +146,16 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 		}
 	}
 
-	var child = node.next()
+	var child = &t.stack[height+1].position
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
 		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
-		position.MakeNullMove(&child.position)
+		position.MakeNullMove(child)
 		if newDepth <= 0 {
-			score = -child.quiescence(-beta, -(beta - 1), 1)
+			score = -t.quiescence(-beta, -(beta - 1), 1, height+1)
 		} else {
-			score = -child.alphaBeta(-beta, -(beta - 1), newDepth)
+			score = -t.alphaBeta(-beta, -(beta - 1), newDepth, height+1)
 		}
 		if score >= beta && score < valueWin {
 			return beta
@@ -209,41 +165,42 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	if depth >= 4 && hashMove == MoveEmpty &&
 		beta > alpha+PawnValue/2 {
 		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
-		node.alphaBeta(alpha, beta, depth-2)
-		hashMove = node.pv.bestMove()
-		node.pv.clear() //!
+		t.alphaBeta(alpha, beta, depth-2, height)
+		_, _, _, hashMove, _ = t.transTable.Read(position)
 	}
 
-	var moveSort = moveSort{
-		node:  node,
-		trans: hashMove,
-	}
+	var ml = position.GenerateMoves(t.stack[height].moveList[:])
+	t.sortTable.Note(position, ml, hashMove, height)
 
 	var moveCount = 0
-	var quietsSearched = node.quietsSearchedBuffer[:0]
+	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var staticEval = valueInfinity
+	var bestMove Move
+	const DirectCount = 4
 
-	for {
-		var move = moveSort.Next()
-		if move == MoveEmpty {
-			break
+	for i := range ml {
+		if i < DirectCount {
+			moveToTop(ml[i:])
+		} else if i == DirectCount {
+			sortMoves(ml[i:])
 		}
+		var move = ml[i].Move
 
-		if position.MakeMove(move, &child.position) {
+		if position.MakeMove(move, child) {
 			moveCount++
 
-			newDepth = node.newDepth(depth, child)
+			newDepth = t.newDepth(depth, height)
 			var reduction = 0
 
 			if !isCaptureOrPromotion(move) && moveCount > 1 &&
-				!isCheck && !child.position.IsCheck() &&
-				move != node.killer1 && move != node.killer2 &&
+				!isCheck && !child.IsCheck() &&
+				ml[i].Key < sortTableKeyImportant &&
 				!isPawnPush7th(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
 				if depth <= 2 {
 					if staticEval == valueInfinity {
-						staticEval = engine.evaluator.Evaluate(position)
+						staticEval = t.evaluator.Evaluate(position)
 					}
 					if staticEval+PawnValue*depth <= alpha {
 						continue
@@ -251,7 +208,7 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 				}
 
 				if depth >= 3 && !isPawnAdvance(move, position.WhiteMove) {
-					reduction = engine.lateMoveReduction(depth, moveCount)
+					reduction = t.lateMoveReduction(depth, moveCount)
 				}
 			}
 
@@ -260,17 +217,17 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 			}
 
 			if reduction > 0 {
-				score = -child.alphaBeta(-(alpha + 1), -alpha, depth-1-reduction)
+				score = -t.alphaBeta(-(alpha + 1), -alpha, depth-1-reduction, height+1)
 				if score <= alpha {
 					continue
 				}
 			}
 
-			score = -child.alphaBeta(-beta, -alpha, newDepth)
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 
 			if score > alpha {
 				alpha = score
-				node.pv.compose(move, child.pv)
+				bestMove = move
 				if alpha >= beta {
 					break
 				}
@@ -280,18 +237,13 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 
 	if moveCount == 0 {
 		if isCheck {
-			return lossIn(node.height)
+			return lossIn(height)
 		}
 		return valueDraw
 	}
 
-	var bestMove = node.pv.bestMove()
 	if bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
-		if node.killer1 != bestMove {
-			node.killer2 = node.killer1
-			node.killer1 = bestMove
-		}
-		engine.historyTable.Update(position.WhiteMove, bestMove, quietsSearched, depth)
+		t.sortTable.Update(position, bestMove, quietsSearched, depth, height)
 	}
 
 	var ttType = 0
@@ -301,23 +253,24 @@ func (node *node) alphaBeta(alpha, beta, depth int) int {
 	if alpha < beta {
 		ttType |= boundUpper
 	}
-	engine.transTable.Update(position, depth, valueToTT(alpha, node.height), ttType, bestMove)
+	if ttType == boundExact {
+		t.pvTable.Save(position, bestMove)
+	}
+	t.transTable.Update(position, depth, valueToTT(alpha, height), ttType, bestMove)
 
 	return alpha
 }
 
-func (node *node) quiescence(alpha, beta, depth int) int {
-	var engine = node.engine
-	engine.timeManager.IncNodes()
-	node.pv.clear()
-	if node.height >= maxHeight {
+func (t *thread) quiescence(alpha, beta, depth, height int) int {
+	t.incNodes()
+	if height >= maxHeight {
 		return valueDraw
 	}
-	var position = &node.position
+	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {
-		eval = engine.evaluator.Evaluate(position)
+		eval = t.evaluator.Evaluate(position)
 		if eval > alpha {
 			alpha = eval
 		}
@@ -325,26 +278,33 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 			return alpha
 		}
 	}
-	var moves = initMovesQS(position, depth > 0,
-		node.buffer0[:], node.buffer1[:0], engine.historyTable)
+	var ml = t.stack[height].moveList[:]
+	if position.IsCheck() {
+		ml = position.GenerateMoves(ml)
+	} else {
+		ml = position.GenerateCaptures(ml, depth > 0)
+	}
+	t.sortTable.NoteQS(position, ml)
+	sortMoves(ml)
+	var bestMove = MoveEmpty
 	var moveCount = 0
-	var child = node.next()
-	for i := range moves {
-		var move = moves[i].move
+	var child = &t.stack[height+1].position
+	for i := range ml {
+		var move = ml[i].Move
 		var danger = isDangerCapture(position, move)
 		if !isCheck && !danger && !seeGEZero(position, move) {
 			continue
 		}
-		if position.MakeMove(move, &child.position) {
+		if position.MakeMove(move, child) {
 			moveCount++
-			if !isCheck && !danger && !child.position.IsCheck() &&
+			if !isCheck && !danger && !child.IsCheck() &&
 				eval+moveValue(move)+2*PawnValue <= alpha {
 				continue
 			}
-			var score = -child.quiescence(-beta, -alpha, depth-1)
+			var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
 			if score > alpha {
 				alpha = score
-				node.pv.compose(move, child.pv)
+				bestMove = move
 				if score >= beta {
 					break
 				}
@@ -352,16 +312,65 @@ func (node *node) quiescence(alpha, beta, depth int) int {
 		}
 	}
 	if isCheck && moveCount == 0 {
-		return lossIn(node.height)
+		return lossIn(height)
+	}
+	if bestMove != MoveEmpty && alpha < beta {
+		t.pvTable.Save(position, bestMove)
 	}
 	return alpha
 }
 
-func (node *node) newDepth(depth int, child *node) int {
-	var p = &node.position
+func (t *thread) incNodes() {
+	t.nodes++
+	if (t.nodes&255) == 0 && t.isTimeout() {
+		panic(searchTimeout)
+	}
+}
+
+func (t *thread) isTimeout() bool {
+	select {
+	case <-t.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func (t *thread) isDraw(height int) bool {
+	var p = &t.stack[height].position
+
+	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
+		!MoreThanOne(p.Knights|p.Bishops) {
+		return true
+	}
+
+	if p.Rule50 > 100 {
+		return true
+	}
+
+	for i := height - 1; i >= 0; i-- {
+		var temp = &t.stack[i].position
+		if temp.Key == p.Key {
+			return true
+		}
+		if temp.Rule50 == 0 || temp.LastMove == MoveEmpty {
+			return false
+		}
+	}
+
+	if t.historyKeys[p.Key] >= 2 {
+		return true
+	}
+
+	return false
+}
+
+func (t *thread) newDepth(depth, height int) int {
+	var p = &t.stack[height].position
+	var child = &t.stack[height+1].position
 	var prevMove = p.LastMove
-	var move = child.position.LastMove
-	var givesCheck = child.position.IsCheck()
+	var move = child.LastMove
+	var givesCheck = child.IsCheck()
 
 	if prevMove != MoveEmpty &&
 		prevMove.To() == move.To() &&
@@ -380,4 +389,64 @@ func (node *node) newDepth(depth int, child *node) int {
 	}
 
 	return depth - 1
+}
+
+func recoverFromSearchTimeout() {
+	var r = recover()
+	if r != nil && r != searchTimeout {
+		panic(r)
+	}
+}
+
+func (t *thread) sortRootMoves(moves []Move) {
+	const height = 0
+	var position = &t.stack[height].position
+	var child = &t.stack[height+1].position
+	var ml = t.stack[height].moveList[:0]
+	for _, m := range moves {
+		position.MakeMove(m, child)
+		var score = -t.quiescence(-valueInfinity, valueInfinity, 1, height+1)
+		ml = append(ml, OrderedMove{Move: m, Key: score})
+	}
+	sortMoves(ml)
+	for i := range moves {
+		moves[i] = ml[i].Move
+	}
+}
+
+func moveToBegin(ml []Move, index int) {
+	if index == 0 {
+		return
+	}
+	var item = ml[index]
+	for i := index; i > 0; i-- {
+		ml[i] = ml[i-1]
+	}
+	ml[0] = item
+}
+
+/*func hashStorePV(node *node, depth, score int, pv []Move) {
+	for _, move := range pv {
+		node.engine.transTable.Update(&node.position, depth,
+			valueToTT(score, node.height), boundLower|boundUpper, move)
+		var child = node.next()
+		node.position.MakeMove(move, &child.position)
+		depth = node.newDepth(depth, child)
+		if depth <= 0 {
+			break
+		}
+		node = child
+	}
+}*/
+
+func moveToTop(ml []OrderedMove) {
+	var bestIndex = 0
+	for i := 1; i < len(ml); i++ {
+		if ml[i].Key > ml[bestIndex].Key {
+			bestIndex = i
+		}
+	}
+	if bestIndex != 0 {
+		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
+	}
 }

@@ -12,37 +12,36 @@ type Engine struct {
 	Threads            IntUciOption
 	ExperimentSettings BoolUciOption
 	ClearTransTable    bool
-	historyTable       historyTable
-	transTable         TransTable
-	evaluator          Evaluator
-	historyKeys        map[uint64]int
 	timeManager        *timeManager
-	tree               [][maxHeight + 1]node
-	lateMoveReduction  func(d, m int) int
+	transTable         TransTable
+	threads            []thread
 }
 
-type node struct {
-	engine               *Engine
-	thread               int
-	height               int
-	position             Position
-	killer1              Move
-	killer2              Move
-	pv                   principalVariation
-	quietsSearchedBuffer [MaxMoves]Move
-	buffer0              [MaxMoves]Move
-	buffer1              [MaxMoves]orderedMove
-	buffer2              [MaxMoves]orderedMove
-}
-
-type HistoryTable interface {
-	Clear()
-	Update(side bool, bestMove Move, quietsSearched []Move, depth int)
-	Score(side bool, move Move) int
+type thread struct {
+	sortTable         SortTable
+	pvTable           *pvTable
+	transTable        TransTable
+	evaluator         Evaluator
+	lateMoveReduction func(d, m int) int
+	historyKeys       map[uint64]int
+	done              <-chan struct{}
+	nodes             int
+	stack             [stackSize]struct {
+		position       Position
+		moveList       [MaxMoves]OrderedMove
+		quietsSearched [MaxMoves]Move
+	}
 }
 
 type Evaluator interface {
 	Evaluate(p *Position) int
+}
+
+type SortTable interface {
+	Clear()
+	Update(p *Position, bestMove Move, searched []Move, depth, height int)
+	Note(p *Position, ml []OrderedMove, trans Move, height int)
+	NoteQS(p *Position, ml []OrderedMove)
 }
 
 type TransTable interface {
@@ -56,14 +55,14 @@ type TransTable interface {
 func NewEngine() *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
-		Hash:               IntUciOption{"Hash", 4, 4, 512},
-		Threads:            IntUciOption{"Threads", numCPUs, 1, numCPUs},
-		ExperimentSettings: BoolUciOption{"ExperimentSettings", false},
+		Hash:               IntUciOption{Name: "Hash", Value: 4, Min: 4, Max: 512},
+		Threads:            IntUciOption{Name: "Threads", Value: numCPUs, Min: 1, Max: numCPUs},
+		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
 	}
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "2.8", "Vadim Chizhov"
+	return "Counter", "2.9dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -72,65 +71,47 @@ func (e *Engine) GetOptions() []UciOption {
 }
 
 func (e *Engine) Prepare() {
-	if e.historyTable == nil {
-		e.historyTable = NewHistoryTable()
-	}
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
-		e.transTable = NewTierTransTable(e.Hash.Value)
+		e.transTable = NewTransTable(e.Hash.Value)
 	}
-	if len(e.tree) != e.Threads.Value {
-		e.initTree()
-	}
-	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = lmrTwo
-	}
-	if e.evaluator == nil {
-		if e.ExperimentSettings.Value {
-			e.evaluator = NewExperimentEvaluationService()
-		} else {
-			e.evaluator = NewEvaluationService()
+	if len(e.threads) != e.Threads.Value {
+		e.threads = make([]thread, e.Threads.Value)
+		for thread := range e.threads {
+			var t = &e.threads[thread]
+			t.sortTable = NewSortTable()
+			t.pvTable = NewPvTable()
+			if e.ExperimentSettings.Value {
+				t.evaluator = NewExperimentEvaluationService()
+			} else {
+				t.evaluator = NewEvaluationService()
+			}
+			t.lateMoveReduction = lmrTwo
 		}
 	}
 }
 
 func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchInfo {
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	var tm, cancel = NewTimeManager(ctx, searchParams.Limits, timeControlSmart, p.WhiteMove)
+	tm, ctx, cancel := NewTimeManager(ctx, searchParams.Limits, timeControlSmart, p.WhiteMove)
 	defer cancel()
 	e.timeManager = tm
-
 	e.Prepare()
-	e.clearKillers()
-	e.historyTable.Clear()
 	e.transTable.PrepareNewSearch()
 	if e.ClearTransTable {
 		e.transTable.Clear()
 	}
-	e.historyKeys = getHistoryKeys(searchParams.Positions)
-	for thread := range e.tree {
-		e.tree[thread][0].position = *p
+	var historyKeys = getHistoryKeys(searchParams.Positions)
+	for thread := range e.threads {
+		var t = &e.threads[thread]
+		t.nodes = 0
+		t.done = ctx.Done()
+		t.stack[0].position = *p
+		t.historyKeys = historyKeys
+		t.transTable = e.transTable
+		t.sortTable.Clear()
+		t.pvTable.Clear()
 	}
-	var node = &e.tree[0][0]
-	return node.IterateSearch(searchParams.Progress)
-}
-
-func (e *Engine) clearKillers() {
-	for thread := range e.tree {
-		for height := range e.tree[thread] {
-			var node = &e.tree[thread][height]
-			node.killer1 = MoveEmpty
-			node.killer2 = MoveEmpty
-		}
-	}
-}
-
-func (e *Engine) initKillers() {
-	for thread := 1; thread < len(e.tree); thread++ {
-		for height := range e.tree[0] {
-			e.tree[thread][height].killer1 = e.tree[0][height].killer1
-			e.tree[thread][height].killer2 = e.tree[0][height].killer2
-		}
-	}
+	return e.iterateSearch(searchParams.Progress)
 }
 
 func getHistoryKeys(positions []Position) map[uint64]int {
@@ -143,18 +124,4 @@ func getHistoryKeys(positions []Position) map[uint64]int {
 		}
 	}
 	return result
-}
-
-func (e *Engine) initTree() {
-	e.tree = make([][maxHeight + 1]node, e.Threads.Value)
-	for thread := range e.tree {
-		for height := range e.tree[thread] {
-			e.tree[thread][height] = node{
-				engine: e,
-				thread: thread,
-				height: height,
-				pv:     make([]Move, 0, maxHeight),
-			}
-		}
-	}
 }

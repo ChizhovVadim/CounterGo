@@ -20,6 +20,8 @@ const (
 	boundUpper
 )
 
+const boundExact = boundLower | boundUpper
+
 func roundPowerOfTwo(size int) int {
 	var x = 1
 	for (x << 1) <= size {
@@ -30,7 +32,7 @@ func roundPowerOfTwo(size int) int {
 
 const clusterSize = 4
 
-type tierTransTable struct {
+type transTable struct {
 	megabytes  int
 	entries    []transEntry
 	generation uint8
@@ -38,30 +40,30 @@ type tierTransTable struct {
 }
 
 // good test: position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
-func NewTierTransTable(megabytes int) *tierTransTable {
+func NewTransTable(megabytes int) *transTable {
 	var size = roundPowerOfTwo(1024 * 1024 * megabytes / 16)
-	return &tierTransTable{
+	return &transTable{
 		megabytes: megabytes,
 		entries:   make([]transEntry, size),
 		mask:      uint32(size - 4),
 	}
 }
 
-func (tt *tierTransTable) Megabytes() int {
+func (tt *transTable) Megabytes() int {
 	return tt.megabytes
 }
 
-func (tt *tierTransTable) PrepareNewSearch() {
+func (tt *transTable) PrepareNewSearch() {
 	tt.generation = (tt.generation + 1) & 63
 }
 
-func (tt *tierTransTable) Clear() {
+func (tt *transTable) Clear() {
 	for i := range tt.entries {
 		tt.entries[i] = transEntry{}
 	}
 }
 
-func (tt *tierTransTable) Read(p *Position) (depth, score, bound int, move Move, ok bool) {
+func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok bool) {
 	var index = uint32(p.Key) & tt.mask
 	var entries = tt.entries[index : index+clusterSize]
 	var gate = &entries[0].gate
@@ -83,7 +85,7 @@ func (tt *tierTransTable) Read(p *Position) (depth, score, bound int, move Move,
 	return
 }
 
-func (tt *tierTransTable) Update(p *Position, depth, score, bound int, move Move) {
+func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 	var index = uint32(p.Key) & tt.mask
 	var entries = tt.entries[index : index+clusterSize]
 	var gate = &entries[0].gate

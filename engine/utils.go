@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	maxHeight     = 64
+	stackSize     = 64
+	maxHeight     = stackSize - 1
 	valueDraw     = 0
 	valueMate     = 30000
 	valueInfinity = valueMate + 1
@@ -62,67 +63,12 @@ func valueFromTT(v, height int) int {
 
 func newUciScore(v int) UciScore {
 	if v >= valueWin {
-		return UciScore{0, (valueMate - v + 1) / 2}
+		return UciScore{Mate: (valueMate - v + 1) / 2}
 	} else if v <= valueLoss {
-		return UciScore{0, (-valueMate - v) / 2}
+		return UciScore{Mate: (-valueMate - v) / 2}
 	} else {
-		return UciScore{v, 0}
+		return UciScore{Centipawns: v}
 	}
-}
-
-func (node *node) next() *node {
-	return &node.engine.tree[node.thread][node.height+1]
-}
-
-func (node *node) nextOnThread(thread int) *node {
-	return &node.engine.tree[thread][node.height+1]
-}
-
-func (node *node) isDraw() bool {
-	var p = &node.position
-
-	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
-		!MoreThanOne(p.Knights|p.Bishops) {
-		return true
-	}
-
-	if p.Rule50 > 100 {
-		return true
-	}
-
-	var stacks = &node.engine.tree[node.thread]
-	for i := node.height - 1; i >= 0; i-- {
-		var temp = &stacks[i].position
-		if temp.Key == p.Key {
-			return true
-		}
-		if temp.Rule50 == 0 || temp.LastMove == MoveEmpty {
-			return false
-		}
-	}
-
-	if node.engine.historyKeys[p.Key] >= 2 {
-		return true
-	}
-
-	return false
-}
-
-type principalVariation []Move
-
-func (pv *principalVariation) clear() {
-	*pv = (*pv)[:0]
-}
-
-func (pv *principalVariation) compose(move Move, child principalVariation) {
-	*pv = append(append((*pv)[:0], move), child...)
-}
-
-func (pv principalVariation) bestMove() Move {
-	if len(pv) == 0 {
-		return MoveEmpty
-	}
-	return pv[0]
 }
 
 func isLateEndgame(p *Position, side bool) bool {

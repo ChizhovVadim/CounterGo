@@ -150,8 +150,10 @@ func (m Move) String() string {
 }
 
 func (p *Position) MakeMoveLAN(lan string) (Position, bool) {
-	var buffer [MaxMoves]Move
-	for _, mv := range p.GenerateMoves(buffer[:]) {
+	var buffer [MaxMoves]OrderedMove
+	var ml = p.GenerateMoves(buffer[:])
+	for i := range ml {
+		var mv = ml[i].Move
 		if strings.EqualFold(mv.String(), lan) {
 			var newPosition = Position{}
 			if p.MakeMove(mv, &newPosition) {

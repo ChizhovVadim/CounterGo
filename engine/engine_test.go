@@ -32,7 +32,7 @@ import (
 			}
 		}
 	}
-}*/
+}
 
 func basicMaterial(p *Position) int {
 	var score = 0
@@ -75,7 +75,7 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 		}
 	}
 	return bestMove
-}
+}*/
 
 func TestEval(t *testing.T) {
 	var e = NewEvaluationService()
@@ -103,7 +103,7 @@ func TestEval2(t *testing.T) {
 }
 
 func TestTimeControl(t *testing.T) {
-	var tc = timeControlMain
+	var tc = timeControlSmart
 	var time = 60 * 1000
 	var moves = 40
 	for moves > 0 {

@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -14,25 +13,13 @@ var searchTimeout = errors.New("search timeout")
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start                   time.Time
-	softTime                time.Duration
-	nodes                   int64
-	isCancellationRequested bool
+	start    time.Time
+	softTime time.Duration
+	nodes    int64
 }
 
 func (tm *timeManager) Nodes() int64 {
 	return tm.nodes
-}
-
-func (tm *timeManager) IsHardTimeout() bool {
-	return tm.isCancellationRequested
-}
-
-func (tm *timeManager) IncNodes() {
-	atomic.AddInt64(&tm.nodes, 1)
-	if tm.IsHardTimeout() {
-		panic(searchTimeout)
-	}
 }
 
 func (tm *timeManager) ElapsedMilliseconds() int64 {
@@ -44,7 +31,7 @@ func (tm *timeManager) IsSoftTimeout() bool {
 }
 
 func NewTimeManager(ctx context.Context, limits LimitsType,
-	timeControlStrategy timeControlStrategy, side bool) (*timeManager, context.CancelFunc) {
+	timeControlStrategy timeControlStrategy, side bool) (*timeManager, context.Context, context.CancelFunc) {
 	var start = time.Now()
 
 	if ctx == nil {
@@ -77,12 +64,7 @@ func NewTimeManager(ctx context.Context, limits LimitsType,
 		softTime: time.Duration(softTime) * time.Millisecond,
 	}
 
-	go func() {
-		<-ctx.Done()
-		tm.isCancellationRequested = true
-	}()
-
-	return tm, cancel
+	return tm, ctx, cancel
 }
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {

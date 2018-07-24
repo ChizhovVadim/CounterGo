@@ -126,6 +126,11 @@ type Move int32
 
 const MoveEmpty Move = 0
 
+type OrderedMove struct {
+	Move Move
+	Key  int
+}
+
 type LimitsType struct {
 	Ponder         bool
 	Infinite       bool

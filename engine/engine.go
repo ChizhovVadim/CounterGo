@@ -92,9 +92,12 @@ func (e *Engine) Prepare() {
 
 func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchInfo {
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	tm, ctx, cancel := NewTimeManager(ctx, searchParams.Limits, timeControlSmart, p.WhiteMove)
-	defer cancel()
-	e.timeManager = tm
+	e.timeManager = NewTimeManager(searchParams.Limits, timeControlSmart, p.WhiteMove)
+	if e.timeManager.hardTime > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, e.timeManager.hardTime)
+		defer cancel()
+	}
 	e.Prepare()
 	e.transTable.PrepareNewSearch()
 	if e.ClearTransTable {

@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -15,6 +14,7 @@ type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 type timeManager struct {
 	start    time.Time
 	softTime time.Duration
+	hardTime time.Duration
 	nodes    int64
 }
 
@@ -30,13 +30,9 @@ func (tm *timeManager) IsSoftTimeout() bool {
 	return tm.softTime > 0 && time.Since(tm.start) >= tm.softTime
 }
 
-func NewTimeManager(ctx context.Context, limits LimitsType,
-	timeControlStrategy timeControlStrategy, side bool) (*timeManager, context.Context, context.CancelFunc) {
+func NewTimeManager(limits LimitsType,
+	timeControlStrategy timeControlStrategy, side bool) *timeManager {
 	var start = time.Now()
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	var main, increment int
 	if side {
@@ -52,19 +48,11 @@ func NewTimeManager(ctx context.Context, limits LimitsType,
 		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
-	var cancel context.CancelFunc
-	if hardTime > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(hardTime)*time.Millisecond)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-
-	var tm = &timeManager{
+	return &timeManager{
 		start:    start,
 		softTime: time.Duration(softTime) * time.Millisecond,
+		hardTime: time.Duration(hardTime) * time.Millisecond,
 	}
-
-	return tm, ctx, cancel
 }
 
 func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {

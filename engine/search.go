@@ -133,7 +133,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var hashMove = MoveEmpty
 
-	if ttDepth, ttScore, ttType, ttMove, ok := t.transTable.Read(position); ok {
+	if ttDepth, ttScore, ttType, ttMove, ok := t.engine.transTable.Read(position); ok {
 		hashMove = ttMove
 		if ttDepth >= depth {
 			ttScore = valueFromTT(ttScore, height)
@@ -166,7 +166,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		beta > alpha+PawnValue/2 {
 		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
 		t.alphaBeta(alpha, beta, depth-2, height)
-		_, _, _, hashMove, _ = t.transTable.Read(position)
+		_, _, _, hashMove, _ = t.engine.transTable.Read(position)
 	}
 
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
@@ -208,7 +208,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				}
 
 				if depth >= 3 && !isPawnAdvance(move, position.WhiteMove) {
-					reduction = t.lateMoveReduction(depth, moveCount)
+					reduction = t.engine.lateMoveReduction(depth, moveCount)
 				}
 			}
 
@@ -256,7 +256,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	if ttType == boundExact {
 		t.pvTable.Save(position, bestMove)
 	}
-	t.transTable.Update(position, depth, valueToTT(alpha, height), ttType, bestMove)
+	t.engine.transTable.Update(position, depth, valueToTT(alpha, height), ttType, bestMove)
 
 	return alpha
 }
@@ -358,7 +358,7 @@ func (t *thread) isDraw(height int) bool {
 		}
 	}
 
-	if t.historyKeys[p.Key] >= 2 {
+	if t.engine.historyKeys[p.Key] >= 2 {
 		return true
 	}
 

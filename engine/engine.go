@@ -14,19 +14,19 @@ type Engine struct {
 	ClearTransTable    bool
 	timeManager        *timeManager
 	transTable         TransTable
+	lateMoveReduction  func(d, m int) int
+	historyKeys        map[uint64]int
 	threads            []thread
 }
 
 type thread struct {
-	sortTable         SortTable
-	pvTable           *pvTable
-	transTable        TransTable
-	evaluator         Evaluator
-	lateMoveReduction func(d, m int) int
-	historyKeys       map[uint64]int
-	done              <-chan struct{}
-	nodes             int
-	stack             [stackSize]struct {
+	engine    *Engine
+	sortTable SortTable
+	pvTable   *pvTable
+	evaluator Evaluator
+	done      <-chan struct{}
+	nodes     int
+	stack     [stackSize]struct {
 		position       Position
 		moveList       [MaxMoves]OrderedMove
 		quietsSearched [MaxMoves]Move
@@ -74,10 +74,14 @@ func (e *Engine) Prepare() {
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
+	if e.lateMoveReduction == nil {
+		e.lateMoveReduction = lmrTwo
+	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)
 		for thread := range e.threads {
 			var t = &e.threads[thread]
+			t.engine = e
 			t.sortTable = NewSortTable()
 			t.pvTable = NewPvTable()
 			if e.ExperimentSettings.Value {
@@ -85,7 +89,6 @@ func (e *Engine) Prepare() {
 			} else {
 				t.evaluator = NewEvaluationService()
 			}
-			t.lateMoveReduction = lmrTwo
 		}
 	}
 }
@@ -103,14 +106,12 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	if e.ClearTransTable {
 		e.transTable.Clear()
 	}
-	var historyKeys = getHistoryKeys(searchParams.Positions)
+	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for thread := range e.threads {
 		var t = &e.threads[thread]
 		t.nodes = 0
 		t.done = ctx.Done()
 		t.stack[0].position = *p
-		t.historyKeys = historyKeys
-		t.transTable = e.transTable
 		t.sortTable.Clear()
 		t.pvTable.Clear()
 	}

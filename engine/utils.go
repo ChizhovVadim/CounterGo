@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -241,18 +242,24 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 	return bs
 }
 
-func lmrOne(depth, moveCount int) int {
-	if depth >= 3 {
-		return 1
+func initLmrCrafty() func(d, m int) int {
+	const (
+		LMR_rdepth = 1   /* leave 1 full ply after reductions    */
+		LMR_min    = 1   /* minimum reduction 1 ply              */
+		LMR_max    = 15  /* maximum reduction 15 plies           */
+		LMR_db     = 1.8 /* depth is 1.8x as important as        */
+		LMR_mb     = 1.0 /* moves searched in the formula.       */
+		LMR_s      = 2.0 /* smaller numbers increase reductions. */
+	)
+	var LMR [32][64]int
+	for d := 3; d < 32; d++ {
+		for m := 2; m < 64; m++ {
+			var r = math.Log(float64(d)*LMR_db) * math.Log(float64(m)*LMR_mb) / LMR_s
+			LMR[d][m] = Max(Min(int(r), LMR_max), LMR_min)
+			LMR[d][m] = Min(LMR[d][m], Max(d-1-LMR_rdepth, 0))
+		}
 	}
-	return 0
-}
-
-func lmrTwo(depth, moveCount int) int {
-	if depth >= 4 && moveCount > 16 {
-		return 2
-	} else if depth >= 3 {
-		return 1
+	return func(d, m int) int {
+		return LMR[Min(d, 31)][Min(m, 63)]
 	}
-	return 0
 }

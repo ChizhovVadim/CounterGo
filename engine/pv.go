@@ -18,10 +18,6 @@ type pvItem struct {
 	move Move
 }
 
-func NewPvTable() *pvTable {
-	return &pvTable{}
-}
-
 func (pt *pvTable) Clear() {
 	for i := range pt.items {
 		pt.items[i] = pvItem{0, 0}

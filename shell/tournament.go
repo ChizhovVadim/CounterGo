@@ -103,17 +103,8 @@ func computeStat(wins, losses, draws int) {
 }
 
 func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
-	const Second = 1000
-	var timeControl = struct {
-		main, inc, moves int
-		//}{60 * Second, 1 * Second, 0}
-	}{30 * Second, 0 * Second, 40}
+	var chessClock = MoveTimeChessClock{moveSeconds: 1}
 	var positions = []common.Position{initialPosition}
-	var limits = common.LimitsType{
-		WhiteTime: timeControl.main,
-		BlackTime: timeControl.main,
-		MovesToGo: timeControl.moves,
-	}
 	for {
 		var gameResult = computeGameResult(positions)
 		if gameResult != gameResultNone {
@@ -121,7 +112,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 		}
 		var searchParams = common.SearchParams{
 			Positions: positions,
-			Limits:    limits,
+			Limits:    chessClock.Limits(),
 		}
 		var side = positions[len(positions)-1].WhiteMove
 		var uciEngine UciEngine
@@ -130,32 +121,16 @@ func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 		} else {
 			uciEngine = engine2
 		}
-		var start = time.Now()
+		chessClock.Start()
 		var searchResult = uciEngine.Search(context.Background(), searchParams)
-		var elapsed = int(time.Since(start) / time.Millisecond)
-		if side {
-			limits.WhiteTime -= elapsed
-			if limits.WhiteTime < 0 {
+		if timeIsUp := chessClock.Stop(); timeIsUp {
+			if side {
 				return gameResultBlackWins
-			}
-			limits.WhiteTime += timeControl.inc
-		} else {
-			limits.BlackTime -= elapsed
-			if limits.BlackTime < 0 {
+			} else {
 				return gameResultWhiteWins
-			}
-			limits.BlackTime += timeControl.inc
-			if timeControl.moves > 0 {
-				limits.MovesToGo--
-				if limits.MovesToGo == 0 {
-					limits.WhiteTime = timeControl.main
-					limits.BlackTime = timeControl.main
-					limits.MovesToGo = timeControl.moves
-				}
 			}
 		}
 		PrintSearchInfo(searchResult)
-		fmt.Printf("White: %v Black: %v\n", limits.WhiteTime, limits.BlackTime)
 		var move = searchResult.MainLine[0]
 		var newPos = common.Position{}
 		var ok = positions[len(positions)-1].MakeMove(move, &newPos)
@@ -202,4 +177,81 @@ func isRepetition(positions []common.Position) bool {
 	}
 
 	return false
+}
+
+const Second = 1000
+
+type ChessClock interface {
+	Start()
+	Stop() (timeIsUp bool)
+	Limits() common.LimitsType
+}
+
+type MoveTimeChessClock struct {
+	moveSeconds int
+}
+
+func (c *MoveTimeChessClock) Start() {
+}
+
+func (c *MoveTimeChessClock) Stop() (timeIsUp bool) {
+	return false
+}
+
+func (c *MoveTimeChessClock) Limits() common.LimitsType {
+	return common.LimitsType{MoveTime: c.moveSeconds * Second}
+}
+
+type ClassicChessClock struct {
+	gameSeconds int
+	movesToGo   int
+	limits      common.LimitsType
+	side        bool
+	start       time.Time
+}
+
+func NewClassicChessClock(gameSeconds, incrementSeconds, movesToGo int) *ClassicChessClock {
+	return &ClassicChessClock{
+		gameSeconds: gameSeconds,
+		movesToGo:   movesToGo,
+		limits: common.LimitsType{
+			WhiteTime:      gameSeconds * Second,
+			WhiteIncrement: incrementSeconds * Second,
+			BlackTime:      gameSeconds * Second,
+			BlackIncrement: incrementSeconds * Second,
+			MovesToGo:      movesToGo,
+		},
+		side: true,
+	}
+}
+
+func (c *ClassicChessClock) Start() {
+	c.start = time.Now()
+}
+
+func (c *ClassicChessClock) Stop() (timeIsUp bool) {
+	var elapsed = int(time.Since(c.start) / time.Millisecond)
+	if c.side {
+		c.limits.WhiteTime -= elapsed
+		timeIsUp = c.limits.WhiteTime < 0
+		c.limits.WhiteTime += c.limits.WhiteIncrement
+	} else {
+		c.limits.BlackTime -= elapsed
+		timeIsUp = c.limits.BlackTime < 0
+		c.limits.BlackTime += c.limits.BlackIncrement
+		if c.movesToGo != 0 {
+			c.limits.MovesToGo--
+			if c.limits.MovesToGo == 0 {
+				c.limits.WhiteTime = c.gameSeconds * Second
+				c.limits.BlackTime = c.gameSeconds * Second
+				c.limits.MovesToGo = c.movesToGo
+			}
+		}
+	}
+	c.side = !c.side
+	return
+}
+
+func (c *ClassicChessClock) Limits() common.LimitsType {
+	return c.limits
 }

@@ -22,8 +22,8 @@ type Engine struct {
 type thread struct {
 	engine    *Engine
 	sortTable SortTable
-	pvTable   *pvTable
 	evaluator Evaluator
+	pvTable   pvTable
 	done      <-chan struct{}
 	nodes     int
 	stack     [stackSize]struct {
@@ -56,7 +56,7 @@ func NewEngine() *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
 		Hash:               IntUciOption{Name: "Hash", Value: 4, Min: 4, Max: 512},
-		Threads:            IntUciOption{Name: "Threads", Value: numCPUs, Min: 1, Max: numCPUs},
+		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
 		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
 	}
 }
@@ -75,7 +75,7 @@ func (e *Engine) Prepare() {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = lmrTwo
+		e.lateMoveReduction = initLmrCrafty()
 	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)
@@ -83,7 +83,6 @@ func (e *Engine) Prepare() {
 			var t = &e.threads[thread]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			t.pvTable = NewPvTable()
 			if e.ExperimentSettings.Value {
 				t.evaluator = NewExperimentEvaluationService()
 			} else {

@@ -92,7 +92,7 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 				gate.Unlock()
 			}
 		})
-		if mainThread.isTimeout() {
+		if isDone(mainThread.done) {
 			break
 		}
 		if alpha >= winIn(depth-3) || alpha <= lossIn(depth-3) {
@@ -322,14 +322,14 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 
 func (t *thread) incNodes() {
 	t.nodes++
-	if (t.nodes&255) == 0 && t.isTimeout() {
+	if (t.nodes&255) == 0 && isDone(t.done) {
 		panic(searchTimeout)
 	}
 }
 
-func (t *thread) isTimeout() bool {
+func isDone(done <-chan struct{}) bool {
 	select {
-	case <-t.done:
+	case <-done:
 		return true
 	default:
 		return false

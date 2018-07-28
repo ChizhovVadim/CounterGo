@@ -133,6 +133,18 @@ func isPawnPush7th(move Move, side bool) bool {
 	}
 }
 
+func isPawnPush6th(move Move, side bool) bool {
+	if move.MovingPiece() != Pawn {
+		return false
+	}
+	var rank = Rank(move.To())
+	if side {
+		return rank >= Rank6
+	} else {
+		return rank <= Rank3
+	}
+}
+
 func getAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	var att = (PawnAttacks(to, !side) & p.Pawns) |
 		(KnightAttacks[to] & p.Knights) |

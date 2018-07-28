@@ -1,17 +1,20 @@
 package engine
 
 import (
+	"errors"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
+
+var searchTimeout = errors.New("search timeout")
 
 func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	defer recoverFromSearchTimeout()
 	var mainThread = &engine.threads[0]
 	defer func() {
 		result.Time = engine.timeManager.ElapsedMilliseconds()
-		result.Nodes = engine.timeManager.Nodes()
+		result.Nodes = engine.nodes()
 	}()
 
 	const height = 0
@@ -37,15 +40,13 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 			p.MakeMove(move, child)
 			var newDepth = mainThread.newDepth(depth, height)
 			var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
-			engine.timeManager.nodes += int64(mainThread.nodes)
-			mainThread.nodes = 0
 			alpha = score
 			result = SearchInfo{
 				Depth:    depth,
 				Score:    newUciScore(score),
 				MainLine: append([]Move{move}, mainThread.pvTable.Read(child)...),
 				Time:     engine.timeManager.ElapsedMilliseconds(),
-				Nodes:    engine.timeManager.Nodes(),
+				Nodes:    engine.nodes(),
 			}
 			if progress != nil {
 				progress(result)
@@ -73,8 +74,6 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 					score = -thread.alphaBeta(-beta, -localAlpha, newDepth, height+1)
 				}
 				gate.Lock()
-				engine.timeManager.nodes += int64(thread.nodes)
-				thread.nodes = 0
 				if score > alpha {
 					alpha = score
 					result = SearchInfo{
@@ -82,7 +81,7 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 						Score:    newUciScore(score),
 						MainLine: append([]Move{move}, thread.pvTable.Read(child)...),
 						Time:     engine.timeManager.ElapsedMilliseconds(),
-						Nodes:    engine.timeManager.Nodes(),
+						Nodes:    engine.nodes(),
 					}
 					if progress != nil {
 						progress(result)
@@ -92,7 +91,7 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 				gate.Unlock()
 			}
 		})
-		if isDone(mainThread.done) {
+		if isDone(engine.done) {
 			break
 		}
 		if alpha >= winIn(depth-3) || alpha <= lossIn(depth-3) {
@@ -322,7 +321,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 
 func (t *thread) incNodes() {
 	t.nodes++
-	if (t.nodes&255) == 0 && isDone(t.done) {
+	if (t.nodes&255) == 0 && isDone(t.engine.done) {
 		panic(searchTimeout)
 	}
 }

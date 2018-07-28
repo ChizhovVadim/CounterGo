@@ -10,12 +10,13 @@ import (
 type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
-	ExperimentSettings BoolUciOption
+	ExperimentSettings bool
 	ClearTransTable    bool
-	timeManager        *timeManager
+	timeManager        timeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
 	historyKeys        map[uint64]int
+	done               <-chan struct{}
 	threads            []thread
 }
 
@@ -24,7 +25,6 @@ type thread struct {
 	sortTable SortTable
 	evaluator Evaluator
 	pvTable   pvTable
-	done      <-chan struct{}
 	nodes     int
 	stack     [stackSize]struct {
 		position       Position
@@ -57,7 +57,7 @@ func NewEngine() *Engine {
 	return &Engine{
 		Hash:               IntUciOption{Name: "Hash", Value: 4, Min: 4, Max: 512},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
-		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
+		ExperimentSettings: false,
 	}
 }
 
@@ -66,8 +66,7 @@ func (e *Engine) GetInfo() (name, version, author string) {
 }
 
 func (e *Engine) GetOptions() []UciOption {
-	return []UciOption{
-		&e.Hash, &e.Threads, &e.ExperimentSettings}
+	return []UciOption{&e.Hash, &e.Threads}
 }
 
 func (e *Engine) Prepare() {
@@ -79,15 +78,11 @@ func (e *Engine) Prepare() {
 	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)
-		for thread := range e.threads {
-			var t = &e.threads[thread]
+		for i := range e.threads {
+			var t = &e.threads[i]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			if e.ExperimentSettings.Value {
-				t.evaluator = NewExperimentEvaluationService()
-			} else {
-				t.evaluator = NewEvaluationService()
-			}
+			t.evaluator = NewEvaluationService()
 		}
 	}
 }
@@ -106,15 +101,23 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		e.transTable.Clear()
 	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
-	for thread := range e.threads {
-		var t = &e.threads[thread]
+	e.done = ctx.Done()
+	for i := range e.threads {
+		var t = &e.threads[i]
 		t.nodes = 0
-		t.done = ctx.Done()
 		t.stack[0].position = *p
 		t.sortTable.Clear()
 		t.pvTable.Clear()
 	}
 	return e.iterateSearch(searchParams.Progress)
+}
+
+func (e *Engine) nodes() int64 {
+	var result = 0
+	for i := range e.threads {
+		result += e.threads[i].nodes
+	}
+	return int64(result)
 }
 
 func getHistoryKeys(positions []Position) map[uint64]int {

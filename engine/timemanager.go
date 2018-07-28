@@ -1,13 +1,10 @@
 package engine
 
 import (
-	"errors"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
-
-var searchTimeout = errors.New("search timeout")
 
 type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
@@ -15,11 +12,6 @@ type timeManager struct {
 	start    time.Time
 	softTime time.Duration
 	hardTime time.Duration
-	nodes    int64
-}
-
-func (tm *timeManager) Nodes() int64 {
-	return tm.nodes
 }
 
 func (tm *timeManager) ElapsedMilliseconds() int64 {
@@ -31,7 +23,7 @@ func (tm *timeManager) IsSoftTimeout() bool {
 }
 
 func NewTimeManager(limits LimitsType,
-	timeControlStrategy timeControlStrategy, side bool) *timeManager {
+	timeControlStrategy timeControlStrategy, side bool) timeManager {
 	var start = time.Now()
 
 	var main, increment int
@@ -48,7 +40,7 @@ func NewTimeManager(limits LimitsType,
 		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
 	}
 
-	return &timeManager{
+	return timeManager{
 		start:    start,
 		softTime: time.Duration(softTime) * time.Millisecond,
 		hardTime: time.Duration(hardTime) * time.Millisecond,

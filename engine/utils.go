@@ -79,6 +79,11 @@ func isLateEndgame(p *Position, side bool) bool {
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
+func isPawnEndgame(p *Position, side bool) bool {
+	return ((p.Knights | p.Bishops | p.Rooks | p.Queens) &
+		p.PiecesByColor(side)) == 0
+}
+
 var (
 	pieceValues = [...]int{0, PawnValue, 4 * PawnValue,
 		4 * PawnValue, 6 * PawnValue, 12 * PawnValue, 120 * PawnValue}
@@ -97,18 +102,6 @@ func moveValue(move Move) int {
 func isCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||
 		move.Promotion() != Empty
-}
-
-func isPawnAdvance(move Move, side bool) bool {
-	if move.MovingPiece() != Pawn {
-		return false
-	}
-	var rank = Rank(move.To())
-	if side {
-		return rank >= Rank5
-	} else {
-		return rank <= Rank4
-	}
 }
 
 func isDangerCapture(p *Position, m Move) bool {
@@ -133,7 +126,7 @@ func isPawnPush7th(move Move, side bool) bool {
 	}
 }
 
-func isPawnPush6th(move Move, side bool) bool {
+func isPawnAdvance(move Move, side bool) bool {
 	if move.MovingPiece() != Pawn {
 		return false
 	}
@@ -254,21 +247,12 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 	return bs
 }
 
-func initLmrCrafty() func(d, m int) int {
-	const (
-		LMR_rdepth = 1   /* leave 1 full ply after reductions    */
-		LMR_min    = 1   /* minimum reduction 1 ply              */
-		LMR_max    = 15  /* maximum reduction 15 plies           */
-		LMR_db     = 1.8 /* depth is 1.8x as important as        */
-		LMR_mb     = 1.0 /* moves searched in the formula.       */
-		LMR_s      = 2.0 /* smaller numbers increase reductions. */
-	)
+func initLmr() func(d, m int) int {
 	var LMR [32][64]int
 	for d := 3; d < 32; d++ {
 		for m := 2; m < 64; m++ {
-			var r = math.Log(float64(d)*LMR_db) * math.Log(float64(m)*LMR_mb) / LMR_s
-			LMR[d][m] = Max(Min(int(r), LMR_max), LMR_min)
-			LMR[d][m] = Min(LMR[d][m], Max(d-1-LMR_rdepth, 0))
+			var r = math.Log(float64(d)) * math.Log(float64(m)) / 2
+			LMR[d][m] = Max(0, Min(d-2, int(r)))
 		}
 	}
 	return func(d, m int) int {

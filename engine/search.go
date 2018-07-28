@@ -11,13 +11,13 @@ var searchTimeout = errors.New("search timeout")
 
 func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInfo) {
 	defer recoverFromSearchTimeout()
-	var mainThread = &engine.threads[0]
 	defer func() {
 		result.Time = engine.timeManager.ElapsedMilliseconds()
 		result.Nodes = engine.nodes()
 	}()
 
 	const height = 0
+	var mainThread = &engine.threads[0]
 	var p = &mainThread.stack[height].position
 	var ml = p.GenerateLegalMoves()
 	if len(ml) == 0 {
@@ -148,7 +148,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
-		!isLateEndgame(position, position.WhiteMove) {
+		!isLateEndgame(position, position.WhiteMove) &&
+		t.evaluator.Evaluate(position) >= beta {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
 		if newDepth <= 0 {
@@ -175,12 +176,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var staticEval = valueInfinity
 	var bestMove Move
-	const DirectCount = 4
+	const SortMovesIndex = 4
 
 	for i := range ml {
-		if i < DirectCount {
+		if i < SortMovesIndex {
 			moveToTop(ml[i:])
-		} else if i == DirectCount {
+		} else if i == SortMovesIndex {
 			sortMoves(ml[i:])
 		}
 		var move = ml[i].Move
@@ -194,7 +195,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			if !isCaptureOrPromotion(move) && moveCount > 1 &&
 				!isCheck && !child.IsCheck() &&
 				ml[i].Key < sortTableKeyImportant &&
-				!isPawnPush7th(move, position.WhiteMove) &&
+				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
 				if depth <= 2 {
@@ -206,7 +207,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					}
 				}
 
-				if depth >= 3 && !isPawnAdvance(move, position.WhiteMove) {
+				if depth >= 3 {
 					reduction = t.engine.lateMoveReduction(depth, moveCount)
 				}
 			}

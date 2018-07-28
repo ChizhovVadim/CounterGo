@@ -74,7 +74,7 @@ func (e *Engine) Prepare() {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmrCrafty()
+		e.lateMoveReduction = initLmr()
 	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)

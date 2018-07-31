@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"math"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -247,15 +246,15 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 	return bs
 }
 
-func initLmr() func(d, m int) int {
-	var LMR [32][64]int
-	for d := 3; d < 32; d++ {
-		for m := 2; m < 64; m++ {
-			var r = math.Log(float64(d)) * math.Log(float64(m)) / 2
-			LMR[d][m] = Max(0, Min(d-2, int(r)))
-		}
-	}
-	return func(d, m int) int {
-		return LMR[Min(d, 31)][Min(m, 63)]
+func mainLmr(d, m int) int {
+	switch {
+	case d >= 5 && m >= 16:
+		return 3
+	case d >= 4 && m >= 9:
+		return 2
+	case d >= 3 && m >= 4:
+		return 1
+	default:
+		return 0
 	}
 }

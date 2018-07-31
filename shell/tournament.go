@@ -103,6 +103,8 @@ func computeStat(wins, losses, draws int) {
 }
 
 func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
+	engine1.Clear()
+	engine2.Clear()
 	var chessClock = MoveTimeChessClock{moveSeconds: 1}
 	//var chessClock = NewClassicChessClock(40, 0, 40)
 	var positions = []common.Position{initialPosition}

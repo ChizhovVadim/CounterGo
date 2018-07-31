@@ -6,16 +6,8 @@ const sortTableKeyImportant = 27000
 
 type sortTable struct {
 	killers [stackSize]Move
-	history [1024]historyEntry
+	history [1024]int
 	counter [1024]Move
-}
-
-type historyEntry struct {
-	success, try int
-}
-
-func (e historyEntry) value() int {
-	return (e.success << 10) / e.try
 }
 
 func NewSortTable() *sortTable {
@@ -27,12 +19,18 @@ func (st *sortTable) Clear() {
 		st.killers[i] = MoveEmpty
 	}
 	for i := range st.history {
-		st.history[i] = historyEntry{1, 1}
+		st.history[i] = 0
 	}
 	for i := range st.counter {
 		st.counter[i] = MoveEmpty
 	}
 }
+
+const (
+	historyMax      = 1 << 14
+	historyPeriod   = 11
+	historyMaxBonus = 100
+)
 
 func (st *sortTable) Update(p *Position, bestMove Move, searched []Move, depth, height int) {
 	st.killers[height] = bestMove
@@ -40,9 +38,15 @@ func (st *sortTable) Update(p *Position, bestMove Move, searched []Move, depth, 
 		st.counter[pieceSquareIndex(!p.WhiteMove, p.LastMove)] = bestMove
 	}
 	var side = p.WhiteMove
-	st.history[pieceSquareIndex(side, bestMove)].success += depth
+	var bonus = Min(depth*depth, historyMaxBonus)
 	for _, m := range searched {
-		st.history[pieceSquareIndex(side, m)].try += depth
+		var index = pieceSquareIndex(side, m)
+		if m == bestMove {
+			st.history[index] += (historyMax - st.history[index]) * bonus / (historyMaxBonus * historyPeriod)
+			break
+		} else {
+			st.history[index] += (-historyMax - st.history[index]) * bonus / (historyMaxBonus * historyPeriod)
+		}
 	}
 }
 
@@ -62,14 +66,14 @@ func (st *sortTable) Note(p *Position, ml []OrderedMove, trans Move, height int)
 			if seeGEZero(p, m) {
 				score = 29000 + mvvlva(m)
 			} else {
-				score = st.history[pieceSquareIndex(side, m)].value()
+				score = st.history[pieceSquareIndex(side, m)]
 			}
 		} else if m == killer {
 			score = 28000
 		} else if m == counter {
 			score = 28000 - 1
 		} else {
-			score = st.history[pieceSquareIndex(side, m)].value()
+			score = st.history[pieceSquareIndex(side, m)]
 		}
 		ml[i].Key = score
 	}
@@ -83,7 +87,7 @@ func (st *sortTable) NoteQS(p *Position, ml []OrderedMove) {
 		if isCaptureOrPromotion(m) {
 			score = 29000 + mvvlva(m)
 		} else {
-			score = st.history[pieceSquareIndex(side, m)].value()
+			score = st.history[pieceSquareIndex(side, m)]
 		}
 		ml[i].Key = score
 	}

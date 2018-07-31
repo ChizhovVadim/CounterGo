@@ -17,6 +17,7 @@ type UciEngine interface {
 	GetInfo() (name, version, author string)
 	GetOptions() []common.UciOption
 	Prepare()
+	Clear()
 	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
 }
 
@@ -297,6 +298,7 @@ func parseLimits(args []string) (result common.LimitsType) {
 }
 
 func (uci *UciProtocol) uciNewGameCommand() {
+	uci.engine.Clear()
 }
 
 func (uci *UciProtocol) ponderhitCommand() {

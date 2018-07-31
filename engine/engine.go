@@ -74,7 +74,7 @@ func (e *Engine) Prepare() {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmr()
+		e.lateMoveReduction = mainLmr
 	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)
@@ -106,7 +106,6 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		var t = &e.threads[i]
 		t.nodes = 0
 		t.stack[0].position = *p
-		t.sortTable.Clear()
 		t.pvTable.Clear()
 	}
 	return e.iterateSearch(searchParams.Progress)
@@ -130,4 +129,14 @@ func getHistoryKeys(positions []Position) map[uint64]int {
 		}
 	}
 	return result
+}
+
+func (e *Engine) Clear() {
+	if e.transTable != nil {
+		e.transTable.Clear()
+	}
+	for i := range e.threads {
+		var t = &e.threads[i]
+		t.sortTable.Clear()
+	}
 }

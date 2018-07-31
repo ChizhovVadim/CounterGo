@@ -148,8 +148,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
-		!isLateEndgame(position, position.WhiteMove) &&
-		t.evaluator.Evaluate(position) >= beta {
+		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
 		if newDepth <= 0 {
@@ -205,6 +204,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					if staticEval+PawnValue*depth <= alpha {
 						continue
 					}
+				}
+
+				if depth <= 2 && moveCount >= 9+3*depth {
+					continue
 				}
 
 				if depth >= 3 {

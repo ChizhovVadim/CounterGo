@@ -101,7 +101,6 @@ func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInf
 			break
 		}
 		moveToBegin(ml, bestMoveIndex)
-		//TODO hashStorePV(node, result.Depth, alpha, result.MainLine)
 		prevScore = alpha
 	}
 	return
@@ -161,6 +160,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
+	if hashMove == MoveEmpty {
+		hashMove = t.pvTable.Get(position)
+	}
+
 	if depth >= 4 && hashMove == MoveEmpty &&
 		beta > alpha+PawnValue/2 {
 		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
@@ -197,7 +200,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
-				if depth <= 2 {
+				if depth <= 1 {
 					if staticEval == valueInfinity {
 						staticEval = t.evaluator.Evaluate(position)
 					}
@@ -427,20 +430,6 @@ func moveToBegin(ml []Move, index int) {
 	}
 	ml[0] = item
 }
-
-/*func hashStorePV(node *node, depth, score int, pv []Move) {
-	for _, move := range pv {
-		node.engine.transTable.Update(&node.position, depth,
-			valueToTT(score, node.height), boundLower|boundUpper, move)
-		var child = node.next()
-		node.position.MakeMove(move, &child.position)
-		depth = node.newDepth(depth, child)
-		if depth <= 0 {
-			break
-		}
-		node = child
-	}
-}*/
 
 func moveToTop(ml []OrderedMove) {
 	var bestIndex = 0

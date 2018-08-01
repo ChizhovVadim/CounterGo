@@ -24,6 +24,14 @@ func (pt *pvTable) Clear() {
 	}
 }
 
+func (pt *pvTable) Get(p *Position) Move {
+	var item = &pt.items[p.Key&pvTableMask]
+	if item.key == p.Key {
+		return item.move
+	}
+	return MoveEmpty
+}
+
 func (pt *pvTable) Save(p *Position, m Move) {
 	pt.items[p.Key&pvTableMask] = pvItem{p.Key, m}
 }

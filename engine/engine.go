@@ -11,7 +11,7 @@ type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings bool
-	ClearTransTable    bool
+	ClearBeforeSearch  bool
 	timeManager        timeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
@@ -62,7 +62,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "2.9dev", "Vadim Chizhov"
+	return "Counter", "2.9", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -97,8 +97,8 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	}
 	e.Prepare()
 	e.transTable.PrepareNewSearch()
-	if e.ClearTransTable {
-		e.transTable.Clear()
+	if e.ClearBeforeSearch {
+		e.Clear()
 	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	e.done = ctx.Done()
@@ -106,7 +106,6 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		var t = &e.threads[i]
 		t.nodes = 0
 		t.stack[0].position = *p
-		t.pvTable.Clear()
 	}
 	return e.iterateSearch(searchParams.Progress)
 }
@@ -138,5 +137,6 @@ func (e *Engine) Clear() {
 	for i := range e.threads {
 		var t = &e.threads[i]
 		t.sortTable.Clear()
+		t.pvTable.Clear()
 	}
 }

@@ -15,7 +15,7 @@ func NewEngineA() UciEngine {
 	result.Hash.Value = 16
 	result.Threads.Value = 1
 	result.ExperimentSettings = false
-	result.ClearTransTable = true
+	result.ClearBeforeSearch = true
 	result.Prepare()
 	return result
 }
@@ -25,7 +25,7 @@ func NewEngineB() UciEngine {
 	result.Hash.Value = 16
 	result.Threads.Value = 1
 	result.ExperimentSettings = true
-	result.ClearTransTable = true
+	result.ClearBeforeSearch = true
 	result.Prepare()
 	return result
 }

@@ -95,6 +95,7 @@ func TestEval(t *testing.T) {
 
 func TestEval2(t *testing.T) {
 	var e = NewEvaluationService()
+	t.Log("Regularization:", e.Regularization())
 	//var e = NewExperimentEvaluationService()
 	e.TraceEnabled = true
 	t.Logf("%+v", e)

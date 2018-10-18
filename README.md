@@ -12,12 +12,12 @@ Chess ratings are available at Computer Chess Rating Lists:
 ## Commands
 Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands and own commands:
 + `arena` - start tournament against themself
-+ `epd [/home/vadim/wac.epd]` - analyze collection of [test chess positions](https://chessprogramming.wikispaces.com/Win+at+Chess)
++ `epd [/home/vadim/wac.epd]` - analyze collection of [test chess positions](https://www.chessprogramming.org/Win_at_Chess)
 + `eval` - trace evaluation function
 + `move e2e4` - play chess with engine in REPL mode
 
 ## Information about chess programming
-+ [Chess Programming Wiki](https://chessprogramming.wikispaces.com/)
++ [Chess Programming Wiki](https://www.chessprogramming.org)
 + [Bruce Moreland's Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
 
 ## Thanks

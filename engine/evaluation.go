@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"math"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
@@ -32,11 +31,30 @@ func (l *score) AddN(r score, n int) {
 	l.endgame += r.endgame * n
 }
 
-func (s *score) Mix(phase int) int {
-	return (int(s.opening)*phase + int(s.endgame)*(maxPhase-phase)) / maxPhase
+func (s score) multK(k float64) score {
+	return score{
+		int(float64(s.opening) * k),
+		int(float64(s.endgame) * k),
+	}
 }
 
-type evaluationService struct {
+func (s score) aboveZero() score {
+	return score{Max(0, s.opening), Max(0, s.endgame)}
+}
+
+func (s score) belowZero() score {
+	return score{Min(0, s.opening), Min(0, s.endgame)}
+}
+
+func (s *score) Mix(phase int) int {
+	return (s.opening*phase + s.endgame*(maxPhase-phase)) / maxPhase
+}
+
+func (s score) Neg() score {
+	return score{-s.opening, -s.endgame}
+}
+
+type EvaluationService struct {
 	TraceEnabled        bool
 	experimentSettings  bool
 	materialPawn        score
@@ -49,10 +67,6 @@ type evaluationService struct {
 	bishopMobility      [1 + 13]score
 	rookMobility        [1 + 14]score
 	queenMobility       [1 + 27]score
-	pstKnight           [64]score
-	pstBishop           [64]score
-	pstQueen            [64]score
-	pstKing             [64]score
 	kingOpeningPenalty  [64]int
 	rook7Th             score
 	rookOpen            score
@@ -62,108 +76,179 @@ type evaluationService struct {
 	pawnDoubledIsolated score
 	pawnPassedBonus     [8]int
 	threat              score
+	sideToMove          score
+	pst                 pst
 }
 
-func NewEvaluationService() *evaluationService {
-	var srv = &evaluationService{
-		materialPawn:        score{83, 100},
-		materialKnight:      score{333, 350},
-		materialBishop:      score{333, 350},
-		materialRook:        score{500, 525},
-		materialQueen:       score{1000, 1050},
-		bishopPair:          score{25, 50},
-		rook7Th:             score{15, 35},
-		rookOpen:            score{35, 15},
-		rookSemiopen:        score{2, 10},
-		pawnIsolated:        score{-10, -10},
-		pawnDoubled:         score{-10, -10},
-		pawnDoubledIsolated: score{-30, -30},
-		pawnPassedBonus:     [8]int{0, 0, 0, 2, 6, 12, 21, 0},
-		threat:              score{50, 50},
+type pst struct {
+	wn, bn, wb, bb, wq, bq [64]score
+	wk, bk                 [64]int
+}
+
+func NewEvaluationService() *EvaluationService {
+	var srv = &EvaluationService{
+		pawnPassedBonus: [8]int{0, 0, 0, 2, 6, 12, 21, 0},
 	}
-	const (
-		KnightMobility    = 40
-		KnightCenter      = 60
-		BishopCenter      = 30
-		QueenMobility     = 90
-		QueenCenter       = 20
-		KingCenterEndgame = 100
-	)
-	var (
-		KnightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
-		BishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-		QueenLine  = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-		KingLine   = [8]int{-3, -1, 0, 1, 1, 0, -1, -3}
-	)
 	for sq := 0; sq < 64; sq++ {
-		var f = File(sq)
-		var r = Rank(sq)
-		srv.pstKnight[sq] = score{
-			-KnightCenter/2 + KnightCenter*(KnightLine[f]+KnightLine[r])/8,
-			-KnightCenter/2 + KnightCenter*(KnightLine[f]+KnightLine[r])/8,
-		}
-		srv.pstBishop[sq] = score{
-			-BishopCenter/2 + BishopCenter*Min(BishopLine[f], BishopLine[r])/3,
-			-BishopCenter/2 + BishopCenter*Min(BishopLine[f], BishopLine[r])/3,
-		}
-		srv.pstQueen[sq] = score{
-			0,
-			-QueenCenter/2 + QueenCenter*(QueenLine[f]+QueenLine[r])/6,
-		}
 		srv.kingOpeningPenalty[sq] = Min(dist[sq][SquareB1], dist[sq][SquareG1])
-		srv.pstKing[sq] = score{0, KingCenterEndgame * (KingLine[f] + KingLine[r]) / 8}
 	}
 	srv.kingOpeningPenalty[SquareE1] = srv.kingOpeningPenalty[SquareF1]
 
-	var b = math.Log(float64(KnightMobility)/float64(QueenMobility)) / math.Log(float64(8)/float64(27))
-	var kernel = func(x int) int {
-		return int(QueenMobility * math.Pow(float64(x)/27, b))
-	}
-
-	var mobilityBase = -kernel(13) / 2
-	for m := range srv.knightMobility {
-		srv.knightMobility[m] = score{
-			kernel(m) + mobilityBase,
-			kernel(m) + mobilityBase,
-		}
-	}
-	for m := range srv.bishopMobility {
-		srv.bishopMobility[m] = score{
-			kernel(m) + mobilityBase,
-			kernel(m) + mobilityBase,
-		}
-	}
-	for m := range srv.rookMobility {
-		srv.rookMobility[m] = score{
-			kernel(m)/2 + mobilityBase,
-			kernel(m) + mobilityBase,
-		}
-	}
-	for m := range srv.queenMobility {
-		srv.queenMobility[m] = score{
-			kernel(m)*2/3 + mobilityBase,
-			kernel(m) + mobilityBase,
-		}
-	}
-
-	srv.materialKnight = srv.materialBishop
-	srv.materialKnight.Add(srv.pstBishop[SquareH4])
-	srv.materialKnight.Sub(srv.pstKnight[SquareF3])
+	srv.Init([]int{38, 46, 63, 27, 21, 19, 0, 23, 47, 0, 18, 6, -24, -8, 0, 0, -2, -8, 8, 9, 10, 8, 0, 7, 5, 2, 6, 3, 2, 5, 2, 1})
 
 	return srv
 }
 
-func NewExperimentEvaluationService() *evaluationService {
+type evalValues struct {
+	params []int
+	index  int
+}
+
+func (ev *evalValues) Next() int {
+	return ev.NextWithDefault(0)
+}
+
+func (ev *evalValues) NextWithDefault(defaultVal int) int {
+	if len(ev.params) <= ev.index {
+		ev.params = append(ev.params, defaultVal)
+	}
+	var value = ev.params[ev.index]
+	ev.index++
+	return value
+}
+
+func (ev *evalValues) NextScore() score {
+	return score{ev.Next(), ev.Next()}
+}
+
+func limitValue(v, lower, upper int) int {
+	if v < lower {
+		return lower
+	}
+	if upper < v {
+		return upper
+	}
+	return v
+}
+
+func absInt(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func regularizationScore(s score) int {
+	return absInt(s.opening) + absInt(s.endgame)
+}
+
+func regularizationSlice(source []score) int {
+	var r = regularizationScore(source[0])
+	for i := range source {
+		r = Max(r, regularizationScore(source[i]))
+	}
+	return r
+}
+
+// should be coordinated with method Init
+func (e *EvaluationService) Regularization() int {
+	return regularizationScore(e.bishopPair) +
+		regularizationScore(e.sideToMove) +
+		regularizationScore(e.threat) +
+		regularizationScore(e.rook7Th) +
+		regularizationSlice([]score{e.rookOpen, e.rookSemiopen}) +
+		regularizationScore(e.pawnIsolated) +
+		regularizationScore(e.pawnDoubled) +
+		regularizationScore(e.pawnDoubledIsolated) +
+		regularizationSlice(e.knightMobility[:]) +
+		regularizationSlice(e.bishopMobility[:]) +
+		regularizationSlice(e.rookMobility[:]) +
+		regularizationSlice(e.queenMobility[:]) +
+		regularizationSlice(e.pst.wn[:]) +
+		regularizationSlice(e.pst.wb[:]) +
+		regularizationSlice(e.pst.wq[:])
+	/*absInt(e.materialPawn.opening) +
+	regularizationScore(e.materialKnight) +
+	regularizationScore(e.materialBishop) +
+	regularizationScore(e.materialRook) +
+	regularizationScore(e.materialQueen)*/
+}
+
+var (
+	knightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+	bishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
+	kingLine   = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+)
+
+func (e *EvaluationService) Init(params []int) []int {
+	var ev = evalValues{params, 0}
+
+	/*e.materialPawn = score{ev.NextWithDefault(100), 100}
+	e.materialKnight = score{ev.NextWithDefault(325), ev.NextWithDefault(325)}
+	e.materialBishop = score{ev.NextWithDefault(325), ev.NextWithDefault(325)}
+	e.materialRook = score{ev.NextWithDefault(500), ev.NextWithDefault(500)}
+	e.materialQueen = score{ev.NextWithDefault(1000), ev.NextWithDefault(1000)}*/
+
+	e.materialPawn.endgame = 100
+	e.materialKnight.endgame = e.materialPawn.endgame * 7 / 2
+	e.materialBishop.endgame = e.materialKnight.endgame
+	e.materialRook.endgame = 2*e.materialKnight.endgame - e.materialPawn.endgame
+	e.materialQueen.endgame = 2*e.materialRook.endgame - e.materialPawn.endgame/2
+
+	e.materialQueen.opening = e.materialQueen.endgame * 19 / 20
+	e.materialRook.opening = e.materialQueen.opening / 2
+	e.materialKnight.opening = e.materialQueen.opening / 3
+	e.materialBishop.opening = e.materialKnight.opening
+	e.materialPawn.opening = e.materialKnight.opening / 4
+
+	e.bishopPair = ev.NextScore()
+	e.threat = score{Min(50, ev.Next()), Min(50, ev.Next())}
+	e.sideToMove = ev.NextScore()
+
+	e.rook7Th = ev.NextScore().aboveZero()
+	e.rookOpen = ev.NextScore().aboveZero()
+	e.rookSemiopen = ev.NextScore().aboveZero()
+	e.pawnIsolated = ev.NextScore().belowZero()
+	e.pawnDoubled = ev.NextScore().belowZero()
+	e.pawnDoubledIsolated = ev.NextScore().belowZero()
+
+	var knightCenter = ev.NextScore().aboveZero()
+	var bishopCenter = ev.NextScore().aboveZero()
+	var queenCenter = ev.NextScore().aboveZero()
+	const KingCenterEndgame = 100
+
+	for sq := 0; sq < 64; sq++ {
+		var f = File(sq)
+		var r = Rank(sq)
+		e.pst.wn[sq] = knightCenter.multK(float64(knightLine[f] + knightLine[r] - 6))
+		e.pst.wb[sq] = bishopCenter.multK(float64(Min(bishopLine[f], bishopLine[r])))
+		e.pst.wq[sq] = queenCenter.multK(float64(Min(bishopLine[f], bishopLine[r])))
+		e.pst.wk[sq] = KingCenterEndgame * (kingLine[f] + kingLine[r]) / 8
+	}
+	e.pst.initBlack()
+
+	initMobility(e.knightMobility[:], ev.NextScore())
+	initMobility(e.bishopMobility[:], ev.NextScore())
+	initMobility(e.rookMobility[:], ev.NextScore())
+	initMobility(e.queenMobility[:], ev.NextScore())
+
+	return ev.params
+}
+
+func initMobility(source []score, s score) {
+	for i := range source {
+		var x = i - 4
+		if x < 0 {
+			x *= 2
+		}
+		source[i] = s.multK(float64(x))
+	}
+}
+
+func NewExperimentEvaluationService() *EvaluationService {
 	var srv = NewEvaluationService()
 	srv.experimentSettings = true
 	return srv
-}
-
-func initPowerKernel(fullX, halfX float64) func(int) float64 {
-	var b = math.Log(0.5) / math.Log(halfX/fullX)
-	return func(x int) float64 {
-		return math.Pow(float64(x)/fullX, b)
-	}
 }
 
 const (
@@ -184,7 +269,7 @@ var (
 	kingZone        [64]uint64
 )
 
-func (e *evaluationService) Evaluate(p *Position) int {
+func (e *EvaluationService) Evaluate(p *Position) int {
 	var (
 		x, b                                         uint64
 		sq, keySq, bonus                             int
@@ -234,7 +319,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++
 		sq = FirstOne(x)
-		pieceScore.Add(e.pstKnight[sq])
+		pieceScore.Add(e.pst.wn[sq])
 		b = KnightAttacks[sq]
 		pieceScore.Add(e.knightMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
@@ -246,7 +331,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
 		bn++
 		sq = FirstOne(x)
-		pieceScore.Sub(e.pstKnight[sq])
+		pieceScore.Add(e.pst.bn[sq])
 		b = KnightAttacks[sq]
 		pieceScore.Sub(e.knightMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
@@ -258,7 +343,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		wb++
 		sq = FirstOne(x)
-		pieceScore.Add(e.pstBishop[sq])
+		pieceScore.Add(e.pst.wb[sq])
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Add(e.bishopMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
@@ -270,7 +355,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
 		bb++
 		sq = FirstOne(x)
-		pieceScore.Sub(e.pstBishop[sq])
+		pieceScore.Add(e.pst.bb[sq])
 		b = BishopAttacks(sq, allPieces)
 		pieceScore.Sub(e.bishopMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
@@ -330,7 +415,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Queens & p.White; x != 0; x &= x - 1 {
 		wq++
 		sq = FirstOne(x)
-		pieceScore.Add(e.pstQueen[sq])
+		pieceScore.Add(e.pst.wq[sq])
 		b = QueenAttacks(sq, allPieces)
 		pieceScore.Add(e.queenMobility[PopCount(b&wMobilityArea)])
 		if (b & bkingZone) != 0 {
@@ -342,7 +427,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
 		bq++
 		sq = FirstOne(x)
-		pieceScore.Sub(e.pstQueen[sq])
+		pieceScore.Add(e.pst.bq[sq])
 		b = QueenAttacks(sq, allPieces)
 		pieceScore.Sub(e.queenMobility[PopCount(b&bMobilityArea)])
 		if (b & wkingZone) != 0 {
@@ -395,7 +480,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	kingScore.endgame += e.pstKing[wkingSq].endgame
+	kingScore.endgame += e.pst.wk[wkingSq]
 	if (bq > 0 && br+bn+bb > 0) ||
 		(br > 1 && bn+bb > 1) {
 		kingDanger := 15*shelterWKingSquare(p, wkingSq) +
@@ -404,7 +489,7 @@ func (e *evaluationService) Evaluate(p *Position) int {
 		kingScore.opening -= kingDanger
 	}
 
-	kingScore.endgame -= e.pstKing[FlipSquare(bkingSq)].endgame
+	kingScore.endgame += e.pst.bk[bkingSq]
 	if (wq > 0 && wr+wn+wb > 0) ||
 		(wr > 1 && wn+wb > 1) {
 		kingDanger := 15*shelterBKingSquare(p, bkingSq) +
@@ -431,6 +516,12 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	total.Add(kingScore)
 	total.Add(materialScore)
 	total.Add(threatScore)
+
+	if p.WhiteMove {
+		total.Add(e.sideToMove)
+	} else {
+		total.Sub(e.sideToMove)
+	}
 
 	var phase = wn + bn + wb + bb + 2*(wr+br) + 4*(wq+bq)
 	if phase > maxPhase {
@@ -480,16 +571,6 @@ func (e *evaluationService) Evaluate(p *Position) int {
 	}
 
 	return result
-}
-
-func limitValue(v, min, max int) int {
-	if v <= min {
-		return min
-	}
-	if v >= max {
-		return max
-	}
-	return v
 }
 
 func getDoubledPawns(pawns uint64) uint64 {
@@ -562,16 +643,14 @@ func shelterBKingSquare(p *Position, square int) int {
 	return penalty
 }
 
-func BitboardToString(b uint64) string {
-	result := ""
-	for x := b; x != 0; x &= x - 1 {
-		sq := FirstOne(x)
-		if result != "" {
-			result += ","
-		}
-		result += SquareName(sq)
+func (pst *pst) initBlack() {
+	for sq := 0; sq < 64; sq++ {
+		var flipSq = FlipSquare(sq)
+		pst.bn[sq] = pst.wn[flipSq].Neg()
+		pst.bb[sq] = pst.wb[flipSq].Neg()
+		pst.bq[sq] = pst.wq[flipSq].Neg()
+		pst.bk[sq] = -pst.wk[flipSq]
 	}
-	return result
 }
 
 func init() {

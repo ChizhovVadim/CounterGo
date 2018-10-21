@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
@@ -38,14 +39,6 @@ func (s score) multK(k float64) score {
 	}
 }
 
-func (s score) aboveZero() score {
-	return score{Max(0, s.opening), Max(0, s.endgame)}
-}
-
-func (s score) belowZero() score {
-	return score{Min(0, s.opening), Min(0, s.endgame)}
-}
-
 func (s *score) Mix(phase int) int {
 	return (s.opening*phase + s.endgame*(maxPhase-phase)) / maxPhase
 }
@@ -67,36 +60,33 @@ type EvaluationService struct {
 	bishopMobility      [1 + 13]score
 	rookMobility        [1 + 14]score
 	queenMobility       [1 + 27]score
-	kingOpeningPenalty  [64]int
 	rook7Th             score
 	rookOpen            score
 	rookSemiopen        score
 	pawnIsolated        score
 	pawnDoubled         score
 	pawnDoubledIsolated score
-	pawnPassedBonus     [8]int
+	pawnConnected       score
+	kingShelter         int
+	kingAttack          int
 	threat              score
 	sideToMove          score
 	pst                 pst
 }
 
 type pst struct {
-	wn, bn, wb, bb, wq, bq [64]score
-	wk, bk                 [64]int
+	wn, bn, wb, bb, wq, bq, wk, bk [64]score
 }
 
 func NewEvaluationService() *EvaluationService {
-	var srv = &EvaluationService{
-		pawnPassedBonus: [8]int{0, 0, 0, 2, 6, 12, 21, 0},
-	}
-	for sq := 0; sq < 64; sq++ {
-		srv.kingOpeningPenalty[sq] = Min(dist[sq][SquareB1], dist[sq][SquareG1])
-	}
-	srv.kingOpeningPenalty[SquareE1] = srv.kingOpeningPenalty[SquareF1]
-
-	srv.Init([]int{38, 46, 63, 27, 21, 19, 0, 23, 47, 0, 18, 6, -24, -8, 0, 0, -2, -8, 8, 9, 10, 8, 0, 7, 5, 2, 6, 3, 2, 5, 2, 1})
-
+	var srv = &EvaluationService{}
+	srv.Init(srv.DefaultParams())
 	return srv
+}
+
+func (srv *EvaluationService) DefaultParams() []int {
+	// Error: 0.042270
+	return []int{108, 356, 330, 384, 349, 519, 633, 924, 1297, 27, 35, 75, 0, 23, 15, 0, 19, 39, 0, 15, 7, -9, 0, 0, 0, -6, -2, 8, 14, 9, 11, 9, 10, 7, 4, 0, 1, 9, 8, 6, 0, 7, 6, 3, 7, 2, 6}
 }
 
 type evalValues struct {
@@ -143,11 +133,15 @@ func regularizationScore(s score) int {
 }
 
 func regularizationSlice(source []score) int {
-	var r = regularizationScore(source[0])
+	var low = source[0]
+	var high = low
 	for i := range source {
-		r = Max(r, regularizationScore(source[i]))
+		low.opening = Min(low.opening, source[i].opening)
+		low.endgame = Min(low.endgame, source[i].endgame)
+		high.opening = Max(high.opening, source[i].opening)
+		high.endgame = Max(high.endgame, source[i].endgame)
 	}
-	return r
+	return high.opening - low.opening + high.endgame - low.endgame
 }
 
 // should be coordinated with method Init
@@ -156,74 +150,74 @@ func (e *EvaluationService) Regularization() int {
 		regularizationScore(e.sideToMove) +
 		regularizationScore(e.threat) +
 		regularizationScore(e.rook7Th) +
-		regularizationSlice([]score{e.rookOpen, e.rookSemiopen}) +
+		regularizationScore(e.rookOpen) +
+		regularizationScore(e.rookSemiopen) +
 		regularizationScore(e.pawnIsolated) +
+		regularizationScore(e.pawnConnected) +
 		regularizationScore(e.pawnDoubled) +
 		regularizationScore(e.pawnDoubledIsolated) +
+		//regularizationScore(e.kingShelter) +
 		regularizationSlice(e.knightMobility[:]) +
 		regularizationSlice(e.bishopMobility[:]) +
 		regularizationSlice(e.rookMobility[:]) +
 		regularizationSlice(e.queenMobility[:]) +
 		regularizationSlice(e.pst.wn[:]) +
 		regularizationSlice(e.pst.wb[:]) +
-		regularizationSlice(e.pst.wq[:])
-	/*absInt(e.materialPawn.opening) +
-	regularizationScore(e.materialKnight) +
-	regularizationScore(e.materialBishop) +
-	regularizationScore(e.materialRook) +
-	regularizationScore(e.materialQueen)*/
+		regularizationSlice(e.pst.wq[:]) +
+		regularizationSlice(e.pst.wk[:]) +
+		absInt(e.materialPawn.opening) +
+		regularizationScore(e.materialKnight) +
+		regularizationScore(e.materialBishop) +
+		regularizationScore(e.materialRook) +
+		regularizationScore(e.materialQueen)
 }
 
 var (
-	knightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
-	bishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-	kingLine   = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+	knightLine      = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+	bishopLine      = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
+	kingLine        = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+	kingFile        = [8]int{3, 4, 2, 0, 0, 2, 4, 3}
+	kingRank        = [8]int{3, 2, 1, 0, 0, 0, 0, 0}
+	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
 )
 
 func (e *EvaluationService) Init(params []int) []int {
 	var ev = evalValues{params, 0}
 
-	/*e.materialPawn = score{ev.NextWithDefault(100), 100}
+	e.materialPawn = score{ev.NextWithDefault(100), 100}
 	e.materialKnight = score{ev.NextWithDefault(325), ev.NextWithDefault(325)}
 	e.materialBishop = score{ev.NextWithDefault(325), ev.NextWithDefault(325)}
 	e.materialRook = score{ev.NextWithDefault(500), ev.NextWithDefault(500)}
-	e.materialQueen = score{ev.NextWithDefault(1000), ev.NextWithDefault(1000)}*/
-
-	e.materialPawn.endgame = 100
-	e.materialKnight.endgame = e.materialPawn.endgame * 7 / 2
-	e.materialBishop.endgame = e.materialKnight.endgame
-	e.materialRook.endgame = 2*e.materialKnight.endgame - e.materialPawn.endgame
-	e.materialQueen.endgame = 2*e.materialRook.endgame - e.materialPawn.endgame/2
-
-	e.materialQueen.opening = e.materialQueen.endgame * 19 / 20
-	e.materialRook.opening = e.materialQueen.opening / 2
-	e.materialKnight.opening = e.materialQueen.opening / 3
-	e.materialBishop.opening = e.materialKnight.opening
-	e.materialPawn.opening = e.materialKnight.opening / 4
+	e.materialQueen = score{ev.NextWithDefault(1000), ev.NextWithDefault(1000)}
 
 	e.bishopPair = ev.NextScore()
-	e.threat = score{Min(50, ev.Next()), Min(50, ev.Next())}
+	e.threat = ev.NextScore()
 	e.sideToMove = ev.NextScore()
+	e.rook7Th = ev.NextScore()
+	e.rookOpen = ev.NextScore()
+	e.rookSemiopen = ev.NextScore()
+	e.pawnIsolated = ev.NextScore()
+	e.pawnDoubled = ev.NextScore()
+	e.pawnDoubledIsolated = ev.NextScore()
+	e.pawnConnected = ev.NextScore()
+	e.kingShelter = ev.Next()
+	e.kingAttack = 25 * ev.Next()
 
-	e.rook7Th = ev.NextScore().aboveZero()
-	e.rookOpen = ev.NextScore().aboveZero()
-	e.rookSemiopen = ev.NextScore().aboveZero()
-	e.pawnIsolated = ev.NextScore().belowZero()
-	e.pawnDoubled = ev.NextScore().belowZero()
-	e.pawnDoubledIsolated = ev.NextScore().belowZero()
-
-	var knightCenter = ev.NextScore().aboveZero()
-	var bishopCenter = ev.NextScore().aboveZero()
-	var queenCenter = ev.NextScore().aboveZero()
-	const KingCenterEndgame = 100
+	var knightCenter = ev.NextScore()
+	var bishopCenter = ev.NextScore()
+	var queenCenter = ev.NextScore()
+	var kingCenter = ev.NextScore()
 
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
 		var r = Rank(sq)
-		e.pst.wn[sq] = knightCenter.multK(float64(knightLine[f] + knightLine[r] - 6))
+		e.pst.wn[sq] = knightCenter.multK(float64(knightLine[f] + knightLine[r]))
 		e.pst.wb[sq] = bishopCenter.multK(float64(Min(bishopLine[f], bishopLine[r])))
 		e.pst.wq[sq] = queenCenter.multK(float64(Min(bishopLine[f], bishopLine[r])))
-		e.pst.wk[sq] = KingCenterEndgame * (kingLine[f] + kingLine[r]) / 8
+		e.pst.wk[sq] = score{
+			kingCenter.opening * (kingFile[f] + kingRank[r]),
+			kingCenter.endgame * (kingLine[f] + kingLine[r]),
+		}
 	}
 	e.pst.initBlack()
 
@@ -236,12 +230,10 @@ func (e *EvaluationService) Init(params []int) []int {
 }
 
 func initMobility(source []score, s score) {
+	var total = s.multK(float64(len(source) - 1))
 	for i := range source {
-		var x = i - 4
-		if x < 0 {
-			x *= 2
-		}
-		source[i] = s.multK(float64(x))
+		var x = math.Sqrt(float64(i) / float64(len(source)-1))
+		source[i] = total.multK(x)
 	}
 }
 
@@ -294,6 +286,9 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	pawnScore.AddN(e.pawnDoubledIsolated,
 		PopCount(getIsolatedPawns(p.Pawns&p.White)&getDoubledPawns(p.Pawns&p.White))-
 			PopCount(getIsolatedPawns(p.Pawns&p.Black)&getDoubledPawns(p.Pawns&p.Black)))
+
+	pawnScore.AddN(e.pawnConnected,
+		PopCount(getConnectedPawns(p.Pawns&p.White))-PopCount(getConnectedPawns(p.Pawns&p.Black)))
 
 	var wpawnAttacks = AllWhitePawnAttacks(p.Pawns & p.White)
 	var bpawnAttacks = AllBlackPawnAttacks(p.Pawns & p.Black)
@@ -438,7 +433,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
-		bonus = e.pawnPassedBonus[Rank(sq)]
+		bonus = pawnPassedBonus[Rank(sq)]
 		pawnScore.opening += 4 * bonus
 		pawnScore.endgame += 8 * bonus
 		keySq = sq + 8
@@ -460,7 +455,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 
 	for x = getBlackPassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
-		bonus = e.pawnPassedBonus[Rank(FlipSquare(sq))]
+		bonus = pawnPassedBonus[Rank(FlipSquare(sq))]
 		pawnScore.opening -= 4 * bonus
 		pawnScore.endgame -= 8 * bonus
 		keySq = sq - 8
@@ -480,22 +475,19 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	kingScore.endgame += e.pst.wk[wkingSq]
+	kingScore.Add(e.pst.wk[wkingSq])
+	kingScore.Add(e.pst.bk[bkingSq])
+
 	if (bq > 0 && br+bn+bb > 0) ||
 		(br > 1 && bn+bb > 1) {
-		kingDanger := 15*shelterWKingSquare(p, wkingSq) +
-			10*e.kingOpeningPenalty[wkingSq] +
-			2*battackTot*Max(1, battackTot-5)
-		kingScore.opening -= kingDanger
+		kingScore.opening -= e.kingShelter*shelterWKingSquare(p, wkingSq) +
+			e.kingAttack*battackTot*Max(1, battackTot-5)/150
 	}
 
-	kingScore.endgame += e.pst.bk[bkingSq]
 	if (wq > 0 && wr+wn+wb > 0) ||
 		(wr > 1 && wn+wb > 1) {
-		kingDanger := 15*shelterBKingSquare(p, bkingSq) +
-			10*e.kingOpeningPenalty[FlipSquare(bkingSq)] +
-			2*wattackTot*Max(1, wattackTot-5)
-		kingScore.opening += kingDanger
+		kingScore.opening += e.kingShelter*shelterBKingSquare(p, bkingSq) +
+			e.kingAttack*wattackTot*Max(1, wattackTot-5)/150
 	}
 
 	var materialScore score
@@ -571,6 +563,11 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	}
 
 	return result
+}
+
+func getConnectedPawns(pawns uint64) uint64 {
+	var wings = Left(pawns) | Right(pawns)
+	return pawns & (wings | Up(wings) | Down(wings))
 }
 
 func getDoubledPawns(pawns uint64) uint64 {
@@ -649,7 +646,7 @@ func (pst *pst) initBlack() {
 		pst.bn[sq] = pst.wn[flipSq].Neg()
 		pst.bb[sq] = pst.wb[flipSq].Neg()
 		pst.bq[sq] = pst.wq[flipSq].Neg()
-		pst.bk[sq] = -pst.wk[flipSq]
+		pst.bk[sq] = pst.wk[flipSq].Neg()
 	}
 }
 

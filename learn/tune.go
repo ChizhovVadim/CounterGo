@@ -32,6 +32,18 @@ func RunTuning() {
 	log.Println("Tune finished.")
 }
 
+func ShowError() {
+	var entries, err = readTuningFile("/home/vadim/chess/tuner/quiet-labeled.epd")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	var _, errorFunc = newErrorFunc(entries)
+	var es = engine.NewEvaluationService()
+	var e = errorFunc(es.DefaultParams())
+	log.Println("Error:", e)
+}
+
 func readTuningFile(filePath string) ([]tuningEntry, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -79,7 +91,7 @@ func parseTuningEntry(s string) (tuningEntry, error) {
 func tuneEvalService(params []int, errorFunc func([]int) float64) {
 	var bestE = errorFunc(params)
 	for iter := 0; iter < 50; iter++ {
-		log.Printf("Iteration: %v Error: %v Params: %#v\n",
+		log.Printf("Iteration: %v Error: %.6f Params: %#v\n",
 			iter, bestE, params)
 		var improved = false
 		for featureIndex := range params {
@@ -120,7 +132,8 @@ func tuneEvalService(params []int, errorFunc func([]int) float64) {
 			break
 		}
 	}
-	log.Printf("%#v\n", params)
+	fmt.Printf("// Error: %.6f\n", bestE)
+	fmt.Printf("return %#v\n", params)
 }
 
 func newErrorFunc(entries []tuningEntry) (params []int, errorFunc func([]int) float64) {
@@ -152,7 +165,12 @@ func newErrorFunc(entries []tuningEntry) (params []int, errorFunc func([]int) fl
 					if !entry.p.WhiteMove {
 						score = -score
 					}
-					var diff = sigmoid(score) - float64(entry.score)
+					var expected = mixProbability(
+						float64(entry.score),
+						sigmoid(evalMaterial(&entry.p)),
+						0.25,
+						0.5)
+					var diff = sigmoid(score) - expected
 					localSum += diff * diff
 				}
 				sums[thread] = localSum
@@ -170,4 +188,26 @@ func newErrorFunc(entries []tuningEntry) (params []int, errorFunc func([]int) fl
 
 func sigmoid(s int) float64 {
 	return 1.0 / (1.0 + math.Exp(-float64(s)/150))
+}
+
+func evalMaterial(p *common.Position) int {
+	return 100*(common.PopCount(p.Pawns&p.White)-common.PopCount(p.Pawns&p.Black)) +
+		325*(common.PopCount(p.Knights&p.White)-common.PopCount(p.Knights&p.Black)) +
+		325*(common.PopCount(p.Bishops&p.White)-common.PopCount(p.Bishops&p.Black)) +
+		500*(common.PopCount(p.Rooks&p.White)-common.PopCount(p.Rooks&p.Black)) +
+		1000*(common.PopCount(p.Queens&p.White)-common.PopCount(p.Queens&p.Black))
+}
+
+func limitValue(v, lower, upper float64) float64 {
+	if v < lower {
+		return lower
+	}
+	if v > upper {
+		return upper
+	}
+	return v
+}
+
+func mixProbability(mainProb, materialProb, materialFree, materialWeight float64) float64 {
+	return mainProb + materialWeight*(limitValue(mainProb, materialProb-materialFree, materialProb+materialFree)-mainProb)
 }

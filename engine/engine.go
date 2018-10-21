@@ -82,7 +82,11 @@ func (e *Engine) Prepare() {
 			var t = &e.threads[i]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			t.evaluator = NewEvaluationService()
+			if e.ExperimentSettings {
+				t.evaluator = NewExperimentEvaluationService()
+			} else {
+				t.evaluator = NewEvaluationService()
+			}
 		}
 	}
 }

@@ -95,8 +95,8 @@ func TestEval(t *testing.T) {
 
 func TestEval2(t *testing.T) {
 	var e = NewEvaluationService()
-	t.Log("Regularization:", e.Regularization())
 	//var e = NewExperimentEvaluationService()
+	t.Log("Regularization:", e.Regularization())
 	e.TraceEnabled = true
 	t.Logf("%+v", e)
 	var p, _ = NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")

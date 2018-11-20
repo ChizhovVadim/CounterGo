@@ -9,105 +9,92 @@ import (
 
 var searchTimeout = errors.New("search timeout")
 
-func (engine *Engine) iterateSearch(progress func(SearchInfo)) (result SearchInfo) {
+func (e *Engine) iterativeDeepening() {
 	defer recoverFromSearchTimeout()
-	defer func() {
-		result.Time = engine.timeManager.ElapsedMilliseconds()
-		result.Nodes = engine.nodes()
-	}()
 
-	const height = 0
-	var mainThread = &engine.threads[0]
-	var p = &mainThread.stack[height].position
-	var ml = p.GenerateLegalMoves()
-	if len(ml) == 0 {
+	var ml = e.genRootMoves()
+	if len(ml) != 0 {
+		e.mainLine.update(0, 0, []Move{ml[0]})
+	}
+	if len(ml) <= 1 {
 		return
 	}
-	result.MainLine = []Move{ml[0]}
-	if len(ml) == 1 {
-		return
-	}
-	mainThread.sortRootMoves(ml)
-	const beta = valueInfinity
-	var gate sync.Mutex
+
 	var prevScore int
-	for depth := 2; depth <= maxHeight; depth++ {
-		var alpha = -valueInfinity
-		var bestMoveIndex = 0
-		{
-			var child = &mainThread.stack[height+1].position
-			var move = ml[0]
-			p.MakeMove(move, child)
-			var newDepth = mainThread.newDepth(depth, height)
-			var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
-			alpha = score
-			result = SearchInfo{
-				Depth:    depth,
-				Score:    newUciScore(score),
-				MainLine: append([]Move{move}, mainThread.pvTable.Read(child)...),
-				Time:     engine.timeManager.ElapsedMilliseconds(),
-				Nodes:    engine.nodes(),
-			}
-			if progress != nil {
-				progress(result)
-			}
-		}
-		var index = 1
-		parallelDo(engine.Threads.Value, func(threadIndex int) {
-			defer recoverFromSearchTimeout()
-			var thread = &engine.threads[threadIndex]
-			var child = &thread.stack[height+1].position
-			for {
-				gate.Lock()
-				var localAlpha = alpha
-				var localIndex = index
-				index++
-				gate.Unlock()
-				if localIndex >= len(ml) {
-					return
-				}
-				var move = ml[localIndex]
-				p.MakeMove(move, child)
-				var newDepth = thread.newDepth(depth, height)
-				var score = -thread.alphaBeta(-(localAlpha + 1), -localAlpha, newDepth, height+1)
-				if score > localAlpha {
-					score = -thread.alphaBeta(-beta, -localAlpha, newDepth, height+1)
-				}
-				gate.Lock()
-				if score > alpha {
-					alpha = score
-					result = SearchInfo{
-						Depth:    depth,
-						Score:    newUciScore(score),
-						MainLine: append([]Move{move}, thread.pvTable.Read(child)...),
-						Time:     engine.timeManager.ElapsedMilliseconds(),
-						Nodes:    engine.nodes(),
-					}
-					if progress != nil {
-						progress(result)
-					}
-					bestMoveIndex = localIndex
-				}
-				gate.Unlock()
-			}
-		})
-		if isDone(engine.done) {
+	for depth := 1; depth <= maxHeight; depth++ {
+		e.searchRootParallel(ml, depth)
+		if isDone(e.done) {
 			break
 		}
-		if alpha >= winIn(depth-3) || alpha <= lossIn(depth-3) {
+		if e.mainLine.score >= winIn(depth-3) ||
+			e.mainLine.score <= lossIn(depth-3) {
 			break
 		}
-		if AbsDelta(prevScore, alpha) <= PawnValue/2 && engine.timeManager.IsSoftTimeout() {
+		if AbsDelta(prevScore, e.mainLine.score) <= PawnValue/2 &&
+			e.timeManager.IsSoftTimeout() {
 			break
 		}
-		moveToBegin(ml, bestMoveIndex)
-		prevScore = alpha
+		prevScore = e.mainLine.score
+		e.sendProgress()
 	}
-	return
+}
+
+func (e *Engine) searchRootParallel(ml []Move, depth int) int {
+	var mainThread = &e.threads[0]
+	const height = 0
+	var p = &mainThread.stack[height].position
+	var alpha = -valueInfinity
+	const beta = valueInfinity
+	var bestMoveIndex = 0
+	{
+		var child = &mainThread.stack[height+1].position
+		var move = ml[0]
+		p.MakeMove(move, child)
+		var newDepth = mainThread.newDepth(depth, height)
+		var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
+		alpha = score
+		e.mainLine.update(depth, score,
+			append([]Move{move}, mainThread.stack[height+1].pv.moves()...))
+	}
+	var gate = &sync.Mutex{}
+	var index = 1
+	parallelDo(e.Threads.Value, func(threadIndex int) {
+		defer recoverFromSearchTimeout()
+		var t = &e.threads[threadIndex]
+		var child = &t.stack[height+1].position
+		for {
+			gate.Lock()
+			var localAlpha = alpha
+			var localIndex = index
+			index++
+			gate.Unlock()
+			if localIndex >= len(ml) {
+				return
+			}
+			var move = ml[localIndex]
+			p.MakeMove(move, child)
+			var newDepth = t.newDepth(depth, height)
+			if -t.alphaBeta(-(localAlpha+1), -localAlpha, newDepth, height+1) <= localAlpha {
+				continue
+			}
+			var score = -t.alphaBeta(-beta, -localAlpha, newDepth, height+1)
+			gate.Lock()
+			if score > alpha {
+				alpha = score
+				e.mainLine.update(depth, score,
+					append([]Move{move}, t.stack[height+1].pv.moves()...))
+				bestMoveIndex = localIndex
+			}
+			gate.Unlock()
+		}
+	})
+	moveToBegin(ml, bestMoveIndex)
+	return alpha
 }
 
 func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var newDepth, score int
+	t.stack[height].pv.clear()
 
 	if height >= maxHeight || t.isDraw(height) {
 		return valueDraw
@@ -158,10 +145,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		if score >= beta && score < valueWin {
 			return beta
 		}
-	}
-
-	if hashMove == MoveEmpty {
-		hashMove = t.pvTable.Get(position)
 	}
 
 	if depth >= 4 && hashMove == MoveEmpty &&
@@ -237,6 +220,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				if alpha >= beta {
 					break
 				}
+				t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 			}
 		}
 	}
@@ -259,15 +243,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	if alpha < beta {
 		ttType |= boundUpper
 	}
-	if ttType == boundExact {
-		t.pvTable.Save(position, bestMove)
-	}
 	t.engine.transTable.Update(position, depth, valueToTT(alpha, height), ttType, bestMove)
 
 	return alpha
 }
 
 func (t *thread) quiescence(alpha, beta, depth, height int) int {
+	t.stack[height].pv.clear()
 	t.incNodes()
 	if height >= maxHeight {
 		return valueDraw
@@ -292,7 +274,6 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	}
 	t.sortTable.NoteQS(position, ml)
 	sortMoves(ml)
-	var bestMove = MoveEmpty
 	var moveCount = 0
 	var child = &t.stack[height+1].position
 	for i := range ml {
@@ -310,18 +291,15 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 			var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
 			if score > alpha {
 				alpha = score
-				bestMove = move
 				if score >= beta {
 					break
 				}
+				t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 			}
 		}
 	}
 	if isCheck && moveCount == 0 {
 		return lossIn(height)
-	}
-	if bestMove != MoveEmpty && alpha < beta {
-		t.pvTable.Save(position, bestMove)
 	}
 	return alpha
 }
@@ -404,22 +382,6 @@ func recoverFromSearchTimeout() {
 	}
 }
 
-func (t *thread) sortRootMoves(moves []Move) {
-	const height = 0
-	var position = &t.stack[height].position
-	var child = &t.stack[height+1].position
-	var ml = t.stack[height].moveList[:0]
-	for _, m := range moves {
-		position.MakeMove(m, child)
-		var score = -t.quiescence(-valueInfinity, valueInfinity, 1, height+1)
-		ml = append(ml, OrderedMove{Move: m, Key: score})
-	}
-	sortMoves(ml)
-	for i := range moves {
-		moves[i] = ml[i].Move
-	}
-}
-
 func moveToBegin(ml []Move, index int) {
 	if index == 0 {
 		return
@@ -441,4 +403,23 @@ func moveToTop(ml []OrderedMove) {
 	if bestIndex != 0 {
 		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
 	}
+}
+
+func (e *Engine) genRootMoves() []Move {
+	var t = e.threads[0]
+	const height = 0
+	var p = &t.stack[height].position
+	_, _, _, transMove, _ := e.transTable.Read(p)
+	var ml = p.GenerateMoves(t.stack[height].moveList[:])
+	t.sortTable.Note(p, ml, transMove, height)
+	sortMoves(ml)
+	var result []Move
+	var child = &t.stack[height+1].position
+	for i := range ml {
+		var move = ml[i].Move
+		if p.MakeMove(move, child) {
+			result = append(result, move)
+		}
+	}
+	return result
 }

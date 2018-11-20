@@ -15,7 +15,6 @@ func NewEngineA() UciEngine {
 	result.Hash.Value = 16
 	result.Threads.Value = 1
 	result.ExperimentSettings = false
-	result.ClearBeforeSearch = true
 	result.Prepare()
 	return result
 }
@@ -25,7 +24,6 @@ func NewEngineB() UciEngine {
 	result.Hash.Value = 16
 	result.Threads.Value = 1
 	result.ExperimentSettings = true
-	result.ClearBeforeSearch = true
 	result.Prepare()
 	return result
 }
@@ -105,8 +103,8 @@ func computeStat(wins, losses, draws int) {
 func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 	engine1.Clear()
 	engine2.Clear()
-	var chessClock = MoveTimeChessClock{moveSeconds: 1}
-	//var chessClock = NewClassicChessClock(40, 0, 40)
+	//var chessClock = MoveTimeChessClock{moveSeconds: 1}
+	var chessClock = NewClassicChessClock(40, 0, 40)
 	var positions = []common.Position{initialPosition}
 	for {
 		var gameResult = computeGameResult(positions)

@@ -17,7 +17,7 @@ const (
 )
 
 func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg sync.WaitGroup
+	var wg = &sync.WaitGroup{}
 	for i := 1; i < degreeOfParallelism; i++ {
 		wg.Add(1)
 		go func(threadIndex int) {

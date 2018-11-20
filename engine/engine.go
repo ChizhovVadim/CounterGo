@@ -11,26 +11,38 @@ type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings bool
-	ClearBeforeSearch  bool
 	timeManager        timeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
 	historyKeys        map[uint64]int
 	done               <-chan struct{}
 	threads            []thread
+	progress           func(SearchInfo)
+	mainLine           mainLine
 }
 
 type thread struct {
 	engine    *Engine
 	sortTable SortTable
 	evaluator Evaluator
-	pvTable   pvTable
 	nodes     int
 	stack     [stackSize]struct {
 		position       Position
 		moveList       [MaxMoves]OrderedMove
 		quietsSearched [MaxMoves]Move
+		pv             pv
 	}
+}
+
+type pv struct {
+	items [stackSize]Move
+	size  int
+}
+
+type mainLine struct {
+	moves []Move
+	score int
+	depth int
 }
 
 type Evaluator interface {
@@ -62,7 +74,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.0", "Vadim Chizhov"
+	return "Counter", "3.1dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -82,11 +94,7 @@ func (e *Engine) Prepare() {
 			var t = &e.threads[i]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			if e.ExperimentSettings {
-				t.evaluator = NewExperimentEvaluationService()
-			} else {
-				t.evaluator = NewEvaluationService()
-			}
+			t.evaluator = NewEvaluationService()
 		}
 	}
 }
@@ -101,9 +109,6 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	}
 	e.Prepare()
 	e.transTable.PrepareNewSearch()
-	if e.ClearBeforeSearch {
-		e.Clear()
-	}
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	e.done = ctx.Done()
 	for i := range e.threads {
@@ -111,7 +116,9 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		t.nodes = 0
 		t.stack[0].position = *p
 	}
-	return e.iterateSearch(searchParams.Progress)
+	e.progress = searchParams.Progress
+	e.iterativeDeepening()
+	return e.currentSearchResult()
 }
 
 func (e *Engine) nodes() int64 {
@@ -141,6 +148,41 @@ func (e *Engine) Clear() {
 	for i := range e.threads {
 		var t = &e.threads[i]
 		t.sortTable.Clear()
-		t.pvTable.Clear()
 	}
+}
+
+func (ml *mainLine) update(depth, score int, mainLine []Move) {
+	ml.depth = depth
+	ml.score = score
+	ml.moves = mainLine
+}
+
+func (e *Engine) currentSearchResult() SearchInfo {
+	return SearchInfo{
+		Depth:    e.mainLine.depth,
+		MainLine: e.mainLine.moves,
+		Score:    newUciScore(e.mainLine.score),
+		Nodes:    e.nodes(),
+		Time:     e.timeManager.ElapsedMilliseconds(),
+	}
+}
+
+func (e *Engine) sendProgress() {
+	if e.progress != nil {
+		e.progress(e.currentSearchResult())
+	}
+}
+
+func (pv *pv) clear() {
+	pv.size = 0
+}
+
+func (pv *pv) assign(m Move, child *pv) {
+	pv.size = 1 + child.size
+	pv.items[0] = m
+	copy(pv.items[1:], child.items[:child.size])
+}
+
+func (pv *pv) moves() []Move {
+	return pv.items[:pv.size]
 }

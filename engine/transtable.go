@@ -104,11 +104,20 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 				bestEntry = entry
 			}
 		}
-		bestEntry.key32 = uint32(p.Key >> 32)
-		bestEntry.move = move
-		bestEntry.score = int16(score)
-		bestEntry.depth = int8(depth)
-		bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+		if bestEntry.key32 == uint32(p.Key>>32) {
+			if bound == boundExact || depth >= int(bestEntry.depth) {
+				bestEntry.move = move
+				bestEntry.score = int16(score)
+				bestEntry.depth = int8(depth)
+				bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+			}
+		} else {
+			bestEntry.key32 = uint32(p.Key >> 32)
+			bestEntry.move = move
+			bestEntry.score = int16(score)
+			bestEntry.depth = int8(depth)
+			bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+		}
 		atomic.StoreInt32(gate, 0)
 	}
 }

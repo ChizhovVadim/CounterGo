@@ -21,6 +21,7 @@ func (e *Engine) iterativeDeepening() {
 	}
 
 	var prevScore int
+	var prevBestMove Move
 	for depth := 1; depth <= maxHeight; depth++ {
 		e.searchRootParallel(ml, depth)
 		if isDone(e.done) {
@@ -30,12 +31,24 @@ func (e *Engine) iterativeDeepening() {
 			e.mainLine.score <= lossIn(depth-3) {
 			break
 		}
-		if AbsDelta(prevScore, e.mainLine.score) <= PawnValue/2 &&
-			e.timeManager.IsSoftTimeout() {
+		if e.timeManager.IsSoftTimeout(e.mainLine.moves[0] != prevBestMove,
+			e.mainLine.score < prevScore-PawnValue/2) {
 			break
 		}
 		prevScore = e.mainLine.score
+		prevBestMove = e.mainLine.moves[0]
 		e.sendProgress()
+		savePV(e.transTable, &e.threads[0].stack[0].position, e.mainLine.moves)
+	}
+}
+
+func savePV(transTable TransTable, p *Position, pv []Move) {
+	var parent = *p
+	var child Position
+	for _, m := range pv {
+		transTable.Update(p, 0, 0, 0, m)
+		parent.MakeMove(m, &child)
+		parent = child
 	}
 }
 

@@ -160,13 +160,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	if depth >= 4 && hashMove == MoveEmpty &&
-		beta > alpha+PawnValue/2 {
-		//good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
-		t.alphaBeta(alpha, beta, depth-2, height)
-		_, _, _, hashMove, _ = t.engine.transTable.Read(position)
-	}
-
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, hashMove, height)
 
@@ -196,17 +189,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
-				if depth <= 1 {
+				if depth <= 6 {
 					if staticEval == valueInfinity {
 						staticEval = t.evaluator.Evaluate(position)
 					}
 					if staticEval+PawnValue*depth <= alpha {
 						continue
 					}
-				}
-
-				if depth <= 2 && moveCount >= 9+3*depth {
-					continue
 				}
 
 				if depth >= 3 {
@@ -435,4 +424,19 @@ func (e *Engine) genRootMoves() []Move {
 		}
 	}
 	return result
+}
+
+type lazyEval struct {
+	evaluator Evaluator
+	position  *Position
+	hasValue  bool
+	value     int
+}
+
+func (le *lazyEval) Value() int {
+	if !le.hasValue {
+		le.value = le.evaluator.Evaluate(le.position)
+		le.hasValue = true
+	}
+	return le.value
 }

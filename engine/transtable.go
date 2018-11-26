@@ -110,7 +110,7 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 				bestEntry.move = move
 			}
 			//if bound != 0 {
-			if depth >= int(bestEntry.depth)-3 {
+			if bound == boundExact || depth >= int(bestEntry.depth)-3 {
 				bestEntry.score = int16(score)
 				bestEntry.depth = int8(depth)
 				bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)

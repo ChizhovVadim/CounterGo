@@ -144,10 +144,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
+	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
+
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
-		!isLateEndgame(position, position.WhiteMove) {
+		!isLateEndgame(position, position.WhiteMove) &&
+		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
 		if newDepth <= 0 {
@@ -165,7 +168,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
-	var staticEval = valueInfinity
 	var bestMove Move
 	const SortMovesIndex = 4
 
@@ -189,13 +191,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
-				if depth <= 6 {
-					if staticEval == valueInfinity {
-						staticEval = t.evaluator.Evaluate(position)
-					}
-					if staticEval+PawnValue*depth <= alpha {
-						continue
-					}
+				if depth <= 2 && position.LastMove != MoveEmpty &&
+					moveCount >= 9+3*depth {
+					continue
+				}
+
+				if depth <= 3 && position.LastMove != MoveEmpty &&
+					lazyEval.Value()+PawnValue*depth <= alpha {
+					continue
 				}
 
 				if depth >= 3 {
@@ -207,8 +210,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				quietsSearched = append(quietsSearched, move)
 			}
 
-			if reduction > 0 {
-				score = -t.alphaBeta(-(alpha + 1), -alpha, depth-1-reduction, height+1)
+			if reduction > 0 ||
+				(beta > alpha+PawnValue/2 && moveCount > 1 && newDepth >= 2) {
+				score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 				if score <= alpha {
 					continue
 				}

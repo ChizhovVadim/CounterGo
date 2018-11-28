@@ -30,8 +30,6 @@ func roundPowerOfTwo(size int) int {
 	return x
 }
 
-const clusterSize = 4
-
 type transTable struct {
 	megabytes  int
 	entries    []transEntry
@@ -46,7 +44,7 @@ func NewTransTable(megabytes int) *transTable {
 	return &transTable{
 		megabytes: megabytes,
 		entries:   make([]transEntry, size),
-		mask:      uint32(size - 4),
+		mask:      uint32(size - 1),
 	}
 }
 
@@ -66,71 +64,44 @@ func (tt *transTable) Clear() {
 }
 
 func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok bool) {
-	var index = uint32(p.Key) & tt.mask
-	var entries = tt.entries[index : index+clusterSize]
-	var gate = &entries[0].gate
-	if atomic.CompareAndSwapInt32(gate, 0, 1) {
-		for i := range entries {
-			var entry = &entries[i]
-			if entry.key32 == uint32(p.Key>>32) {
-				entry.bound_gen = (entry.bound_gen & 3) + (tt.generation << 2)
-				score = int(entry.score)
-				move = entry.move
-				depth = int(entry.depth)
-				bound = int(entry.bound_gen & 3)
-				ok = true
-				break
-			}
+	var entry = &tt.entries[uint32(p.Key)&tt.mask]
+	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
+		if entry.key32 == uint32(p.Key>>32) {
+			entry.bound_gen = (entry.bound_gen & 3) + (tt.generation << 2)
+			score = int(entry.score)
+			move = entry.move
+			depth = int(entry.depth)
+			bound = int(entry.bound_gen & 3)
+			ok = true
 		}
-		atomic.StoreInt32(gate, 0)
+		atomic.StoreInt32(&entry.gate, 0)
 	}
 	return
 }
 
 func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
-	var index = uint32(p.Key) & tt.mask
-	var entries = tt.entries[index : index+clusterSize]
-	var gate = &entries[0].gate
-	if atomic.CompareAndSwapInt32(gate, 0, 1) {
-		var bestEntry *transEntry
-		var bestScore = -32767
-		for i := range entries {
-			var entry = &entries[i]
-			if entry.key32 == uint32(p.Key>>32) {
-				bestEntry = entry
-				break
-			}
-			var score = transEntryScore(int(entry.depth), (entry.bound_gen>>2) == tt.generation)
-			if score > bestScore {
-				bestScore = score
-				bestEntry = entry
-			}
-		}
-		if bestEntry.key32 == uint32(p.Key>>32) {
+	var entry = &tt.entries[uint32(p.Key)&tt.mask]
+	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
+		if entry.key32 == uint32(p.Key>>32) {
 			if move != MoveEmpty {
-				bestEntry.move = move
+				entry.move = move
 			}
-			//if bound != 0 {
-			if bound == boundExact || depth >= int(bestEntry.depth)-3 {
-				bestEntry.score = int16(score)
-				bestEntry.depth = int8(depth)
-				bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+			if bound == boundExact || depth >= int(entry.depth)-3 {
+				entry.score = int16(score)
+				entry.depth = int8(depth)
+				entry.bound_gen = uint8(bound) + (tt.generation << 2)
 			}
 		} else {
-			bestEntry.key32 = uint32(p.Key >> 32)
-			bestEntry.move = move
-			bestEntry.score = int16(score)
-			bestEntry.depth = int8(depth)
-			bestEntry.bound_gen = uint8(bound) + (tt.generation << 2)
+			if (entry.bound_gen>>2) != tt.generation ||
+				depth >= int(entry.depth) ||
+				bound == 0 {
+				entry.key32 = uint32(p.Key >> 32)
+				entry.move = move
+				entry.score = int16(score)
+				entry.depth = int8(depth)
+				entry.bound_gen = uint8(bound) + (tt.generation << 2)
+			}
 		}
-		atomic.StoreInt32(gate, 0)
+		atomic.StoreInt32(&entry.gate, 0)
 	}
-}
-
-func transEntryScore(depth int, newGen bool) int {
-	var score = -depth
-	if !newGen {
-		score += 100
-	}
-	return score
 }

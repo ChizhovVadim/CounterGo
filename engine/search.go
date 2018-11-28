@@ -23,7 +23,7 @@ func (e *Engine) iterativeDeepening() {
 	var prevScore int
 	var prevBestMove Move
 	for depth := 1; depth <= maxHeight; depth++ {
-		e.searchRootParallel(ml, depth)
+		e.searchRootParallel(ml, depth, prevScore)
 		if isDone(e.done) {
 			break
 		}
@@ -52,7 +52,7 @@ func savePV(transTable TransTable, p *Position, pv []Move) {
 	}
 }
 
-func (e *Engine) searchRootParallel(ml []Move, depth int) int {
+func (e *Engine) searchRootParallel(ml []Move, depth, prevScore int) int {
 	var mainThread = &e.threads[0]
 	const height = 0
 	var p = &mainThread.stack[height].position
@@ -64,7 +64,12 @@ func (e *Engine) searchRootParallel(ml []Move, depth int) int {
 		var move = ml[0]
 		p.MakeMove(move, child)
 		var newDepth = mainThread.newDepth(depth, height)
-		var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
+		var a = Max(-valueInfinity, prevScore-PawnValue/2)
+		var b = Min(valueInfinity, prevScore+PawnValue/2)
+		var score = -mainThread.alphaBeta(-b, -a, newDepth, height+1)
+		if score >= b || score <= a {
+			score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
+		}
 		alpha = score
 		e.mainLine.update(depth, score,
 			append([]Move{move}, mainThread.stack[height+1].pv.moves()...))
@@ -210,8 +215,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				quietsSearched = append(quietsSearched, move)
 			}
 
-			if reduction > 0 ||
-				(beta > alpha+PawnValue/2 && moveCount > 1 && newDepth >= 2) {
+			if reduction > 0 {
 				score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 				if score <= alpha {
 					continue

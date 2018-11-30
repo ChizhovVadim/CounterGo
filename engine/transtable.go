@@ -53,7 +53,14 @@ func (tt *transTable) Megabytes() int {
 }
 
 func (tt *transTable) PrepareNewSearch() {
-	tt.generation = (tt.generation + 1) & 63
+	tt.generation = (tt.generation + 1) % 64
+	if tt.generation == 0 {
+		tt.generation = 1
+		for i := range tt.entries {
+			var entry = &tt.entries[i]
+			entry.bound_gen = entry.bound_gen & 3
+		}
+	}
 }
 
 func (tt *transTable) Clear() {

@@ -46,7 +46,7 @@ func savePV(transTable TransTable, p *Position, pv []Move) {
 	var parent = *p
 	var child Position
 	for _, m := range pv {
-		transTable.Update(p, 0, 0, 0, m)
+		transTable.Update(&parent, 0, 0, 0, m)
 		parent.MakeMove(m, &child)
 		parent = child
 	}

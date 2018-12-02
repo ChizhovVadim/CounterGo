@@ -359,6 +359,7 @@ func (uci *UciProtocol) moveCommand() {
 	if len(searchResult.MainLine) == 0 {
 		return
 	}
+	PrintSearchInfo(searchResult)
 	var child common.Position
 	newPos.MakeMove(searchResult.MainLine[0], &child)
 	uci.positions = append(uci.positions, child)

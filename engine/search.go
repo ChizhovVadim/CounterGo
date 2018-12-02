@@ -64,12 +64,7 @@ func (e *Engine) searchRootParallel(ml []Move, depth, prevScore int) int {
 		var move = ml[0]
 		p.MakeMove(move, child)
 		var newDepth = mainThread.newDepth(depth, height)
-		var a = Max(-valueInfinity, prevScore-PawnValue/2)
-		var b = Min(valueInfinity, prevScore+PawnValue/2)
-		var score = -mainThread.alphaBeta(-b, -a, newDepth, height+1)
-		if score >= b || score <= a {
-			score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
-		}
+		var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
 		alpha = score
 		e.mainLine.update(depth, score,
 			append([]Move{move}, mainThread.stack[height+1].pv.moves()...))

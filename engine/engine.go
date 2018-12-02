@@ -67,7 +67,7 @@ type TransTable interface {
 func NewEngine() *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
-		Hash:               IntUciOption{Name: "Hash", Value: 4, Min: 4, Max: 512},
+		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1024},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
 		ExperimentSettings: false,
 	}

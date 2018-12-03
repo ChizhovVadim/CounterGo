@@ -191,7 +191,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
-				if depth <= 3 && position.LastMove != MoveEmpty &&
+				if depth <= 4 && position.LastMove != MoveEmpty &&
 					lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}

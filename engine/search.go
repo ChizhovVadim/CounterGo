@@ -130,10 +130,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var hashMove = MoveEmpty
+	var pvNode = beta != alpha+1
 
 	if ttDepth, ttScore, ttType, ttMove, ok := t.engine.transTable.Read(position); ok {
 		hashMove = ttMove
-		if ttDepth >= depth {
+		if ttDepth >= depth && !pvNode {
 			ttScore = valueFromTT(ttScore, height)
 			if ttScore >= beta && (ttType&boundLower) != 0 {
 				return beta
@@ -147,7 +148,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
 
 	var child = &t.stack[height+1].position
-	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
+	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
@@ -191,13 +192,21 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				!isPawnAdvance(move, position.WhiteMove) &&
 				alpha > valueLoss {
 
-				if depth <= 4 && position.LastMove != MoveEmpty &&
-					lazyEval.Value()+PawnValue*depth <= alpha {
-					continue
-				}
-
 				if depth >= 3 {
 					reduction = t.engine.lateMoveReduction(depth, moveCount)
+					if pvNode {
+						reduction--
+					}
+					reduction = Max(0, Min(depth-2, reduction))
+				} else {
+					if position.LastMove != MoveEmpty &&
+						moveCount >= 9+3*depth {
+						continue
+					}
+					if position.LastMove != MoveEmpty &&
+						lazyEval.Value()+PawnValue*depth <= alpha {
+						continue
+					}
 				}
 			}
 
@@ -205,7 +214,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				quietsSearched = append(quietsSearched, move)
 			}
 
-			if reduction > 0 {
+			if reduction > 0 ||
+				(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
 				score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 				if score <= alpha {
 					continue

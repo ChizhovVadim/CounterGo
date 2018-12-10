@@ -23,7 +23,7 @@ func (e *Engine) iterativeDeepening() {
 	var prevScore int
 	var prevBestMove Move
 	for depth := 1; depth <= maxHeight; depth++ {
-		e.searchRootParallel(ml, depth, prevScore)
+		e.searchRootParallel(ml, depth)
 		if isDone(e.done) {
 			break
 		}
@@ -52,7 +52,7 @@ func savePV(transTable TransTable, p *Position, pv []Move) {
 	}
 }
 
-func (e *Engine) searchRootParallel(ml []Move, depth, prevScore int) int {
+func (e *Engine) searchRootParallel(ml []Move, depth int) int {
 	var mainThread = &e.threads[0]
 	const height = 0
 	var p = &mainThread.stack[height].position

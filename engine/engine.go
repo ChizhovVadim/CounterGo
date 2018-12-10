@@ -74,7 +74,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.1dev", "Vadim Chizhov"
+	return "Counter", "3.1", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {

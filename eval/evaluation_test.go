@@ -1,95 +1,33 @@
-package engine
+package eval
 
 import (
 	"testing"
+
+	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-/*func TestSEE(t *testing.T) {
-	var buffer [MaxMoves]Move
-	var child = &Position{}
+func TestEval(t *testing.T) {
+	var e = NewEvaluationService()
 	for _, test := range testFENs {
-		var p, err = NewPositionFromFEN(test)
+		var p1, err = NewPositionFromFEN(test)
 		if err != nil {
 			t.Error(err)
 		}
-		var eval = basicMaterial(&p)
-		for _, move := range p.GenerateCaptures(buffer[:], true) {
-			if !p.MakeMove(move, child) {
-				continue
-			}
-			if child.IsDiscoveredCheck() {
-				continue
-			}
-			var directSEE = -searchSEE(child) - eval
-			var see = see(&p, move)
-			if see != directSEE {
-				t.Error(test, move.String(), directSEE, see)
-			}
-			if !seeGE(&p, move, directSEE) || seeGE(&p, move, directSEE+1) {
-				t.Error(test, move.String(), directSEE)
-			}
+		var score1 = e.Evaluate(&p1)
+		var p2 = MirrorPosition(&p1)
+		var score2 = e.Evaluate(&p2)
+		if score1 != score2 {
+			t.Error(test, p2.String(), score1, score2)
 		}
 	}
 }
 
-func basicMaterial(p *Position) int {
-	var score = 0
-	score += PopCount(p.Pawns&p.White) - PopCount(p.Pawns&p.Black)
-	score += 4 * (PopCount(p.Knights&p.White) - PopCount(p.Knights&p.Black))
-	score += 4 * (PopCount(p.Bishops&p.White) - PopCount(p.Bishops&p.Black))
-	score += 6 * (PopCount(p.Rooks&p.White) - PopCount(p.Rooks&p.Black))
-	score += 12 * (PopCount(p.Queens&p.White) - PopCount(p.Queens&p.Black))
-	if !p.WhiteMove {
-		score = -score
-	}
-	return score
-}
-
-func searchSEE(p *Position) int {
-	var alpha = basicMaterial(p)
-	var buffer [MaxMoves]Move
-	var ml = p.GenerateCaptures(buffer[:], false)
-	var child = &Position{}
-	var move = lvaRecapture(p, child, ml, p.LastMove.To())
-	if move != MoveEmpty &&
-		p.MakeMove(move, child) {
-		var score = -searchSEE(child)
-		if score > alpha {
-			alpha = score
-		}
-	}
-	return alpha
-}
-
-func lvaRecapture(p, child *Position, ml []Move, square int) Move {
-	var piece = King + 1
-	var bestMove = MoveEmpty
-	for _, move := range ml {
-		if move.To() == square &&
-			move.MovingPiece() < piece &&
-			p.MakeMove(move, child) {
-			bestMove = move
-			piece = move.MovingPiece()
-		}
-	}
-	return bestMove
-}*/
-
-func TestTimeControl(t *testing.T) {
-	var tc = timeControlSmart
-	var time = 60 * 1000
-	var moves = 40
-	for moves > 0 {
-		var soft, hard = tc(time, 0, moves)
-		if soft <= 1 || hard <= 1 {
-			t.Fatal(time, moves, soft, hard)
-		}
-		moves--
-		time -= hard
-		if time < 0 {
-			t.Fatal("Timeout")
-		}
-	}
+func TestEval2(t *testing.T) {
+	PrintWeights()
+	var e = NewEvaluationService()
+	var p, _ = NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")
+	var score = e.Evaluate(&p)
+	t.Log("Score:", score)
 }
 
 var testFENs = []string{

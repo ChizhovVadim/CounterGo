@@ -7,6 +7,8 @@ import (
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
+const PawnValue = 100
+
 var searchTimeout = errors.New("search timeout")
 
 func (e *Engine) iterativeDeepening() {

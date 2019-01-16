@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
+	"github.com/ChizhovVadim/CounterGo/eval"
 )
 
 type Engine struct {
@@ -74,7 +75,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.1", "Vadim Chizhov"
+	return "Counter", "3.2dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -94,7 +95,7 @@ func (e *Engine) Prepare() {
 			var t = &e.threads[i]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			t.evaluator = NewEvaluationService()
+			t.evaluator = eval.NewEvaluationService()
 		}
 	}
 }

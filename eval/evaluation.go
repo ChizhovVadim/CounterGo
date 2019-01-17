@@ -159,7 +159,7 @@ func (entry *evalEntry) Evaluate(weights []int) int {
 	return score / evalScale
 }
 
-func (e *EvaluationService) EvaluateFeatures(p *Position) evalEntry {
+func (e *EvaluationService) computeEntry(p *Position) evalEntry {
 	for i := range e.features {
 		e.features[i] = 0
 	}
@@ -247,8 +247,8 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		PopCount(wpawnAttacks&p.Black&^p.Pawns)-
 			PopCount(bpawnAttacks&p.White&^p.Pawns))
 
-	var wMobilityArea = p.Black | (^allPieces & ^bpawnAttacks)
-	var bMobilityArea = p.White | (^allPieces & ^wpawnAttacks)
+	var wMobilityArea = ^((p.Pawns & p.White) | bpawnAttacks)
+	var bMobilityArea = ^((p.Pawns & p.Black) | wpawnAttacks)
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		wn++

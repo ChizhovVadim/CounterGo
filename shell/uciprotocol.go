@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ChizhovVadim/CounterGo/common"
+	"github.com/ChizhovVadim/CounterGo/eval"
 )
 
 type UciEngine interface {
@@ -328,10 +329,9 @@ func (uci *UciProtocol) arenaCommand() {
 }
 
 func (uci *UciProtocol) evalCommand() {
-	/*var p = &uci.positions[len(uci.positions)-1]
-	var evaluationService = engine.NewEvaluationService()
-	evaluationService.TraceEnabled = true
-	evaluationService.Evaluate(p)*/
+	var p = &uci.positions[len(uci.positions)-1]
+	var evalService = eval.NewEvaluationService()
+	evalService.Trace(p)
 }
 
 func (uci *UciProtocol) moveCommand() {

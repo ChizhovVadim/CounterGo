@@ -20,7 +20,7 @@ type tuneEntry struct {
 	evalEntry evalEntry
 }
 
-func NewTuneBuilderFast() *tuneBuilder {
+func NewTuneBuilder() *tuneBuilder {
 	var srv = &tuneBuilder{
 		evalService: NewEvaluationService(),
 		numCPU:      runtime.NumCPU(),
@@ -33,7 +33,7 @@ func (srv *tuneBuilder) AddSample(fen string, score float64) error {
 	if err != nil {
 		return err
 	}
-	var evalEntry = srv.evalService.EvaluateFeatures(&p)
+	var evalEntry = srv.evalService.computeEntry(&p)
 	srv.samples = append(srv.samples, tuneEntry{score, evalEntry})
 	return nil
 }

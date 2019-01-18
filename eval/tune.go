@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-type learnEntry struct {
-	fen   string
-	score float64
+type LearnEntry struct {
+	Fen   string
+	Score float64
 }
 
 const LearnFilePath = "/home/vadim/chess/tuner/quiet-labeled.epd"
 
-func readLearn(filePath string, learnEntries chan<- learnEntry) error {
+func ReadLearn(filePath string, learnEntries chan<- LearnEntry) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -33,10 +33,10 @@ func readLearn(filePath string, learnEntries chan<- learnEntry) error {
 	return scanner.Err()
 }
 
-func parseLearnEntry(s string) (learnEntry, error) {
+func parseLearnEntry(s string) (LearnEntry, error) {
 	var index = strings.Index(s, "\"")
 	if index < 0 {
-		return learnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
+		return LearnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
 	}
 	var fen = s[:index]
 	var score float64
@@ -48,9 +48,9 @@ func parseLearnEntry(s string) (learnEntry, error) {
 	} else if strings.HasPrefix(strScore, "0-1") {
 		score = 0.0
 	} else {
-		return learnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
+		return LearnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
 	}
-	return learnEntry{fen, score}, nil
+	return LearnEntry{fen, score}, nil
 }
 
 type TuneBuilder interface {
@@ -61,10 +61,10 @@ type TuneBuilder interface {
 
 func RunTuning(tuneBuilder TuneBuilder) {
 	log.Println("Tune started.")
-	var entries = make(chan learnEntry, 128)
+	var entries = make(chan LearnEntry, 128)
 	go func() {
 		defer close(entries)
-		var err = readLearn(LearnFilePath, entries)
+		var err = ReadLearn(LearnFilePath, entries)
 		if err != nil {
 			log.Println(err)
 			return
@@ -72,7 +72,7 @@ func RunTuning(tuneBuilder TuneBuilder) {
 	}()
 	var count = 0
 	for entry := range entries {
-		var err = tuneBuilder.AddSample(entry.fen, entry.score)
+		var err = tuneBuilder.AddSample(entry.Fen, entry.Score)
 		if err != nil {
 			log.Println(err)
 			return

@@ -61,7 +61,7 @@ func (srv *tuneBuilder) ComputeError(weights []int, lambda float64) float64 {
 					break
 				}
 				var entry = &srv.samples[i]
-				var score = entry.evalEntry.Evaluate(scaledWeights)
+				var score = entry.evalEntry.Evaluate(scaledWeights) / evalScale
 				var diff = float64(entry.score) - sigmoid(float64(score))
 				localSum += diff * diff
 			}
@@ -99,5 +99,5 @@ func l1(weights []int) float64 {
 }
 
 func sigmoid(s float64) float64 {
-	return 1.0 / (1.0 + math.Exp(-s/150))
+	return 1.0 / (1.0 + math.Exp(-s/135))
 }

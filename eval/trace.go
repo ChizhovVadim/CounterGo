@@ -19,12 +19,13 @@ func initFeatureNames() []string {
 	t[fQueenMaterial] = "fQueenMaterial"
 	t[fBishopPairMaterial] = "fBishopPairMaterial"
 	t[fSideToMove] = "fSideToMove"
+	t[fPawnWeak] = "fPawnWeak"
 	t[fPawnDoubled] = "fPawnDoubled"
-	t[fPawnIsolated] = "fPawnIsolated"
-	t[fPawnDoubledIsolated] = "fPawnDoubledIsolated"
-	t[fPawnConnected] = "fPawnConnected"
+	t[fPawnDuo] = "fPawnDuo"
+	t[fPawnProtected] = "fPawnProtected"
 	t[fPawnPassed] = "fPawnPassed"
 	t[fPawnPassedFree] = "fPawnPassedFree"
+	t[fPawnPassedSafeAdvance] = "fPawnPassedSafeAdvance"
 	t[fPawnPassedOppKing] = "fPawnPassedOppKing"
 	t[fPawnPassedOwnKing] = "fPawnPassedOwnKing"
 	t[fThreat] = "fThreat"
@@ -63,6 +64,7 @@ func PrintWeights() {
 }
 
 func (e *EvaluationService) Trace(p *common.Position) {
+	var pawnEg = e.weights[2*fPawnMaterial+1]
 	var entry = e.computeEntry(p)
 	var w = tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
 	fmt.Fprintf(w, "Feature\tScore\t\n")
@@ -70,9 +72,11 @@ func (e *EvaluationService) Trace(p *common.Position) {
 		var scoreOp = e.weights[2*f.index] * f.value
 		var scoreEg = e.weights[2*f.index+1] * f.value
 		var score = (entry.phase*scoreOp + (maxPhase-entry.phase)*scoreEg) / maxPhase
-		score = score * PawnValue / e.weights[2*fPawnMaterial+1]
+		score = score * PawnValue / pawnEg
 		fmt.Fprintf(w, "%v\t%v\t\n",
 			featureNames[f.index], score)
 	}
 	w.Flush()
+	var score = entry.Evaluate(e.weights[:]) * PawnValue / pawnEg
+	fmt.Println("Score:", score)
 }

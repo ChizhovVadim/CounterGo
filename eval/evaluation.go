@@ -39,6 +39,11 @@ func NewEvaluationService() *EvaluationService {
 }
 
 func (e *EvaluationService) initPst() {
+	var (
+		knightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+		bishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
+		kingLine   = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
+	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
 		var r = Rank(sq)
@@ -61,45 +66,46 @@ func (e *EvaluationService) initScales() {
 	for i := range e.scale {
 		e.scale[i] = 1
 	}
-	e.scale[fPawnPassed] = maxSlice(pawnPassedBonus[:])
-	e.scale[fPawnPassedFree] = maxSlice(pawnPassedBonus[:])
-	e.scale[fPawnPassedSafeAdvance] = maxSlice(pawnPassedBonus[:])
-	e.scale[fPawnPassedOppKing] = 7 * maxSlice(pawnPassedBonus[:])
-	e.scale[fPawnPassedOwnKing] = 7 * maxSlice(pawnPassedBonus[:])
-	e.scale[fKnightPst] = maxSlice(e.pst.wn[:])
-	e.scale[fBishopPst] = maxSlice(e.pst.wb[:])
-	e.scale[fQueenPst] = maxSlice(e.pst.wq[:])
-	e.scale[fKingCastlingPst] = maxSlice(e.pst.wkOp[:])
-	e.scale[fKingCenterPst] = maxSlice(e.pst.wkEg[:])
-	e.scale[fKnightMobility] = maxSlice(e.mobilityBonus[:1+8])
-	e.scale[fBishopMobility] = maxSlice(e.mobilityBonus[:1+13])
-	e.scale[fRookMobility] = maxSlice(e.mobilityBonus[:1+14])
-	e.scale[fQueenMobility] = maxSlice(e.mobilityBonus[:])
+	e.scale[fPawnPassed] = rangeSlice(pawnPassedBonus[:])
+	e.scale[fPawnPassedFree] = rangeSlice(pawnPassedBonus[:])
+	e.scale[fPawnPassedSafeAdvance] = rangeSlice(pawnPassedBonus[:])
+	e.scale[fPawnPassedOppKing] = 7 * rangeSlice(pawnPassedBonus[:])
+	e.scale[fPawnPassedOwnKing] = 7 * rangeSlice(pawnPassedBonus[:])
+	e.scale[fKnightPst] = rangeSlice(e.pst.wn[:])
+	e.scale[fBishopPst] = rangeSlice(e.pst.wb[:])
+	e.scale[fQueenPst] = rangeSlice(e.pst.wq[:])
+	e.scale[fKingCastlingPst] = rangeSlice(e.pst.wkOp[:])
+	e.scale[fKingCenterPst] = rangeSlice(e.pst.wkEg[:])
+	e.scale[fKnightMobility] = rangeSlice(e.mobilityBonus[:1+8])
+	e.scale[fBishopMobility] = rangeSlice(e.mobilityBonus[:1+13])
+	e.scale[fRookMobility] = rangeSlice(e.mobilityBonus[:1+14])
+	e.scale[fQueenMobility] = rangeSlice(e.mobilityBonus[:])
 }
 
-func maxSlice(source []int) int {
-	var result = source[0]
+func rangeSlice(source []int) int {
+	var high = source[0]
+	var low = high
 	for _, x := range source[1:] {
-		if x > result {
-			result = x
+		if x > high {
+			high = x
+		}
+		if x < low {
+			low = x
 		}
 	}
-	return result
+	return high - low
 }
 
 func (e *EvaluationService) initWeights(weights []int) {
-	//for i := range e.weights {
+	if len(weights) != len(e.weights) {
+		return
+	}
 	for i := range weights {
 		e.weights[i] = weights[i] * evalScale / e.scale[i/2]
 	}
 }
 
-var (
-	knightLine      = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
-	bishopLine      = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-	kingLine        = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
-	pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
-)
+var pawnPassedBonus = [8]int{0, 0, 0, 2, 6, 12, 21, 0}
 
 const (
 	darkSquares  = uint64(0xAA55AA55AA55AA55)
@@ -238,9 +244,11 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		PopCount(p.Pawns&p.White&(Rank2Mask|Rank3Mask)&Down(p.Pawns&p.Black))-
 			PopCount(p.Pawns&p.Black&(Rank7Mask|Rank6Mask)&Up(p.Pawns&p.White)))
 
-	e.add(fThreat,
-		PopCount(wpawnAttacks&p.Black&^p.Pawns)-
-			PopCount(bpawnAttacks&p.White&^p.Pawns))
+	wattacks |= wpawnAttacks
+	battacks |= bpawnAttacks
+
+	var threatsByWhite = (p.Knights | p.Bishops) & p.Black & wattacks
+	var threatsByBlack = (p.Knights | p.Bishops) & p.White & battacks
 
 	var wMobilityArea = ^((p.Pawns & p.White) | bpawnAttacks)
 	var bMobilityArea = ^((p.Pawns & p.Black) | wpawnAttacks)
@@ -299,6 +307,9 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		e.add(fBishopRammedPawns, -PopCount(sameColorSquares(sq)&p.Pawns&p.Black&Up(p.Pawns&p.White)))
 	}
 
+	threatsByWhite |= p.Rooks & p.Black & wattacks
+	threatsByBlack |= p.Rooks & p.White & battacks
+
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
 		wr++
 		sq = FirstOne(x)
@@ -349,6 +360,9 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		}
 	}
 
+	threatsByWhite |= p.Queens & p.Black & wattacks
+	threatsByBlack |= p.Queens & p.White & battacks
+
 	for x = p.Queens & p.White; x != 0; x &= x - 1 {
 		wq++
 		sq = FirstOne(x)
@@ -374,6 +388,23 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			battackCount += PopCount(b & wkingZone)
 		}
 	}
+
+	threatsByWhite |= p.Kings & p.Black & wattacks
+	threatsByBlack |= p.Kings & p.White & battacks
+
+	wattacks |= KingAttacks[wkingSq]
+	battacks |= KingAttacks[bkingSq]
+
+	e.add(fThreatByMinor,
+		PopCount(threatsByWhite)-
+			PopCount(threatsByBlack))
+
+	threatsByWhite |= p.Black & wattacks &^ battacks
+	threatsByBlack |= p.White & battacks &^ wattacks
+
+	e.add(fThreatForFewPiece,
+		Max(0, PopCount(threatsByWhite)-1)-
+			Max(0, PopCount(threatsByBlack)-1))
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
@@ -438,10 +469,12 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		e.add(fKingAttack, -battackCount)
 	}
 
-	if p.WhiteMove {
-		e.add(fSideToMove, 1)
-	} else {
-		e.add(fSideToMove, -1)
+	if !p.IsCheck() {
+		if p.WhiteMove {
+			e.add(fSideToMove, 1)
+		} else {
+			e.add(fSideToMove, -1)
+		}
 	}
 
 	e.add(fPawnMaterial, wp-bp)
@@ -542,7 +575,7 @@ func getWhiteWeakPawns(p *Position) uint64 {
 	var supported = UpFill(Left(pawns) | Right(pawns))
 	var weak = uint64(0)
 	weak |= getIsolatedPawns(pawns)
-	weak |= Down(AllBlackPawnAttacks(p.Pawns&p.Black)) &^ supported
+	weak |= (Rank2Mask | Rank3Mask | Rank4Mask) & Down(AllBlackPawnAttacks(p.Pawns&p.Black)) &^ supported
 	return pawns & weak
 
 }
@@ -552,7 +585,7 @@ func getBlackWeakPawns(p *Position) uint64 {
 	var supported = DownFill(Left(pawns) | Right(pawns))
 	var weak = uint64(0)
 	weak |= getIsolatedPawns(pawns)
-	weak |= Up(AllWhitePawnAttacks(p.Pawns&p.White)) &^ supported
+	weak |= (Rank7Mask | Rank6Mask | Rank5Mask) & Up(AllWhitePawnAttacks(p.Pawns&p.White)) &^ supported
 	return pawns & weak
 }
 

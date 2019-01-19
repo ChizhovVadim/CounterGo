@@ -18,7 +18,6 @@ func initFeatureNames() []string {
 	t[fRookMaterial] = "fRookMaterial"
 	t[fQueenMaterial] = "fQueenMaterial"
 	t[fBishopPairMaterial] = "fBishopPairMaterial"
-	t[fSideToMove] = "fSideToMove"
 	t[fPawnWeak] = "fPawnWeak"
 	t[fPawnDoubled] = "fPawnDoubled"
 	t[fPawnDuo] = "fPawnDuo"
@@ -28,7 +27,8 @@ func initFeatureNames() []string {
 	t[fPawnPassedSafeAdvance] = "fPawnPassedSafeAdvance"
 	t[fPawnPassedOppKing] = "fPawnPassedOppKing"
 	t[fPawnPassedOwnKing] = "fPawnPassedOwnKing"
-	t[fThreat] = "fThreat"
+	t[fThreatByMinor] = "fThreatByMinor"
+	t[fThreatForFewPiece] = "fThreatForFewPiece"
 	t[fKnightPst] = "fKnightPst"
 	t[fBishopPst] = "fBishopPst"
 	t[fQueenPst] = "fQueenPst"
@@ -48,6 +48,7 @@ func initFeatureNames() []string {
 	t[fKnightOutpost] = "fKnightOutpost"
 	t[fPawnBlockedByOwnPiece] = "fPawnBlockedByOwnPiece"
 	t[fPawnRammed] = "fPawnRammed"
+	t[fSideToMove] = "fSideToMove"
 	return t
 }
 

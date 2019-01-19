@@ -81,7 +81,17 @@ func scaleWeights(weights, scales []int) []int {
 	for i := range result {
 		result[i] = weights[i] * evalScale / scales[i/2]
 	}
+	// prevent overfitting
+	result[2*fSideToMove] = min(weights[2*fSideToMove], 15) * evalScale
+	result[2*fSideToMove+1] = min(weights[2*fSideToMove+1], 15) * evalScale
 	return result
+}
+
+func min(l, r int) int {
+	if l < r {
+		return l
+	}
+	return r
 }
 
 func l1(weights []int) float64 {

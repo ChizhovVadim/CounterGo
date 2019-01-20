@@ -1,65 +1,23 @@
 package eval
 
 import (
-	"bufio"
 	"fmt"
 	"log"
-	"os"
-	"strings"
+	"math"
+	"runtime"
+	"sync"
+	"sync/atomic"
+
+	"github.com/ChizhovVadim/CounterGo/common"
 )
 
-type LearnEntry struct {
-	Fen   string
-	Score float64
+type tuneEntry struct {
+	score     float64
+	evalEntry evalEntry
 }
 
-const LearnFilePath = "/home/vadim/chess/tuner/quiet-labeled.epd"
-
-func ReadLearn(filePath string, learnEntries chan<- LearnEntry) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	var scanner = bufio.NewScanner(file)
-	for scanner.Scan() {
-		var line = scanner.Text()
-		var entry, err = parseLearnEntry(line)
-		if err != nil {
-			return err
-		}
-		learnEntries <- entry
-	}
-	return scanner.Err()
-}
-
-func parseLearnEntry(s string) (LearnEntry, error) {
-	var index = strings.Index(s, "\"")
-	if index < 0 {
-		return LearnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
-	}
-	var fen = s[:index]
-	var score float64
-	var strScore = s[index+1:]
-	if strings.HasPrefix(strScore, "1/2-1/2") {
-		score = 0.5
-	} else if strings.HasPrefix(strScore, "1-0") {
-		score = 1.0
-	} else if strings.HasPrefix(strScore, "0-1") {
-		score = 0.0
-	} else {
-		return LearnEntry{}, fmt.Errorf("parseLearnEntry failed %v", s)
-	}
-	return LearnEntry{fen, score}, nil
-}
-
-type TuneBuilder interface {
-	AddSample(fen string, score float64) error
-	GetStartingWeights() []int
-	ComputeError(weights []int, lambda float64) float64
-}
-
-func RunTuning(tuneBuilder TuneBuilder) {
+//https://www.chessprogramming.org/Texel%27s_Tuning_Method
+func RunTuning() {
 	log.Println("Tune started.")
 	var entries = make(chan LearnEntry, 128)
 	go func() {
@@ -70,20 +28,47 @@ func RunTuning(tuneBuilder TuneBuilder) {
 			return
 		}
 	}()
-	var count = 0
+	var evalService = NewEvaluationService()
+	var samples []tuneEntry
+	var stdevs = make([]float64, fSize)
 	for entry := range entries {
-		var err = tuneBuilder.AddSample(entry.Fen, entry.Score)
+		var p, err = common.NewPositionFromFEN(entry.Fen)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		count++
+		var evalEntry = evalService.computeEntry(&p)
+		samples = append(samples, tuneEntry{entry.Score, evalEntry})
+		for _, f := range evalEntry.features {
+			var x = float64(f.value)
+			stdevs[f.index] += x * x
+		}
 	}
-	log.Printf("Loaded %v entries.\n", count)
-	const lambda = 1e-6
-	var weights = tuneEvalService(tuneBuilder, lambda)
-	var total = tuneBuilder.ComputeError(weights, lambda)
-	var er = tuneBuilder.ComputeError(weights, 0)
+	log.Printf("Loaded %v entries.\n", len(samples))
+	for i := range stdevs {
+		stdevs[i] = math.Sqrt(stdevs[i] / float64(len(samples)))
+	}
+	log.Println("stdevs:", stdevs)
+	var errF = newErrf(samples, evalService)
+	var fullErrF = func(weights []int) float64 {
+		const lambda = 2e-6
+		return errF(weights) + lambda*regularization(weights, stdevs)/evalScale
+	}
+	var initWeights = []int{100, 100, 325, 325, 325, 325, 500, 500, 1000, 1000}
+	var weights = make([]int, 2*fSize)
+	for i := range initWeights {
+		weights[i] = evalScale * initWeights[i]
+	}
+	var minSteps = make([]int, 2*fSize)
+	for i := range stdevs {
+		var x = evalScale / math.Max(1, stdevs[i]/stdevs[fPawnMaterial])
+		var step = int(math.Round(x))
+		minSteps[2*i] = step
+		minSteps[2*i+1] = step
+	}
+	coordinateDescent(weights, minSteps, fullErrF)
+	var total = fullErrF(weights)
+	var er = errF(weights)
 	fmt.Printf("// Error: %.6f\n", er)
 	fmt.Printf("// Regularization: %.6f\n", total-er)
 	fmt.Printf("// Total: %.6f\n", total)
@@ -91,26 +76,93 @@ func RunTuning(tuneBuilder TuneBuilder) {
 	log.Println("Tune finished.")
 }
 
-//https://www.chessprogramming.org/Texel%27s_Tuning_Method
-func tuneEvalService(tuneBuilder TuneBuilder, lambda float64) []int {
-	var params = tuneBuilder.GetStartingWeights()
-	var bestE = tuneBuilder.ComputeError(params, lambda)
+func regularization(weights []int, stdevs []float64) float64 {
+	var reg = 0.0
+	for i := 0; i < fSize; i++ {
+		var x = float64(weights[2*i])
+		var y = float64(weights[2*i+1])
+		if math.Signbit(x) == math.Signbit(y) {
+			reg += math.Max(math.Abs(x), math.Abs(y)) * stdevs[i]
+		} else {
+			reg += (math.Abs(x) + math.Abs(y)) * stdevs[i]
+		}
+	}
+	return reg
+}
+
+func newErrf(samples []tuneEntry, evalService *EvaluationService) func(weights []int) float64 {
+	var numCPU = runtime.NumCPU()
+	return func(weights []int) float64 {
+		var sums = make([]float64, numCPU)
+		var wg = &sync.WaitGroup{}
+		var scaledWeights = applyWeightRules(weights)
+		var index = int32(0)
+		for thread := 0; thread < numCPU; thread++ {
+			wg.Add(1)
+			go func(thread int) {
+				defer wg.Done()
+				var localSum = 0.0
+				for {
+					var i = int(atomic.AddInt32(&index, 1))
+					if i >= len(samples) {
+						break
+					}
+					var entry = &samples[i]
+					var score = entry.evalEntry.Evaluate(scaledWeights) / evalScale
+					var diff = float64(entry.score) - sigmoid(float64(score))
+					localSum += diff * diff
+				}
+				sums[thread] = localSum
+			}(thread)
+		}
+		wg.Wait()
+		var sum = 0.0
+		for _, item := range sums {
+			sum += item
+		}
+		return sum / float64(len(samples))
+	}
+}
+
+func sigmoid(s float64) float64 {
+	return 1.0 / (1.0 + math.Exp(-s/135))
+}
+
+func applyWeightRules(weights []int) []int {
+	var result = make([]int, len(weights))
+	copy(result, weights)
+	// prevent overfitting
+	result[2*fSideToMove] = min(weights[2*fSideToMove], 15*evalScale)
+	result[2*fSideToMove+1] = min(weights[2*fSideToMove+1], 15*evalScale)
+	return result
+}
+
+func min(l, r int) int {
+	if l < r {
+		return l
+	}
+	return r
+}
+
+func coordinateDescent(weights, minSteps []int, errf func([]int) float64) {
+	var bestE = errf(weights)
 	for iter := 0; iter < 30; iter++ {
 		log.Printf("Iteration: %v Error: %.6f Params: %#v\n",
-			iter, bestE, params)
+			iter, bestE, weights)
 		var improved = false
-		for paramIndex := range params {
-			var oldValue = params[paramIndex]
+		for weightIndex := range weights {
+			var oldValue = weights[weightIndex]
 			var bestValue = oldValue
+			var minStep = minSteps[weightIndex]
 			for step := 1; step <= 64; step *= 2 {
-				params[paramIndex] = bestValue + step
-				var newE = tuneBuilder.ComputeError(params, lambda)
+				weights[weightIndex] = bestValue + step*minStep
+				var newE = errf(weights)
 				if newE < bestE {
-					bestValue = params[paramIndex]
+					bestValue = weights[weightIndex]
 					bestE = newE
 					improved = true
 				} else {
-					params[paramIndex] = bestValue
+					weights[weightIndex] = bestValue
 					if newE > bestE {
 						break
 					}
@@ -118,14 +170,14 @@ func tuneEvalService(tuneBuilder TuneBuilder, lambda float64) []int {
 			}
 			if oldValue == bestValue {
 				for step := 1; step <= 64; step *= 2 {
-					params[paramIndex] = bestValue - step
-					var newE = tuneBuilder.ComputeError(params, lambda)
+					weights[weightIndex] = bestValue - step*minStep
+					var newE = errf(weights)
 					if newE < bestE {
-						bestValue = params[paramIndex]
+						bestValue = weights[weightIndex]
 						bestE = newE
 						improved = true
 					} else {
-						params[paramIndex] = bestValue
+						weights[weightIndex] = bestValue
 						if newE > bestE {
 							break
 						}
@@ -137,5 +189,4 @@ func tuneEvalService(tuneBuilder TuneBuilder, lambda float64) []int {
 			break
 		}
 	}
-	return params
 }

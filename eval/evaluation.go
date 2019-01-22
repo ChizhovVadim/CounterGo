@@ -75,13 +75,6 @@ const (
 	blackOutpost = (FileCMask | FileDMask | FileEMask | FileFMask) & (Rank5Mask | Rank4Mask | Rank3Mask)
 )
 
-const (
-	kingAttackUnitKnight = 3
-	kingAttackUnitBishop = 2
-	kingAttackUnitRook   = 4
-	kingAttackUnitQueen  = 6
-)
-
 var (
 	dist            [64][64]int
 	whitePawnSquare [64]uint64
@@ -145,23 +138,28 @@ func (e *EvaluationService) computeEntry(p *Position) evalEntry {
 	return result
 }
 
+const (
+	WHITE = iota
+	BLACK
+)
+
 func (e *EvaluationService) evaluateCore(p *Position) int {
 	e.opening = 0
 	e.endgame = 0
 
 	var (
-		x, b                                         uint64
-		sq, keySq, bonus                             int
-		wn, bn, wb, bb, wr, br, wq, bq               int
-		wattackTot, wattackNb, battackTot, battackNb int
-		wattackCount, battackCount                   int
-		wattacks, battacks                           uint64
+		x, b                       uint64
+		sq, keySq, bonus           int
+		wattackNb, battackNb       int
+		wattackCount, battackCount int
 	)
 	var allPieces = p.White | p.Black
 	var wkingSq = FirstOne(p.Kings & p.White)
 	var bkingSq = FirstOne(p.Kings & p.Black)
-	var wp = PopCount(p.Pawns & p.White)
-	var bp = PopCount(p.Pawns & p.Black)
+
+	var pieceCount [2][7]int
+	pieceCount[WHITE][Pawn] = PopCount(p.Pawns & p.White)
+	pieceCount[BLACK][Pawn] = PopCount(p.Pawns & p.Black)
 
 	e.add(fPawnWeak,
 		PopCount(getWhiteWeakPawns(p))-
@@ -175,19 +173,21 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		PopCount(p.Pawns&p.White&(Left(p.Pawns&p.White)|Right(p.Pawns&p.White)))-
 			PopCount(p.Pawns&p.Black&(Left(p.Pawns&p.Black)|Right(p.Pawns&p.Black))))
 
-	var wpawnAttacks = AllWhitePawnAttacks(p.Pawns & p.White)
-	var bpawnAttacks = AllBlackPawnAttacks(p.Pawns & p.Black)
+	var attacks [2][7]uint64
+
+	attacks[WHITE][Pawn] = AllWhitePawnAttacks(p.Pawns & p.White)
+	attacks[BLACK][Pawn] = AllBlackPawnAttacks(p.Pawns & p.Black)
 
 	e.add(fPawnProtected,
-		PopCount(p.Pawns&p.White&wpawnAttacks)-
-			PopCount(p.Pawns&p.Black&bpawnAttacks))
+		PopCount(p.Pawns&p.White&attacks[WHITE][Pawn])-
+			PopCount(p.Pawns&p.Black&attacks[BLACK][Pawn]))
 
 	e.add(fMinorProtected,
-		PopCount((p.Knights|p.Bishops)&p.White&wpawnAttacks)-
-			PopCount((p.Knights|p.Bishops)&p.Black&bpawnAttacks))
+		PopCount((p.Knights|p.Bishops)&p.White&attacks[WHITE][Pawn])-
+			PopCount((p.Knights|p.Bishops)&p.Black&attacks[BLACK][Pawn]))
 
-	var wstrongFields = whiteOutpost &^ DownFill(bpawnAttacks)
-	var bstrongFields = blackOutpost &^ UpFill(wpawnAttacks)
+	var wstrongFields = whiteOutpost &^ DownFill(attacks[BLACK][Pawn])
+	var bstrongFields = blackOutpost &^ UpFill(attacks[WHITE][Pawn])
 
 	e.add(fKnightOutpost,
 		PopCount(p.Knights&p.White&wstrongFields)-
@@ -195,17 +195,6 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 
 	var wkingZone = kingZone[wkingSq]
 	var bkingZone = kingZone[bkingSq]
-
-	if (wpawnAttacks & bkingZone) != 0 {
-		wattackNb++
-		wattackTot++
-	}
-	if (bpawnAttacks & wkingZone) != 0 {
-		battackNb++
-		battackTot++
-	}
-	wattackCount += PopCount(wpawnAttacks & bkingZone)
-	battackCount += PopCount(bpawnAttacks & wkingZone)
 
 	e.add(fPawnBlockedByOwnPiece,
 		PopCount(p.Pawns&p.White&^wkingZone&(Rank2Mask|Rank3Mask)&Down(p.White))-
@@ -215,78 +204,65 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		PopCount(p.Pawns&p.White&(Rank2Mask|Rank3Mask)&Down(p.Pawns&p.Black))-
 			PopCount(p.Pawns&p.Black&(Rank7Mask|Rank6Mask)&Up(p.Pawns&p.White)))
 
-	wattacks |= wpawnAttacks
-	battacks |= bpawnAttacks
-
-	var threatsByWhite = (p.Knights | p.Bishops) & p.Black & wattacks
-	var threatsByBlack = (p.Knights | p.Bishops) & p.White & battacks
-
-	var wMobilityArea = ^((p.Pawns & p.White) | bpawnAttacks)
-	var bMobilityArea = ^((p.Pawns & p.Black) | wpawnAttacks)
+	var wMobilityArea = ^((p.Pawns & p.White) | attacks[BLACK][Pawn])
+	var bMobilityArea = ^((p.Pawns & p.Black) | attacks[WHITE][Pawn])
 
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
-		wn++
+		pieceCount[WHITE][Knight]++
 		sq = FirstOne(x)
 		e.add(fKnightPst, e.pst.wn[sq])
 		b = KnightAttacks[sq]
 		e.add(fKnightMobility, e.mobilityBonus[PopCount(b&wMobilityArea)])
-		wattacks |= b
-		if (b & bkingZone) != 0 {
+		attacks[WHITE][Knight] |= b
+		if (b & bkingZone & wMobilityArea) != 0 {
 			wattackNb++
-			wattackTot += kingAttackUnitKnight
-			wattackCount += PopCount(b & bkingZone)
+			wattackCount += PopCount(b & bkingZone & wMobilityArea)
 		}
 	}
 
 	for x = p.Knights & p.Black; x != 0; x &= x - 1 {
-		bn++
+		pieceCount[BLACK][Knight]++
 		sq = FirstOne(x)
 		e.add(fKnightPst, e.pst.bn[sq])
 		b = KnightAttacks[sq]
 		e.add(fKnightMobility, -e.mobilityBonus[PopCount(b&bMobilityArea)])
-		battacks |= b
-		if (b & wkingZone) != 0 {
+		attacks[BLACK][Knight] |= b
+		if (b & wkingZone & bMobilityArea) != 0 {
 			battackNb++
-			battackTot += kingAttackUnitKnight
-			battackCount += PopCount(b & wkingZone)
+			battackCount += PopCount(b & wkingZone & bMobilityArea)
 		}
 	}
 
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
-		wb++
+		pieceCount[WHITE][Bishop]++
 		sq = FirstOne(x)
 		e.add(fBishopPst, e.pst.wb[sq])
 		b = BishopAttacks(sq, allPieces)
 		e.add(fBishopMobility, e.mobilityBonus[PopCount(b&wMobilityArea)])
-		wattacks |= b
-		if (b & bkingZone) != 0 {
+		attacks[WHITE][Bishop] |= b
+		if (b & bkingZone & wMobilityArea) != 0 {
 			wattackNb++
-			wattackTot += kingAttackUnitBishop
-			wattackCount += PopCount(b & bkingZone)
+			wattackCount += PopCount(b & bkingZone & wMobilityArea)
 		}
 		e.add(fBishopRammedPawns, PopCount(sameColorSquares(sq)&p.Pawns&p.White&Down(p.Pawns&p.Black)))
 	}
 
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
-		bb++
+		pieceCount[BLACK][Bishop]++
 		sq = FirstOne(x)
 		e.add(fBishopPst, e.pst.bb[sq])
 		b = BishopAttacks(sq, allPieces)
 		e.add(fBishopMobility, -e.mobilityBonus[PopCount(b&bMobilityArea)])
-		battacks |= b
-		if (b & wkingZone) != 0 {
+		attacks[BLACK][Bishop] |= b
+		if (b & wkingZone & bMobilityArea) != 0 {
 			battackNb++
-			battackTot += kingAttackUnitBishop
-			battackCount += PopCount(b & wkingZone)
+			battackCount += PopCount(b & wkingZone & bMobilityArea)
 		}
 		e.add(fBishopRammedPawns, -PopCount(sameColorSquares(sq)&p.Pawns&p.Black&Up(p.Pawns&p.White)))
 	}
 
-	threatsByWhite |= p.Rooks & p.Black & wattacks
-	threatsByBlack |= p.Rooks & p.White & battacks
-
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
-		wr++
+		pieceCount[WHITE][Rook]++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank7 &&
 			((p.Pawns&p.Black&Rank7Mask) != 0 || Rank(bkingSq) == Rank8) {
@@ -295,11 +271,10 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.White))
 		//b = RookAttacks(sq, allPieces)
 		e.add(fRookMobility, e.mobilityBonus[PopCount(b&wMobilityArea)])
-		wattacks |= b
-		if (b & bkingZone) != 0 {
+		attacks[WHITE][Rook] |= b
+		if (b & bkingZone & wMobilityArea) != 0 {
 			wattackNb++
-			wattackTot += kingAttackUnitRook
-			wattackCount += PopCount(b & bkingZone)
+			wattackCount += PopCount(b & bkingZone & wMobilityArea)
 		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.White) == 0 {
@@ -312,7 +287,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	}
 
 	for x = p.Rooks & p.Black; x != 0; x &= x - 1 {
-		br++
+		pieceCount[BLACK][Rook]++
 		sq = FirstOne(x)
 		if Rank(sq) == Rank2 &&
 			((p.Pawns&p.White&Rank2Mask) != 0 || Rank(wkingSq) == Rank1) {
@@ -321,11 +296,10 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		b = RookAttacks(sq, allPieces^(p.Rooks&p.Black))
 		//b = RookAttacks(sq, allPieces)
 		e.add(fRookMobility, -e.mobilityBonus[PopCount(b&bMobilityArea)])
-		battacks |= b
-		if (b & wkingZone) != 0 {
+		attacks[BLACK][Rook] |= b
+		if (b & wkingZone & bMobilityArea) != 0 {
 			battackNb++
-			battackTot += kingAttackUnitRook
-			battackCount += PopCount(b & wkingZone)
+			battackCount += PopCount(b & wkingZone & bMobilityArea)
 		}
 		b = FileMask[File(sq)]
 		if (b & p.Pawns & p.Black) == 0 {
@@ -337,56 +311,73 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		}
 	}
 
-	threatsByWhite |= p.Queens & p.Black & wattacks
-	threatsByBlack |= p.Queens & p.White & battacks
-
 	for x = p.Queens & p.White; x != 0; x &= x - 1 {
-		wq++
+		pieceCount[WHITE][Queen]++
 		sq = FirstOne(x)
 		e.add(fQueenPst, e.pst.wq[sq])
 		b = QueenAttacks(sq, allPieces)
 		e.add(fQueenMobility, e.mobilityBonus[PopCount(b&wMobilityArea)])
-		wattacks |= b
-		if (b & bkingZone) != 0 {
+		attacks[WHITE][Queen] |= b
+		if (b & bkingZone & wMobilityArea) != 0 {
 			wattackNb++
-			wattackTot += kingAttackUnitQueen
-			wattackCount += PopCount(b & bkingZone)
+			wattackCount += PopCount(b & bkingZone & wMobilityArea)
 		}
 	}
 
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
-		bq++
+		pieceCount[BLACK][Queen]++
 		sq = FirstOne(x)
 		e.add(fQueenPst, e.pst.bq[sq])
 		b = QueenAttacks(sq, allPieces)
 		e.add(fQueenMobility, -e.mobilityBonus[PopCount(b&bMobilityArea)])
-		battacks |= b
-		if (b & wkingZone) != 0 {
+		attacks[BLACK][Queen] |= b
+		if (b & wkingZone & bMobilityArea) != 0 {
 			battackNb++
-			battackTot += kingAttackUnitQueen
-			battackCount += PopCount(b & wkingZone)
+			battackCount += PopCount(b & wkingZone & bMobilityArea)
 		}
 	}
 
-	threatsByWhite |= p.Kings & p.Black & wattacks
-	threatsByBlack |= p.Kings & p.White & battacks
+	attacks[WHITE][King] = KingAttacks[wkingSq]
+	attacks[BLACK][King] = KingAttacks[bkingSq]
 
-	wattacks |= KingAttacks[wkingSq]
-	battacks |= KingAttacks[bkingSq]
+	/*var wattacks = attacks[WHITE][Pawn] |
+		attacks[WHITE][Knight] |
+		attacks[WHITE][Bishop] |
+		attacks[WHITE][Rook] |
+		attacks[WHITE][Queen] |
+		attacks[WHITE][King]
 
-	e.add(fThreatByMinor, Max(-1, Min(1,
-		PopCount(threatsByWhite)-
-			PopCount(threatsByBlack))))
+	var battacks = attacks[BLACK][Pawn] |
+		attacks[BLACK][Knight] |
+		attacks[BLACK][Bishop] |
+		attacks[BLACK][Rook] |
+		attacks[BLACK][Queen] |
+		attacks[BLACK][King]*/
 
-	threatsByWhite |= p.Black & wattacks &^ battacks
-	threatsByBlack |= p.White & battacks &^ wattacks
+	// Threats
 
-	if PopCount(threatsByWhite) >= 2 {
-		e.add(fThreatForFewPiece, 1)
-	}
-	if PopCount(threatsByBlack) >= 2 {
-		e.add(fThreatForFewPiece, -1)
-	}
+	e.add(fThreatPawn,
+		PopCount(attacks[WHITE][Pawn]&p.Black&^(p.Pawns|p.Queens))-
+			PopCount(attacks[BLACK][Pawn]&p.White&^(p.Pawns|p.Queens)))
+
+	e.add(fThreatForPawn,
+		PopCount((attacks[WHITE][Rook]|attacks[WHITE][King])&p.Black&p.Pawns&^attacks[BLACK][Pawn])-
+			PopCount((attacks[BLACK][Rook]|attacks[BLACK][King])&p.White&p.Pawns&^attacks[WHITE][Pawn]))
+
+	e.add(fThreatPiece,
+		PopCount((attacks[WHITE][Knight]|attacks[WHITE][Bishop]|attacks[WHITE][Rook])&p.Black&(p.Knights|p.Bishops|p.Rooks))-
+			PopCount((attacks[BLACK][Knight]|attacks[BLACK][Bishop]|attacks[BLACK][Rook])&p.White&(p.Knights|p.Bishops|p.Rooks)))
+
+	e.add(fThreatPieceForQueen,
+		PopCount((attacks[WHITE][Pawn]|attacks[WHITE][Knight]|attacks[WHITE][Bishop]|attacks[WHITE][Rook])&p.Black&p.Queens)-
+			PopCount((attacks[BLACK][Pawn]|attacks[BLACK][Knight]|attacks[BLACK][Bishop]|attacks[BLACK][Rook])&p.White&p.Queens))
+
+	var whiteForce = pieceCount[WHITE][Knight] + pieceCount[WHITE][Bishop] +
+		2*pieceCount[WHITE][Rook] +
+		4*pieceCount[WHITE][Queen]
+	var blackForce = pieceCount[BLACK][Knight] + pieceCount[BLACK][Bishop] +
+		2*pieceCount[BLACK][Rook] +
+		4*pieceCount[BLACK][Queen]
 
 	for x = getWhitePassedPawns(p); x != 0; x &= x - 1 {
 		sq = FirstOne(x)
@@ -398,19 +389,20 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		if (SquareMask[keySq] & p.Black) == 0 {
 			e.add(fPawnPassedFree, bonus)
 		}
-		if (SquareMask[keySq] & battacks) == 0 {
+		/*if (UpFill(SquareMask[keySq]) & (p.Black | (battacks &^ wattacks))) == 0 {
 			e.add(fPawnPassedSafeAdvance, bonus)
-		}
+		}*/
 
-		/*if bn+bb+br+bq == 0 {
+		if blackForce == 0 {
 			var f1 = sq
 			if !p.WhiteMove {
 				f1 -= 8
 			}
 			if (whitePawnSquare[f1] & p.Kings & p.Black) == 0 {
-				pawnScore.endgame += 200 * Rank(f1) / Rank7
+				e.add(fPawnPassedSquare, Rank(f1)-Rank1)
+				//pawnScore.endgame += 200 * Rank(f1) / Rank7
 			}
-		}*/
+		}
 	}
 
 	for x = getBlackPassedPawns(p); x != 0; x &= x - 1 {
@@ -423,19 +415,20 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		if (SquareMask[keySq] & p.White) == 0 {
 			e.add(fPawnPassedFree, bonus)
 		}
-		if (SquareMask[keySq] & wattacks) == 0 {
+		/*if (DownFill(SquareMask[keySq]) & (p.White | (wattacks &^ battacks))) == 0 {
 			e.add(fPawnPassedSafeAdvance, bonus)
-		}
+		}*/
 
-		/*if wn+wb+wr+wq == 0 {
+		if whiteForce == 0 {
 			var f1 = sq
 			if p.WhiteMove {
 				f1 += 8
 			}
 			if (blackPawnSquare[f1] & p.Kings & p.White) == 0 {
-				pawnScore.endgame -= 200 * (Rank8 - Rank(f1)) / Rank7
+				e.add(fPawnPassedSquare, Rank(f1)-Rank8)
+				//pawnScore.endgame -= 200 * (Rank8 - Rank(f1)) / Rank7
 			}
-		}*/
+		}
 	}
 
 	e.add(fKingCastlingPst, e.pst.wkOp[wkingSq]+e.pst.bkOp[bkingSq])
@@ -444,14 +437,12 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		shelterWKingSquare(p, wkingSq)-
 			shelterBKingSquare(p, bkingSq))
 
-	/*if wattackNb >= 2 {
+	if wattackNb >= 2 {
 		e.add(fKingAttack, wattackCount)
 	}
 	if battackNb >= 2 {
 		e.add(fKingAttack, -battackCount)
-	}*/
-
-	e.add(fKingAttack, Max(0, wattackNb-1)-Max(0, battackNb-1))
+	}
 
 	if !p.IsCheck() {
 		if p.WhiteMove {
@@ -461,71 +452,29 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		}
 	}
 
-	e.add(fPawnMaterial, wp-bp)
-	e.add(fKnightMaterial, wn-bn)
-	e.add(fBishopMaterial, wb-bb)
-	e.add(fRookMaterial, wr-br)
-	e.add(fQueenMaterial, wq-bq)
-	if wb >= 2 {
+	e.add(fPawnMaterial, pieceCount[WHITE][Pawn]-pieceCount[BLACK][Pawn])
+	e.add(fKnightMaterial, pieceCount[WHITE][Knight]-pieceCount[BLACK][Knight])
+	e.add(fBishopMaterial, pieceCount[WHITE][Bishop]-pieceCount[BLACK][Bishop])
+	e.add(fRookMaterial, pieceCount[WHITE][Rook]-pieceCount[BLACK][Rook])
+	e.add(fQueenMaterial, pieceCount[WHITE][Queen]-pieceCount[BLACK][Queen])
+	if pieceCount[WHITE][Bishop] >= 2 {
 		e.add(fBishopPairMaterial, 1)
 	}
-	if bb >= 2 {
+	if pieceCount[BLACK][Bishop] >= 2 {
 		e.add(fBishopPairMaterial, -1)
 	}
 
-	var phase = wn + bn + wb + bb + 2*(wr+br) + 4*(wq+bq)
+	var phase = whiteForce + blackForce
 	if phase > maxPhase {
 		phase = maxPhase
 	}
 	var result = (e.opening*phase + e.endgame*(maxPhase-phase)) / maxPhase
 
 	e.phase = phase
-	e.whiteFactor = 1
-	e.blackFactor = 1
-
-	if wp == 0 {
-		if wn+wb <= 1 && wr+wq == 0 {
-			e.whiteFactor = 16
-		} else if wn == 2 && wb+wr+wq == 0 && bp == 0 {
-			e.whiteFactor = 16
-		} else if (wn+wb+2*wr+4*wq)-(bn+bb+2*br+4*bq) <= 1 {
-			e.whiteFactor = 4
-		}
-	} else if wp == 1 {
-		var fw = wn + wb + 2*wr + 4*wq
-		var fb = bn + bb + 2*br + 4*bq
-		if fw <= 1 && bn+bb != 0 {
-			e.whiteFactor = 8
-		} else if fw == fb && bn+bb != 0 {
-			e.whiteFactor = 2
-		}
-	}
-
-	if bp == 0 {
-		if bn+bb <= 1 && br+bq == 0 {
-			e.blackFactor = 16
-		} else if bn == 2 && bb+br+bq == 0 && wp == 0 {
-			e.blackFactor = 16
-		} else if (bn+bb+2*br+4*bq)-(wn+wb+2*wr+4*wq) <= 1 {
-			e.blackFactor = 4
-		}
-	} else if bp == 1 {
-		var fw = wn + wb + 2*wr + 4*wq
-		var fb = bn + bb + 2*br + 4*bq
-		if fb <= 1 && wn+wb != 0 {
-			e.blackFactor = 8
-		} else if fw == fb && wn+wb != 0 {
-			e.blackFactor = 2
-		}
-	}
-
-	if (p.Knights|p.Rooks|p.Queens) == 0 &&
-		wb == 1 && bb == 1 && AbsDelta(wp, bp) <= 2 &&
-		(p.Bishops&darkSquares) != 0 &&
-		(p.Bishops & ^darkSquares) != 0 {
-		e.whiteFactor = Max(e.whiteFactor, 2)
-		e.blackFactor = Max(e.blackFactor, 2)
-	}
+	var ocb = whiteForce == 1 && blackForce == 1 &&
+		(p.Bishops&darkSquares) != 0 && (p.Bishops & ^darkSquares) != 0
+	e.whiteFactor = computeFactor(&pieceCount[WHITE], &pieceCount[BLACK], whiteForce, blackForce, ocb)
+	e.blackFactor = computeFactor(&pieceCount[BLACK], &pieceCount[WHITE], blackForce, whiteForce, ocb)
 
 	if result > 0 {
 		result /= e.whiteFactor
@@ -534,6 +483,33 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	}
 
 	return result
+}
+
+func computeFactor(us, them *[7]int, forceUs, forceThem int, ocb bool) int {
+	if forceUs >= 6 {
+		return 1
+	}
+	if us[Pawn] == 0 {
+		if forceUs <= 1 {
+			return 16
+		}
+		if forceUs == 2 && us[Knight] == 2 && them[Pawn] == 0 {
+			return 16
+		}
+		if forceUs-forceThem <= 1 {
+			return 4
+		}
+	} else if us[Pawn] == 1 {
+		if forceUs <= 1 && them[Knight]+them[Bishop] != 0 {
+			return 8
+		}
+		if forceUs == forceThem && them[Knight]+them[Bishop] != 0 {
+			return 2
+		}
+	} else if ocb && us[Pawn]-them[Pawn] <= 2 {
+		return 2
+	}
+	return 1
 }
 
 func getDoubledPawns(pawns uint64) uint64 {

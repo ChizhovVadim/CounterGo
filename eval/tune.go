@@ -37,6 +37,9 @@ func RunTuning() {
 			log.Println(err)
 			return
 		}
+		if p.IsCheck() {
+			continue
+		}
 		var evalEntry = evalService.computeEntry(&p)
 		samples = append(samples, tuneEntry{entry.Score, evalEntry})
 		for _, f := range evalEntry.features {
@@ -52,7 +55,7 @@ func RunTuning() {
 	var errF = newErrf(samples, evalService)
 	var fullErrF = func(weights []int) float64 {
 		const lambda = 2e-6
-		return errF(weights) + lambda*regularization(weights, stdevs)/evalScale
+		return errF(weights) + lambda*regularization(weights, stdevs)
 	}
 	var initWeights = []int{100, 100, 325, 325, 325, 325, 500, 500, 1000, 1000}
 	var weights = make([]int, 2*fSize)
@@ -87,7 +90,7 @@ func regularization(weights []int, stdevs []float64) float64 {
 			reg += (math.Abs(x) + math.Abs(y)) * stdevs[i]
 		}
 	}
-	return reg
+	return reg / evalScale
 }
 
 func newErrf(samples []tuneEntry, evalService *EvaluationService) func(weights []int) float64 {

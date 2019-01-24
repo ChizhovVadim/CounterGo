@@ -81,7 +81,7 @@ func RunTuning() {
 
 func regularization(weights []int, stdevs []float64) float64 {
 	var reg = 0.0
-	for i := 0; i < fSize; i++ {
+	for i := 0; i < int(fSize); i++ {
 		var x = float64(weights[2*i])
 		var y = float64(weights[2*i+1])
 		if math.Signbit(x) == math.Signbit(y) {

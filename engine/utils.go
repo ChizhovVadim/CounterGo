@@ -258,3 +258,14 @@ func mainLmr(d, m int) int {
 		return 0
 	}
 }
+
+func evaluateMaterial(p *Position) int {
+	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +
+		400*(PopCount((p.Knights|p.Bishops)&p.White)-PopCount((p.Knights|p.Bishops)&p.Black)) +
+		600*(PopCount(p.Rooks&p.White)-PopCount(p.Rooks&p.Black)) +
+		1200*(PopCount(p.Queens&p.White)-PopCount(p.Queens&p.Black))
+	if !p.WhiteMove {
+		score = -score
+	}
+	return score
+}

@@ -22,6 +22,7 @@ type EvaluationService struct {
 	features      [fSize]int
 	mobilityBonus [1 + 27]int
 	pst           pst
+	pstKingShield [64]int
 }
 
 type pst struct {
@@ -50,8 +51,21 @@ func (e *EvaluationService) initPst() {
 		e.pst.wq[sq] = Min(bishopLine[f], bishopLine[r])
 		e.pst.wkOp[sq] = Min(dist[sq][SquareG1], dist[sq][SquareB1])
 		e.pst.wkEg[sq] = kingLine[f] + kingLine[r]
+		e.pstKingShield[sq] = computePstKingShield(sq)
 	}
 	e.pst.initBlack()
+}
+
+func computePstKingShield(sq int) int {
+	switch sq {
+	case SquareG2, SquareB2:
+		return 4
+	case SquareH2, SquareH3, SquareG3, SquareF2,
+		SquareA2, SquareA3, SquareB3, SquareC2:
+		return 3
+	default:
+		return 2
+	}
 }
 
 func (e *EvaluationService) initMobility() {
@@ -230,7 +244,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		white.bishopCount++
 		sq = FirstOne(x)
-		e.add(fBishopPst, e.pst.wb[sq])
+		//e.add(fBishopPst, e.pst.wb[sq])
 		b = BishopAttacks(sq, allPieces)
 		e.add(fBishopMobility, e.mobilityBonus[PopCount(b&white.mobilityArea)])
 		white.bishopAttacks |= b
@@ -238,13 +252,13 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			white.kingAttackNb++
 			white.kingAttackCount += PopCount(b & black.kingZone & white.mobilityArea)
 		}
-		e.add(fBishopRammedPawns, PopCount(sameColorSquares(sq)&p.Pawns&p.White&Down(p.Pawns&p.Black)))
+		e.add(fBishopRammedPawns, PopCount(sameColorSquares(sq)&white.pawns&Down(black.pawns)))
 	}
 
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
 		black.bishopCount++
 		sq = FirstOne(x)
-		e.add(fBishopPst, e.pst.bb[sq])
+		//e.add(fBishopPst, e.pst.bb[sq])
 		b = BishopAttacks(sq, allPieces)
 		e.add(fBishopMobility, -e.mobilityBonus[PopCount(b&black.mobilityArea)])
 		black.bishopAttacks |= b
@@ -252,7 +266,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			black.kingAttackNb++
 			black.kingAttackCount += PopCount(b & white.kingZone & black.mobilityArea)
 		}
-		e.add(fBishopRammedPawns, -PopCount(sameColorSquares(sq)&p.Pawns&p.Black&Up(p.Pawns&p.White)))
+		e.add(fBishopRammedPawns, -PopCount(sameColorSquares(sq)&black.pawns&Up(white.pawns)))
 	}
 
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
@@ -271,7 +285,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			white.kingAttackCount += PopCount(b & black.kingZone & white.mobilityArea)
 		}
 		b = FileMask[File(sq)]
-		if (b & p.Pawns & p.White) == 0 {
+		if (b & white.pawns) == 0 {
 			if (b & p.Pawns) == 0 {
 				e.add(fRookOpen, 1)
 			} else {
@@ -296,7 +310,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			black.kingAttackCount += PopCount(b & white.kingZone & black.mobilityArea)
 		}
 		b = FileMask[File(sq)]
-		if (b & p.Pawns & p.Black) == 0 {
+		if (b & black.pawns) == 0 {
 			if (b & p.Pawns) == 0 {
 				e.add(fRookOpen, -1)
 			} else {
@@ -316,6 +330,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			white.kingAttackNb++
 			white.kingAttackCount += PopCount(b & black.kingZone & white.mobilityArea)
 		}
+		e.add(fKingQueenTropism, dist[sq][black.king])
 	}
 
 	for x = p.Queens & p.Black; x != 0; x &= x - 1 {
@@ -329,25 +344,33 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 			black.kingAttackNb++
 			black.kingAttackCount += PopCount(b & white.kingZone & black.mobilityArea)
 		}
+		e.add(fKingQueenTropism, -dist[sq][white.king])
 	}
 
 	white.force = white.knightCount + white.bishopCount +
 		2*white.rookCount + 4*white.queenCount
 	black.force = black.knightCount + black.bishopCount +
-		2*black.rookCount +
-		4*black.queenCount
+		2*black.rookCount + 4*black.queenCount
 
 	e.add(fKingCastlingPst, e.pst.wkOp[white.king]+e.pst.bkOp[black.king])
 	e.add(fKingCenterPst, e.pst.wkEg[white.king]+e.pst.bkEg[black.king])
-	e.add(fKingShelter,
-		shelterWKingSquare(p, white.king)-
-			shelterBKingSquare(p, black.king))
+
+	var kingShield = 0
+	for x = white.pawns & KingShieldMask[File(white.king)] &^ LowerRanks[Rank(white.king)]; x != 0; x &= x - 1 {
+		sq = FirstOne(x)
+		kingShield += e.pstKingShield[sq]
+	}
+	for x = black.pawns & KingShieldMask[File(black.king)] &^ UpperRanks[Rank(black.king)]; x != 0; x &= x - 1 {
+		sq = FirstOne(x)
+		kingShield -= e.pstKingShield[FlipSquare(sq)]
+	}
+	e.add(fKingShelter, kingShield)
 
 	if white.kingAttackNb >= 2 {
-		e.add(fKingAttack, white.kingAttackCount)
+		e.add(fKingAttack, white.kingAttackCount-1)
 	}
 	if black.kingAttackNb >= 2 {
-		e.add(fKingAttack, -black.kingAttackCount)
+		e.add(fKingAttack, -(black.kingAttackCount - 1))
 	}
 
 	// eval threats
@@ -580,58 +603,6 @@ func getBlackWeakPawns(p *Position) uint64 {
 	return pawns & weak
 }
 
-func shelterWKingSquare(p *Position, square int) int {
-	var file = File(square)
-	if file <= FileC {
-		file = FileB
-	} else if file >= FileF {
-		file = FileG
-	}
-	var penalty = 0
-	for i := 0; i < 3; i++ {
-		var mask = FileMask[file+i-1] & p.White & p.Pawns
-		if (mask & Rank2Mask) == 0 {
-			penalty++
-			if (mask & Rank3Mask) == 0 {
-				penalty++
-				if mask == 0 {
-					penalty++
-				}
-			}
-		}
-	}
-	if penalty == 1 {
-		penalty = 0
-	}
-	return penalty
-}
-
-func shelterBKingSquare(p *Position, square int) int {
-	var file = File(square)
-	if file <= FileC {
-		file = FileB
-	} else if file >= FileF {
-		file = FileG
-	}
-	var penalty = 0
-	for i := 0; i < 3; i++ {
-		var mask = FileMask[file+i-1] & p.Black & p.Pawns
-		if (mask & Rank7Mask) == 0 {
-			penalty++
-			if (mask & Rank6Mask) == 0 {
-				penalty++
-				if mask == 0 {
-					penalty++
-				}
-			}
-		}
-	}
-	if penalty == 1 {
-		penalty = 0
-	}
-	return penalty
-}
-
 func (pst *pst) initBlack() {
 	for sq := 0; sq < 64; sq++ {
 		var flipSq = FlipSquare(sq)
@@ -649,6 +620,34 @@ func sameColorSquares(sq int) uint64 {
 	}
 	return ^darkSquares
 }
+
+func limit(v, min, max int) int {
+	if v <= min {
+		return min
+	}
+	if v >= max {
+		return max
+	}
+	return v
+}
+
+var (
+	UpperRanks [8]uint64
+	LowerRanks [8]uint64
+)
+
+var (
+	Ranks          = [8]uint64{Rank1Mask, Rank2Mask, Rank3Mask, Rank4Mask, Rank5Mask, Rank6Mask, Rank7Mask, Rank8Mask}
+	KingShieldMask = [8]uint64{
+		FileAMask | FileBMask | FileCMask,
+		FileAMask | FileBMask | FileCMask,
+		FileAMask | FileBMask | FileCMask,
+		FileCMask | FileDMask | FileEMask,
+		FileDMask | FileEMask | FileFMask,
+		FileFMask | FileGMask | FileHMask,
+		FileFMask | FileGMask | FileHMask,
+		FileFMask | FileGMask | FileHMask}
+)
 
 func init() {
 	for i := 0; i < 64; i++ {
@@ -670,7 +669,15 @@ func init() {
 		}
 		blackPawnSquare[sq] = x
 	}
+	for i := Rank7; i >= Rank1; i-- {
+		UpperRanks[i] = UpperRanks[i+1] | Ranks[i+1]
+	}
+	for i := Rank2; i <= Rank8; i++ {
+		LowerRanks[i] = LowerRanks[i-1] | Ranks[i-1]
+	}
 	for sq := range kingZone {
-		kingZone[sq] = SquareMask[sq] | KingAttacks[sq]
+		//kingZone[sq] = SquareMask[sq] | KingAttacks[sq]
+		var x = MakeSquare(limit(File(sq), FileB, FileG), limit(Rank(sq), Rank2, Rank7))
+		kingZone[sq] = SquareMask[x] | KingAttacks[x]
 	}
 }

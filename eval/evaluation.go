@@ -107,7 +107,8 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	if !p.WhiteMove {
 		score = -score
 	}
-	return score * PawnValue / e.weights[2*fPawnMaterial+1]
+	const Tempo = 8
+	return score*PawnValue/e.weights[2*fPawnMaterial+1] + Tempo
 }
 
 type evalEntry struct {
@@ -375,19 +376,19 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 
 	// eval threats
 
-	/*var wattacks = attacks[WHITE][Pawn] |
-		attacks[WHITE][Knight] |
-		attacks[WHITE][Bishop] |
-		attacks[WHITE][Rook] |
-		attacks[WHITE][Queen] |
-		attacks[WHITE][King]
+	/*var wattacks = white.pawnAttacks |
+		white.knightAttacks |
+		white.bishopAttacks |
+		white.rookAttacks |
+		white.queenAttacks |
+		white.kingAttacks
 
-	var battacks = attacks[BLACK][Pawn] |
-		attacks[BLACK][Knight] |
-		attacks[BLACK][Bishop] |
-		attacks[BLACK][Rook] |
-		attacks[BLACK][Queen] |
-		attacks[BLACK][King]*/
+	var battacks = black.pawnAttacks |
+		black.knightAttacks |
+		black.bishopAttacks |
+		black.rookAttacks |
+		black.queenAttacks |
+		black.kingAttacks*/
 
 	e.add(fThreatPawn,
 		PopCount(white.pawnAttacks&p.Black&^(p.Pawns|p.Queens))-
@@ -509,14 +510,6 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	}
 
 	// mix score
-
-	if !p.IsCheck() {
-		if p.WhiteMove {
-			e.add(fSideToMove, 1)
-		} else {
-			e.add(fSideToMove, -1)
-		}
-	}
 
 	var phase = white.force + black.force
 	if phase > maxPhase {

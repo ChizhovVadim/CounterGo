@@ -4,9 +4,9 @@ package eval
 
 import "strconv"
 
-const _Feature_name = "fPawnMaterialfKnightMaterialfBishopMaterialfRookMaterialfQueenMaterialfBishopPairMaterialfPawnWeakfPawnDoubledfPawnDuofPawnProtectedfPawnPassedfPawnPassedFreefPawnPassedOppKingfPawnPassedOwnKingfPawnPassedSquarefThreatPawnfThreatForPawnfThreatPiecefThreatPieceForQueenfKnightPstfBishopPstfQueenPstfKingCastlingPstfKingCenterPstfKnightMobilityfBishopMobilityfRookMobilityfQueenMobilityfRook7thfRookOpenfRookSemiopenfKingShelterfKingAttackfBishopRammedPawnsfMinorProtectedfKnightOutpostfPawnBlockedByOwnPiecefPawnRammedfSideToMovefSize"
+const _Feature_name = "fPawnMaterialfKnightMaterialfBishopMaterialfRookMaterialfQueenMaterialfBishopPairMaterialfPawnWeakfPawnDoubledfPawnDuofPawnProtectedfPawnPassedfPawnPassedFreefPawnPassedOppKingfPawnPassedOwnKingfPawnPassedSquarefThreatPawnfThreatForPawnfThreatPiecefThreatPieceForQueenfKnightPstfQueenPstfKingCastlingPstfKingCenterPstfKnightMobilityfBishopMobilityfRookMobilityfQueenMobilityfRook7thfRookOpenfRookSemiopenfKingShelterfKingAttackfKingQueenTropismfBishopRammedPawnsfMinorProtectedfKnightOutpostfPawnBlockedByOwnPiecefPawnRammedfSize"
 
-var _Feature_index = [...]uint16{0, 13, 28, 43, 56, 70, 89, 98, 110, 118, 132, 143, 158, 176, 194, 211, 222, 236, 248, 268, 278, 288, 297, 313, 327, 342, 357, 370, 384, 392, 401, 414, 426, 437, 455, 470, 484, 506, 517, 528, 533}
+var _Feature_index = [...]uint16{0, 13, 28, 43, 56, 70, 89, 98, 110, 118, 132, 143, 158, 176, 194, 211, 222, 236, 248, 268, 278, 287, 303, 317, 332, 347, 360, 374, 382, 391, 404, 416, 427, 444, 462, 477, 491, 513, 524, 529}
 
 func (i Feature) String() string {
 	if i < 0 || i >= Feature(len(_Feature_index)-1) {

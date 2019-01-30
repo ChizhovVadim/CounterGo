@@ -54,7 +54,7 @@ func RunTuning() {
 	log.Println("stdevs:", stdevs)
 	var errF = newErrf(samples, evalService)
 	var fullErrF = func(weights []int) float64 {
-		const lambda = 2e-6
+		const lambda = 1.0e-6
 		return errF(weights) + lambda*regularization(weights, stdevs)
 	}
 	var initWeights = []int{100, 100, 325, 325, 325, 325, 500, 500, 1000, 1000}
@@ -69,6 +69,7 @@ func RunTuning() {
 		minSteps[2*i] = step
 		minSteps[2*i+1] = step
 	}
+	log.Println("minSteps:", minSteps)
 	coordinateDescent(weights, minSteps, fullErrF)
 	var total = fullErrF(weights)
 	var er = errF(weights)
@@ -81,14 +82,11 @@ func RunTuning() {
 
 func regularization(weights []int, stdevs []float64) float64 {
 	var reg = 0.0
+	const alpha = 0.75
 	for i := 0; i < int(fSize); i++ {
 		var x = float64(weights[2*i])
 		var y = float64(weights[2*i+1])
-		if math.Signbit(x) == math.Signbit(y) {
-			reg += math.Max(math.Abs(x), math.Abs(y)) * stdevs[i]
-		} else {
-			reg += (math.Abs(x) + math.Abs(y)) * stdevs[i]
-		}
+		reg += (alpha*(math.Abs(x)+math.Abs(y)) + (1-alpha)*math.Abs(x-y)) * stdevs[i]
 	}
 	return reg / evalScale
 }
@@ -98,7 +96,6 @@ func newErrf(samples []tuneEntry, evalService *EvaluationService) func(weights [
 	return func(weights []int) float64 {
 		var sums = make([]float64, numCPU)
 		var wg = &sync.WaitGroup{}
-		var scaledWeights = applyWeightRules(weights)
 		var index = int32(0)
 		for thread := 0; thread < numCPU; thread++ {
 			wg.Add(1)
@@ -111,7 +108,7 @@ func newErrf(samples []tuneEntry, evalService *EvaluationService) func(weights [
 						break
 					}
 					var entry = &samples[i]
-					var score = entry.evalEntry.Evaluate(scaledWeights) / evalScale
+					var score = entry.evalEntry.Evaluate(weights) / evalScale
 					var diff = float64(entry.score) - sigmoid(float64(score))
 					localSum += diff * diff
 				}
@@ -129,15 +126,6 @@ func newErrf(samples []tuneEntry, evalService *EvaluationService) func(weights [
 
 func sigmoid(s float64) float64 {
 	return 1.0 / (1.0 + math.Exp(-s/135))
-}
-
-func applyWeightRules(weights []int) []int {
-	var result = make([]int, len(weights))
-	copy(result, weights)
-	// prevent overfitting
-	result[2*fSideToMove] = min(weights[2*fSideToMove], 15*evalScale)
-	result[2*fSideToMove+1] = min(weights[2*fSideToMove+1], 15*evalScale)
-	return result
 }
 
 func min(l, r int) int {

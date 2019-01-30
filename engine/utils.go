@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -256,6 +257,19 @@ func mainLmr(d, m int) int {
 		return 1
 	default:
 		return 0
+	}
+}
+
+func initLmr() func(d, m int) int {
+	var reductions [32][64]int
+	for d := 3; d < 32; d++ {
+		for m := 2; m < 64; m++ {
+			var r = 0.5 * math.Log(float64(d)) * math.Log(float64(m))
+			reductions[d][m] = Max(0, Min(d-2, int(math.Round(r))))
+		}
+	}
+	return func(d, m int) int {
+		return reductions[Min(d, 31)][Min(m, 63)]
 	}
 }
 

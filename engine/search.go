@@ -147,13 +147,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	var material = evaluateMaterial(position)
+	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
 
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
 		!isLateEndgame(position, position.WhiteMove) &&
-		material >= beta {
+		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
 		if newDepth <= 0 {
@@ -191,8 +191,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			if !isCaptureOrPromotion(move) && moveCount > 1 &&
 				!isCheck && !child.IsCheck() &&
 				ml[i].Key < sortTableKeyImportant &&
-				!isPawnAdvance(move, position.WhiteMove) &&
-				alpha > valueLoss {
+				!isPawnAdvance(move, position.WhiteMove) {
 
 				if depth >= 3 {
 					reduction = t.engine.lateMoveReduction(depth, moveCount)
@@ -201,12 +200,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					}
 					reduction = Max(0, Min(depth-2, reduction))
 				} else {
-					if position.LastMove != MoveEmpty &&
+					if alpha > valueLoss && position.LastMove != MoveEmpty &&
 						moveCount >= 9+3*depth {
 						continue
 					}
-					if position.LastMove != MoveEmpty &&
-						material+PawnValue*depth <= alpha {
+					if alpha > valueLoss && position.LastMove != MoveEmpty &&
+						lazyEval.Value()+PawnValue*depth <= alpha {
 						continue
 					}
 				}
@@ -364,8 +363,23 @@ func (t *thread) isDraw(height int) bool {
 func (t *thread) newDepth(depth, height int) int {
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
+	var prevMove = p.LastMove
+	var move = child.LastMove
+	var givesCheck = child.IsCheck()
 
-	if child.IsCheck() && (depth <= 1 || seeGEZero(p, child.LastMove)) {
+	if prevMove != MoveEmpty &&
+		prevMove.To() == move.To() &&
+		move.CapturedPiece() > Pawn &&
+		prevMove.CapturedPiece() > Pawn &&
+		seeGEZero(p, move) {
+		return depth
+	}
+
+	if givesCheck && (depth <= 1 || seeGEZero(p, move)) {
+		return depth
+	}
+
+	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
 		return depth
 	}
 
@@ -419,4 +433,19 @@ func (e *Engine) genRootMoves() []Move {
 		}
 	}
 	return result
+}
+
+type lazyEval struct {
+	evaluator Evaluator
+	position  *Position
+	hasValue  bool
+	value     int
+}
+
+func (le *lazyEval) Value() int {
+	if !le.hasValue {
+		le.value = le.evaluator.Evaluate(le.position)
+		le.hasValue = true
+	}
+	return le.value
 }

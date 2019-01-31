@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"math"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -260,7 +259,7 @@ func mainLmr(d, m int) int {
 	}
 }
 
-func initLmr() func(d, m int) int {
+/*func initLmr() func(d, m int) int {
 	var reductions [32][64]int
 	for d := 3; d < 32; d++ {
 		for m := 2; m < 64; m++ {
@@ -271,7 +270,7 @@ func initLmr() func(d, m int) int {
 	return func(d, m int) int {
 		return reductions[Min(d, 31)][Min(m, 63)]
 	}
-}
+}*/
 
 func evaluateMaterial(p *Position) int {
 	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +

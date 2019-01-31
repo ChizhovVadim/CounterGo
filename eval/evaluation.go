@@ -367,11 +367,29 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	}
 	e.add(fKingShelter, kingShield)
 
-	if white.kingAttackNb >= 2 {
+	if p.WhiteMove {
+		black.kingAttackNb--
+	} else {
+		white.kingAttackNb--
+	}
+
+	/*if white.kingAttackNb >= 2 {
 		e.add(fKingAttack, white.kingAttackCount-1)
 	}
 	if black.kingAttackNb >= 2 {
-		e.add(fKingAttack, -(black.kingAttackCount - 1))
+		e.add(fKingAttack, -(black.kingAttackCount-1))
+	}*/
+
+	if white.kingAttackNb >= 3 {
+		e.add(fKingAttack2, 1)
+	} else if white.kingAttackNb >= 2 {
+		e.add(fKingAttack, 1)
+	}
+
+	if black.kingAttackNb >= 3 {
+		e.add(fKingAttack2, -1)
+	} else if black.kingAttackNb >= 2 {
+		e.add(fKingAttack, -1)
 	}
 
 	// eval threats

@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -22,102 +24,93 @@ type UciEngine interface {
 }
 
 type UciProtocol struct {
-	commands  map[string]func()
-	messages  chan interface{}
 	engine    UciEngine
 	positions []common.Position
+	done      chan struct{}
 	cancel    context.CancelFunc
 	fields    []string
-	state     func(msg interface{})
 }
 
 func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
 	var initPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
 	var uci = &UciProtocol{
-		messages:  make(chan interface{}),
 		engine:    uciEngine,
 		positions: []common.Position{initPosition},
+		done:      make(chan struct{}),
 	}
-	uci.commands = map[string]func(){
-		// UCI commands
-		"uci":        uci.uciCommand,
-		"setoption":  uci.setOptionCommand,
-		"isready":    uci.isReadyCommand,
-		"position":   uci.positionCommand,
-		"go":         uci.goCommand,
-		"ucinewgame": uci.uciNewGameCommand,
-		"ponderhit":  uci.ponderhitCommand,
-		"stop":       uci.stopCommand,
-
-		// My commands
-		"epd":   uci.epdCommand,
-		"arena": uci.arenaCommand,
-		"eval":  uci.evalCommand,
-		"move":  uci.moveCommand,
-	}
+	close(uci.done)
 	return uci
 }
 
 func (uci *UciProtocol) Run() {
 	var name, version, _ = uci.engine.GetInfo()
-	fmt.Printf("%v %v\n", name, version)
-	go func() {
-		uci.state = uci.idle
-		for msg := range uci.messages {
-			uci.state(msg)
-		}
-	}()
+	fmt.Printf("%v %v build with %v\n", name, version, runtime.Version())
+
 	var scanner = bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		var commandLine = scanner.Text()
 		if commandLine == "quit" {
 			break
 		}
-		uci.messages <- commandLine
+		var err = uci.handle(commandLine)
+		if err != nil {
+			debugUci(err.Error())
+		}
 	}
 }
 
-func (uci *UciProtocol) idle(msg interface{}) {
-	switch msg := msg.(type) {
-	case string:
-		var fields = strings.Fields(msg)
-		if len(fields) == 0 {
-			return
-		}
-		var commandName = fields[0]
-		var cmd, ok = uci.commands[commandName]
-		if ok {
-			uci.fields = fields[1:]
-			cmd()
-		} else {
-			debugUci("Command not found.")
-		}
-	case common.SearchInfo:
-		debugUci("Unexpected info.")
-	case common.Move:
-		debugUci("Unexpected best move.")
+func (uci *UciProtocol) handle(msg string) error {
+	var fields = strings.Fields(msg)
+	if len(fields) == 0 {
+		return nil
 	}
-}
+	var commandName = fields[0]
+	uci.fields = fields[1:]
 
-func (uci *UciProtocol) thinking(msg interface{}) {
-	switch msg := msg.(type) {
-	case string:
-		var fields = strings.Fields(msg)
-		if len(fields) == 0 {
-			return
-		}
-		var commandName = fields[0]
-		if commandName == "stop" {
-			uci.stopCommand()
-		} else {
-			debugUci("Unexpected command.")
-		}
-	case common.SearchInfo:
-		PrintSearchInfo(msg)
-	case common.Move:
-		fmt.Printf("bestmove %v\n", msg)
-		uci.state = uci.idle
+	if commandName == "stop" {
+		return uci.stopCommand()
 	}
+
+	select {
+	case <-uci.done:
+	default:
+		return errors.New("search still run")
+	}
+
+	var h func() error
+	switch commandName {
+	// UCI commands
+	case "uci":
+		h = uci.uciCommand
+	case "setoption":
+		h = uci.setOptionCommand
+	case "isready":
+		h = uci.isReadyCommand
+	case "position":
+		h = uci.positionCommand
+	case "go":
+		h = uci.goCommand
+	case "ucinewgame":
+		h = uci.uciNewGameCommand
+	case "ponderhit":
+		h = uci.ponderhitCommand
+	case "stop":
+		h = uci.stopCommand
+
+	// My commands
+	case "epd":
+		h = uci.epdCommand
+	case "arena":
+		h = uci.arenaCommand
+	case "eval":
+		h = uci.evalCommand
+	case "move":
+		h = uci.moveCommand
+	}
+	if h == nil {
+		return errors.New("command not found")
+	}
+	return h()
 }
 
 func debugUci(s string) {
@@ -143,7 +136,7 @@ func PrintSearchInfo(si common.SearchInfo) {
 		scoreToUci, si.Depth, si.Nodes, si.Time, nps, sb.String())
 }
 
-func (uci *UciProtocol) uciCommand() {
+func (uci *UciProtocol) uciCommand() error {
 	var name, version, author = uci.engine.GetInfo()
 	fmt.Printf("id name %s %s\n", name, version)
 	fmt.Printf("id author %s\n", author)
@@ -158,37 +151,46 @@ func (uci *UciProtocol) uciCommand() {
 		}
 	}
 	fmt.Println("uciok")
+	return nil
 }
 
-func (uci *UciProtocol) setOptionCommand() {
+func (uci *UciProtocol) setOptionCommand() error {
 	if len(uci.fields) < 4 {
-		return
+		return errors.New("invalid setoption arguments")
 	}
 	var name, value = uci.fields[1], uci.fields[3]
 	for _, option := range uci.engine.GetOptions() {
 		if strings.EqualFold(option.GetName(), name) {
 			switch option := option.(type) {
 			case *common.BoolUciOption:
-				if v, err := strconv.ParseBool(value); err == nil {
-					option.Value = v
+				v, err := strconv.ParseBool(value)
+				if err != nil {
+					return err
 				}
+				option.Value = v
 			case *common.IntUciOption:
-				if v, err := strconv.Atoi(value); err == nil &&
-					option.Min <= v && v <= option.Max {
-					option.Value = v
+				v, err := strconv.Atoi(value)
+				if err != nil {
+					return err
 				}
+				if v < option.Min || v > option.Max {
+					return errors.New("argument out of range")
+				}
+				option.Value = v
 			}
-			return
+			return nil
 		}
 	}
+	return errors.New("unhandled option")
 }
 
-func (uci *UciProtocol) isReadyCommand() {
+func (uci *UciProtocol) isReadyCommand() error {
 	uci.engine.Prepare()
 	fmt.Println("readyok")
+	return nil
 }
 
-func (uci *UciProtocol) positionCommand() {
+func (uci *UciProtocol) positionCommand() error {
 	var args = uci.fields
 	var token = args[0]
 	var fen string
@@ -202,26 +204,24 @@ func (uci *UciProtocol) positionCommand() {
 			fen = strings.Join(args[1:movesIndex], " ")
 		}
 	} else {
-		debugUci("Wrong position command")
-		return
+		return errors.New("unknown position command")
 	}
 	var p, err = common.NewPositionFromFEN(fen)
 	if err != nil {
-		debugUci("Wrong fen")
-		return
+		return err
 	}
 	var positions = []common.Position{p}
 	if movesIndex >= 0 && movesIndex+1 < len(args) {
 		for _, smove := range args[movesIndex+1:] {
 			var newPos, ok = positions[len(positions)-1].MakeMoveLAN(smove)
 			if !ok {
-				debugUci("Wrong move")
-				return
+				return errors.New("parse move failed")
 			}
 			positions = append(positions, newPos)
 		}
 	}
 	uci.positions = positions
+	return nil
 }
 
 func findIndexString(slice []string, value string) int {
@@ -233,7 +233,7 @@ func findIndexString(slice []string, value string) int {
 	return -1
 }
 
-func (uci *UciProtocol) goCommand() {
+func (uci *UciProtocol) goCommand() error {
 	var limits = parseLimits(uci.fields)
 	var ctx, cancel = context.WithCancel(context.Background())
 	var searchParams = common.SearchParams{
@@ -241,21 +241,28 @@ func (uci *UciProtocol) goCommand() {
 		Limits:    limits,
 		Progress: func(si common.SearchInfo) {
 			if si.Time >= 500 || si.Depth >= 5 {
-				uci.messages <- si
+				PrintSearchInfo(si)
 			}
 		},
 	}
+	uci.done = make(chan struct{})
 	uci.cancel = cancel
-	uci.state = uci.thinking
 	go func() {
 		var searchResult = uci.engine.Search(ctx, searchParams)
-		uci.messages <- searchResult
+		PrintSearchInfo(searchResult)
+		/*Probably even better:
+		uci.gate.Lock()
+		print bestmove
+		uci.idle=true
+		uci.gate.Unlock()
+		*/
+		close(uci.done)
 		if len(searchResult.MainLine) == 0 {
-			uci.messages <- common.MoveEmpty
-		} else {
-			uci.messages <- searchResult.MainLine[0]
+			return
 		}
+		fmt.Printf("bestmove %v\n", searchResult.MainLine[0])
 	}()
+	return nil
 }
 
 func parseLimits(args []string) (result common.LimitsType) {
@@ -297,51 +304,55 @@ func parseLimits(args []string) (result common.LimitsType) {
 	return
 }
 
-func (uci *UciProtocol) uciNewGameCommand() {
+func (uci *UciProtocol) uciNewGameCommand() error {
 	uci.engine.Clear()
+	return nil
 }
 
-func (uci *UciProtocol) ponderhitCommand() {
+func (uci *UciProtocol) ponderhitCommand() error {
+	return errors.New("not implemented")
 }
 
-func (uci *UciProtocol) stopCommand() {
+func (uci *UciProtocol) stopCommand() error {
 	if uci.cancel != nil {
 		uci.cancel()
 	}
+	return nil
 }
 
-func (uci *UciProtocol) epdCommand() {
+func (uci *UciProtocol) epdCommand() error {
 	var filePath = "tests.epd"
 	if len(uci.fields) > 0 {
 		filePath = uci.fields[0]
 	}
 	var tests, err = LoadEpdTests(filePath)
 	if err != nil {
-		fmt.Printf("load epd tests failed %v\n", err)
-		return
+		return err
 	}
 	fmt.Printf("Loaded %v tests\n", len(tests))
 	RunEpdTest(tests, uci.engine, 3000)
+	return nil
 }
 
-func (uci *UciProtocol) arenaCommand() {
+func (uci *UciProtocol) arenaCommand() error {
 	RunTournament()
+	return nil
 }
 
-func (uci *UciProtocol) evalCommand() {
+func (uci *UciProtocol) evalCommand() error {
 	var p = &uci.positions[len(uci.positions)-1]
 	var evalService = eval.NewEvaluationService()
 	evalService.Trace(p)
+	return nil
 }
 
-func (uci *UciProtocol) moveCommand() {
+func (uci *UciProtocol) moveCommand() error {
 	if len(uci.fields) == 0 {
-		return
+		return errors.New("invalid move arguments")
 	}
 	var newPos, ok = uci.positions[len(uci.positions)-1].MakeMoveLAN(uci.fields[0])
 	if !ok {
-		debugUci("Wrong move")
-		return
+		return errors.New("parse move failed")
 	}
 	uci.positions = append(uci.positions, newPos)
 
@@ -355,13 +366,11 @@ func (uci *UciProtocol) moveCommand() {
 		},
 	}
 	var searchResult = uci.engine.Search(context.Background(), searchParams)
-	if len(searchResult.MainLine) == 0 {
-		return
-	}
 	PrintSearchInfo(searchResult)
 	var child common.Position
 	newPos.MakeMove(searchResult.MainLine[0], &child)
 	uci.positions = append(uci.positions, child)
 	PrintPosition(&child)
 	fmt.Println(&child)
+	return nil
 }

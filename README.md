@@ -16,6 +16,21 @@ Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features
 + `eval` - trace evaluation function
 + `move e2e4` - play chess with engine in REPL mode
 
+## Features
+### Board
++ Magic bitboards
+### Evaluation
++ Texel's Tuning Method
+### Search
++ Parallel search
++ Iterative Deepening
++ Principal Variation Search
++ Transposition Table
++ Null Move Pruning
++ Late Move Reductions
++ Futility Pruning
++ Move Count Based Pruning
+
 ## Information about chess programming
 + [Chess Programming Wiki](https://www.chessprogramming.org)
 + [Bruce Moreland's Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)

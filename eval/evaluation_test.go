@@ -3,18 +3,18 @@ package eval
 import (
 	"testing"
 
-	. "github.com/ChizhovVadim/CounterGo/common"
+	"github.com/ChizhovVadim/CounterGo/common"
 )
 
 func TestEval(t *testing.T) {
 	var e = NewEvaluationService()
 	for _, test := range testFENs {
-		var p1, err = NewPositionFromFEN(test)
+		var p1, err = common.NewPositionFromFEN(test)
 		if err != nil {
 			t.Error(err)
 		}
 		var score1 = e.Evaluate(&p1)
-		var p2 = MirrorPosition(&p1)
+		var p2 = common.MirrorPosition(&p1)
 		var score2 = e.Evaluate(&p2)
 		if score1 != score2 {
 			t.Error(test, p2.String(), score1, score2)
@@ -25,7 +25,7 @@ func TestEval(t *testing.T) {
 func TestEval2(t *testing.T) {
 	PrintWeights()
 	var e = NewEvaluationService()
-	var p, _ = NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")
+	var p, _ = common.NewPositionFromFEN("3rr1k1/2q2pb1/p1p3p1/2N1p2p/2P3bN/1P2B1Q1/P2R1P2/4R1K1 w - - 2 19")
 	var score = e.Evaluate(&p)
 	t.Log("Score:", score)
 }

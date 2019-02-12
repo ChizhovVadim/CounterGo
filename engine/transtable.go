@@ -7,12 +7,12 @@ import (
 )
 
 type transEntry struct {
-	gate      int32
-	key32     uint32
-	move      Move
-	score     int16
-	depth     int8
-	bound_gen uint8
+	gate     int32
+	key32    uint32
+	move     Move
+	score    int16
+	depth    int8
+	boundGen uint8
 }
 
 const (
@@ -58,7 +58,7 @@ func (tt *transTable) PrepareNewSearch() {
 		tt.generation = 1
 		for i := range tt.entries {
 			var entry = &tt.entries[i]
-			entry.bound_gen = entry.bound_gen & 3
+			entry.boundGen = entry.boundGen & 3
 		}
 	}
 }
@@ -74,11 +74,11 @@ func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok 
 	var entry = &tt.entries[uint32(p.Key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		if entry.key32 == uint32(p.Key>>32) {
-			entry.bound_gen = (entry.bound_gen & 3) + (tt.generation << 2)
+			entry.boundGen = (entry.boundGen & 3) + (tt.generation << 2)
 			score = int(entry.score)
 			move = entry.move
 			depth = int(entry.depth)
-			bound = int(entry.bound_gen & 3)
+			bound = int(entry.boundGen & 3)
 			ok = true
 		}
 		atomic.StoreInt32(&entry.gate, 0)
@@ -95,16 +95,16 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 			}
 			entry.score = int16(score)
 			entry.depth = int8(depth)
-			entry.bound_gen = uint8(bound) + (tt.generation << 2)
+			entry.boundGen = uint8(bound) + (tt.generation << 2)
 		} else {
-			if (entry.bound_gen>>2) != tt.generation ||
+			if (entry.boundGen>>2) != tt.generation ||
 				depth >= int(entry.depth) ||
 				bound == 0 {
 				entry.key32 = uint32(p.Key >> 32)
 				entry.move = move
 				entry.score = int16(score)
 				entry.depth = int8(depth)
-				entry.bound_gen = uint8(bound) + (tt.generation << 2)
+				entry.boundGen = uint8(bound) + (tt.generation << 2)
 			}
 		}
 		atomic.StoreInt32(&entry.gate, 0)

@@ -14,14 +14,14 @@ var (
 	blackQueenSideCastle = makeMove(SquareE8, SquareC8, King, Empty)
 )
 
-func (pos *Position) GenerateLegalMoves() []Move {
+func (p *Position) GenerateLegalMoves() []Move {
 	var result []Move
 	var buffer [MaxMoves]OrderedMove
 	var child Position
-	var ml = pos.GenerateMoves(buffer[:])
+	var ml = p.GenerateMoves(buffer[:])
 	for i := range ml {
 		var m = ml[i].Move
-		if pos.MakeMove(m, &child) {
+		if p.MakeMove(m, &child) {
 			result = append(result, m)
 		}
 	}

@@ -9,7 +9,7 @@ import (
 
 const PawnValue = 100
 
-var searchTimeout = errors.New("search timeout")
+var errSearchTimeout = errors.New("search timeout")
 
 func (e *Engine) iterativeDeepening() {
 	defer recoverFromSearchTimeout()
@@ -318,7 +318,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 func (t *thread) incNodes() {
 	t.nodes++
 	if (t.nodes&255) == 0 && isDone(t.engine.done) {
-		panic(searchTimeout)
+		panic(errSearchTimeout)
 	}
 }
 
@@ -388,7 +388,7 @@ func (t *thread) newDepth(depth, height int) int {
 
 func recoverFromSearchTimeout() {
 	var r = recover()
-	if r != nil && r != searchTimeout {
+	if r != nil && r != errSearchTimeout {
 		panic(r)
 	}
 }

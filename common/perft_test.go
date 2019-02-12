@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-//https://chessprogramming.wikispaces.com/Perft+Results
+//https://www.chessprogramming.org/Perft_Results
 func TestPerft(t *testing.T) {
 	var tests = []struct {
 		fen   string

@@ -25,13 +25,15 @@ const (
 )
 
 var (
-	whitePawnAttacks, blackPawnAttacks     [64]uint64
-	SquareMask, KnightAttacks, KingAttacks [64]uint64
-	index64                                [64]int
-	rookAttacks                            [64][1 << 12]uint64
-	bishopAttacks                          [64][1 << 9]uint64
-	betweenMask                            [][]uint64
-	bishopMoves, rookMoves                 [64]uint64
+	whitePawnAttacks, blackPawnAttacks [64]uint64
+	SquareMask                         [64]uint64
+	KnightAttacks                      [64]uint64
+	KingAttacks                        [64]uint64
+	index64                            [64]int
+	rookAttacks                        [64][1 << 12]uint64
+	bishopAttacks                      [64][1 << 9]uint64
+	betweenMask                        [][]uint64
+	bishopMoves, rookMoves             [64]uint64
 )
 
 var FileMask = [8]uint64{
@@ -213,7 +215,7 @@ var bishopMask = [...]uint64{
 }
 
 func magicify(b uint64, index int) uint64 {
-	var bitmask uint64 = 0
+	var bitmask uint64
 	var count = PopCount(b)
 
 	for i, our := 0, b; i < count; i++ {
@@ -228,7 +230,7 @@ func magicify(b uint64, index int) uint64 {
 }
 
 func computeSlideAttacks(f int, occ uint64, fs []func(sq uint64) uint64) uint64 {
-	var result uint64 = 0
+	var result uint64
 	for _, shift := range fs {
 		var x = shift(SquareMask[f])
 		for x != 0 {

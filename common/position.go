@@ -428,18 +428,18 @@ func (p *Position) IsDiscoveredCheck() bool {
 	return (p.Checkers & ^SquareMask[p.LastMove.To()]) != 0
 }
 
-func (this *Position) IsRepetition(other *Position) bool {
-	return this.White == other.White &&
-		this.Black == other.Black &&
-		this.Pawns == other.Pawns &&
-		this.Knights == other.Knights &&
-		this.Bishops == other.Bishops &&
-		this.Rooks == other.Rooks &&
-		this.Queens == other.Queens &&
-		this.Kings == other.Kings &&
-		this.WhiteMove == other.WhiteMove &&
-		this.CastleRights == other.CastleRights &&
-		this.EpSquare == other.EpSquare
+func (p *Position) IsRepetition(other *Position) bool {
+	return p.White == other.White &&
+		p.Black == other.Black &&
+		p.Pawns == other.Pawns &&
+		p.Knights == other.Knights &&
+		p.Bishops == other.Bishops &&
+		p.Rooks == other.Rooks &&
+		p.Queens == other.Queens &&
+		p.Kings == other.Kings &&
+		p.WhiteMove == other.WhiteMove &&
+		p.CastleRights == other.CastleRights &&
+		p.EpSquare == other.EpSquare
 }
 
 var (

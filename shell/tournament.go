@@ -85,22 +85,23 @@ func RunTournament() {
 	fmt.Println("Tournament finished.")
 }
 
-//https://chessprogramming.wikispaces.com/Match%20Statistics
+//https://www.chessprogramming.org/Match_Statistics
 func computeStat(wins, losses, draws int) {
 	var games = wins + losses + draws
-	var winning_fraction = (float64(wins) + 0.5*float64(draws)) / float64(games)
-	var elo_difference = -math.Log(1/winning_fraction-1) * 400 / math.Ln10
+	var winningFraction = (float64(wins) + 0.5*float64(draws)) / float64(games)
+	var eloDifference = -math.Log(1/winningFraction-1) * 400 / math.Ln10
 	var los = 0.5 + 0.5*math.Erf(float64(wins-losses)/math.Sqrt(2*float64(wins+losses)))
-	fmt.Printf("Winning fraction: %.1f%%\n", winning_fraction*100)
-	fmt.Printf("Elo difference: %.f\n", elo_difference)
+	fmt.Printf("Winning fraction: %.1f%%\n", winningFraction*100)
+	fmt.Printf("Elo difference: %.f\n", eloDifference)
 	fmt.Printf("LOS: %.1f%%\n", los*100)
 }
 
+//TODO Adjudicate the game as a loss if an engine's score is at least score centipawns below zero for at least count consecutive moves.
 func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 	engine1.Clear()
 	engine2.Clear()
 	//var chessClock = MoveTimeChessClock{moveSeconds: 1}
-	var chessClock = NewClassicChessClock(3*60, 0, 40)
+	var chessClock = NewClassicChessClock(4*60, 0, 40)
 	var positions = []common.Position{initialPosition}
 	for {
 		var gameResult = computeGameResult(positions)

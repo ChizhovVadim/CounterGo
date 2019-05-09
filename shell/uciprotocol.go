@@ -132,8 +132,8 @@ func PrintSearchInfo(si common.SearchInfo) {
 		}
 		sb.WriteString(move.String())
 	}
-	fmt.Printf("info score %v depth %v nodes %v time %v nps %v pv %v\n",
-		scoreToUci, si.Depth, si.Nodes, si.Time, nps, sb.String())
+	fmt.Printf("info depth %v score %v nodes %v time %v nps %v pv %v\n",
+		si.Depth, scoreToUci, si.Nodes, si.Time, nps, sb.String())
 }
 
 func (uci *UciProtocol) uciCommand() error {

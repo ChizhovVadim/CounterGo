@@ -105,7 +105,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	e.timeManager = NewTimeManager(searchParams.Limits, timeControlSmart, p.WhiteMove)
 	if e.timeManager.hardTime > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, e.timeManager.hardTime)
+		ctx, cancel = context.WithDeadline(ctx, e.timeManager.start.Add(e.timeManager.hardTime))
 		defer cancel()
 	}
 	e.Prepare()

@@ -12,6 +12,7 @@ import (
 
 func NewEngineA() UciEngine {
 	var result = engine.NewEngine()
+	result.Hash.Value = 64
 	result.ExperimentSettings = false
 	result.Prepare()
 	return result
@@ -19,6 +20,8 @@ func NewEngineA() UciEngine {
 
 func NewEngineB() UciEngine {
 	var result = engine.NewEngine()
+	result.Hash.Value = 64
+	//result.Threads.Value = 4
 	result.ExperimentSettings = true
 	result.Prepare()
 	return result

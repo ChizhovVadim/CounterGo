@@ -131,17 +131,16 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		return beta
 	}
 
-	var hashMove = MoveEmpty
 	var pvNode = beta != alpha+1
 
-	if ttDepth, ttScore, ttType, ttMove, ok := t.engine.transTable.Read(position); ok {
-		hashMove = ttMove
+	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
+	if ttHit {
+		ttValue = valueFromTT(ttValue, height)
 		if ttDepth >= depth && !pvNode {
-			ttScore = valueFromTT(ttScore, height)
-			if ttScore >= beta && (ttType&boundLower) != 0 {
+			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				return beta
 			}
-			if ttScore <= alpha && (ttType&boundUpper) != 0 {
+			if ttValue <= alpha && (ttBound&boundUpper) != 0 {
 				return alpha
 			}
 		}
@@ -167,7 +166,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
-	t.sortTable.Note(position, ml, hashMove, height)
+	t.sortTable.Note(position, ml, ttMove, height)
 
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
@@ -182,57 +181,58 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 		var move = ml[i].Move
 
-		if position.MakeMove(move, child) {
-			moveCount++
+		if !position.MakeMove(move, child) {
+			continue
+		}
+		moveCount++
 
-			newDepth = t.newDepth(depth, height)
-			var reduction = 0
+		newDepth = t.newDepth(depth, height)
+		var reduction = 0
 
-			if !isCaptureOrPromotion(move) && moveCount > 1 &&
-				!isCheck && !child.IsCheck() &&
-				ml[i].Key < sortTableKeyImportant &&
-				!isPawnAdvance(move, position.WhiteMove) {
+		if !isCaptureOrPromotion(move) && moveCount > 1 &&
+			!isCheck && !child.IsCheck() &&
+			ml[i].Key < sortTableKeyImportant &&
+			!isPawnAdvance(move, position.WhiteMove) {
 
-				if depth >= 3 {
-					reduction = t.engine.lateMoveReduction(depth, moveCount)
-					if pvNode {
-						reduction--
-					}
-					reduction = Max(0, Min(depth-2, reduction))
-				} else {
-					if alpha > valueLoss && position.LastMove != MoveEmpty &&
-						moveCount >= 9+3*depth {
-						continue
-					}
-					if alpha > valueLoss && position.LastMove != MoveEmpty &&
-						lazyEval.Value()+PawnValue*depth <= alpha {
-						continue
-					}
+			if depth >= 3 {
+				reduction = t.engine.lateMoveReduction(depth, moveCount)
+				if pvNode {
+					reduction--
 				}
-			}
-
-			if !isCaptureOrPromotion(move) {
-				quietsSearched = append(quietsSearched, move)
-			}
-
-			if reduction > 0 ||
-				(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
-				score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
-				if score <= alpha {
+				reduction = Max(0, Min(depth-2, reduction))
+			} else {
+				if alpha > valueLoss && position.LastMove != MoveEmpty &&
+					moveCount >= 9+3*depth {
+					continue
+				}
+				if alpha > valueLoss && position.LastMove != MoveEmpty &&
+					lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}
 			}
+		}
 
-			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
+		if !isCaptureOrPromotion(move) {
+			quietsSearched = append(quietsSearched, move)
+		}
 
-			if score > alpha {
-				alpha = score
-				bestMove = move
-				if alpha >= beta {
-					break
-				}
-				t.stack[height].pv.assign(move, &t.stack[height+1].pv)
+		if reduction > 0 ||
+			(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
+			if score <= alpha {
+				continue
 			}
+		}
+
+		score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
+
+		if score > alpha {
+			alpha = score
+			bestMove = move
+			if alpha >= beta {
+				break
+			}
+			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 		}
 	}
 
@@ -247,14 +247,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		t.sortTable.Update(position, bestMove, quietsSearched, depth, height)
 	}
 
-	var ttType = 0
+	ttBound = 0
 	if bestMove != MoveEmpty {
-		ttType |= boundLower
+		ttBound |= boundLower
 	}
 	if alpha < beta {
-		ttType |= boundUpper
+		ttBound |= boundUpper
 	}
-	t.engine.transTable.Update(position, depth, valueToTT(alpha, height), ttType, bestMove)
+	t.engine.transTable.Update(position, depth, valueToTT(alpha, height), ttBound, bestMove)
 
 	return alpha
 }
@@ -293,20 +293,21 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 		if !isCheck && !danger && !seeGEZero(position, move) {
 			continue
 		}
-		if position.MakeMove(move, child) {
-			moveCount++
-			if !isCheck && !danger && !child.IsCheck() &&
-				eval+moveValue(move)+2*PawnValue <= alpha {
-				continue
+		if !position.MakeMove(move, child) {
+			continue
+		}
+		moveCount++
+		if !isCheck && !danger && !child.IsCheck() &&
+			eval+moveValue(move)+2*PawnValue <= alpha {
+			continue
+		}
+		var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
+		if score > alpha {
+			alpha = score
+			if score >= beta {
+				break
 			}
-			var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
-			if score > alpha {
-				alpha = score
-				if score >= beta {
-					break
-				}
-				t.stack[height].pv.assign(move, &t.stack[height+1].pv)
-			}
+			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 		}
 	}
 	if isCheck && moveCount == 0 {

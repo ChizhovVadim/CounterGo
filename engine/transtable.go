@@ -37,6 +37,7 @@ type transTable struct {
 	mask       uint32
 }
 
+// good test: position fen r3k3/8/8/8/3K4/8/8/8 w q - 0 1
 // good test: position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
 // good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
 func NewTransTable(megabytes int) *transTable {
@@ -93,9 +94,11 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 			if move != MoveEmpty {
 				entry.move = move
 			}
-			entry.score = int16(score)
-			entry.depth = int8(depth)
-			entry.boundGen = uint8(bound) + (tt.generation << 2)
+			if bound != 0 {
+				entry.score = int16(score)
+				entry.depth = int8(depth)
+				entry.boundGen = uint8(bound) + (tt.generation << 2)
+			}
 		} else {
 			if (entry.boundGen>>2) != tt.generation ||
 				depth >= int(entry.depth) ||

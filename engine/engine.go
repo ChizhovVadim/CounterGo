@@ -111,14 +111,17 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	e.Prepare()
 	e.transTable.PrepareNewSearch()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
-	e.done = ctx.Done()
 	for i := range e.threads {
 		var t = &e.threads[i]
 		t.nodes = 0
 		t.stack[0].position = *p
 	}
 	e.progress = searchParams.Progress
-	e.iterativeDeepening()
+	if e.Threads.Value > 1 {
+		iterativeDeepeningLazySmp(ctx, e)
+	} else {
+		iterativeDeepening(ctx, e)
+	}
 	return e.currentSearchResult()
 }
 
@@ -152,12 +155,6 @@ func (e *Engine) Clear() {
 	}
 }
 
-func (ml *mainLine) update(depth, score int, mainLine []Move) {
-	ml.depth = depth
-	ml.score = score
-	ml.moves = mainLine
-}
-
 func (e *Engine) currentSearchResult() SearchInfo {
 	return SearchInfo{
 		Depth:    e.mainLine.depth,
@@ -184,6 +181,8 @@ func (pv *pv) assign(m Move, child *pv) {
 	copy(pv.items[1:], child.items[:child.size])
 }
 
-func (pv *pv) moves() []Move {
-	return pv.items[:pv.size]
+func (pv *pv) toSlice() []Move {
+	var result = make([]Move, pv.size)
+	copy(result, pv.items[:pv.size])
+	return result
 }

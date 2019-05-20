@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"sync"
-
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
@@ -15,19 +13,6 @@ const (
 	valueWin      = valueMate - 2*maxHeight
 	valueLoss     = -valueWin
 )
-
-func parallelDo(degreeOfParallelism int, body func(threadIndex int)) {
-	var wg = &sync.WaitGroup{}
-	for i := 1; i < degreeOfParallelism; i++ {
-		wg.Add(1)
-		go func(threadIndex int) {
-			body(threadIndex)
-			wg.Done()
-		}(i)
-	}
-	body(0)
-	wg.Wait()
-}
 
 func winIn(height int) int {
 	return valueMate - height

@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"context"
 	"errors"
+	"math/rand"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -11,24 +13,26 @@ const PawnValue = 100
 
 var errSearchTimeout = errors.New("search timeout")
 
-func (e *Engine) iterativeDeepening() {
-	defer recoverFromSearchTimeout()
-
+func iterativeDeepening(ctx context.Context, e *Engine) {
 	var ml = e.genRootMoves()
 	if len(ml) != 0 {
-		e.mainLine.update(0, 0, []Move{ml[0]})
+		e.mainLine = mainLine{
+			depth: 0,
+			score: 0,
+			moves: []Move{ml[0]},
+		}
 	}
 	if len(ml) <= 1 {
 		return
 	}
 
+	defer recoverFromSearchTimeout()
+	e.done = ctx.Done()
+
 	var prevScore int
 	var prevBestMove Move
 	for depth := 1; depth <= maxHeight; depth++ {
-		e.searchRootParallel(ml, depth)
-		if isDone(e.done) {
-			break
-		}
+		searchRoot(&e.threads[0], ml, depth, &e.mainLine)
 		if e.mainLine.score >= winIn(depth-3) ||
 			e.mainLine.score <= lossIn(depth-3) {
 			break
@@ -54,57 +58,126 @@ func savePV(transTable TransTable, p *Position, pv []Move) {
 	}
 }
 
-func (e *Engine) searchRootParallel(ml []Move, depth int) int {
-	var mainThread = &e.threads[0]
+func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
+	var ml = e.genRootMoves()
+	if len(ml) != 0 {
+		e.mainLine = mainLine{
+			depth: 0,
+			score: 0,
+			moves: []Move{ml[0]},
+		}
+	}
+	if len(ml) <= 1 {
+		return
+	}
+
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
+	e.done = ctx.Done()
+
+	var depths = make(chan int)
+	var taskResults = make(chan mainLine)
+	var wg = &sync.WaitGroup{}
+
+	for i := 0; i < e.Threads.Value; i++ {
+		var ml = cloneMoves(ml)
+		wg.Add(1)
+		go func(i int) {
+			var t = &e.threads[i]
+			if i > 0 {
+				rand.Shuffle(len(ml), func(i, j int) {
+					ml[i], ml[j] = ml[j], ml[i]
+				})
+			}
+			for depth := range depths {
+				func() {
+					defer recoverFromSearchTimeout()
+					var line mainLine
+					searchRoot(t, ml, depth, &line)
+					taskResults <- line
+				}()
+			}
+			wg.Done()
+		}(i)
+	}
+
+	go func() {
+		wg.Wait()
+		close(taskResults)
+	}()
+
+	go func() {
+		defer close(depths)
+		for depth := 1; depth <= maxHeight; depth++ {
+			var numThreads = threadsPerDepth(depth, e.Threads.Value)
+			for i := 0; i < numThreads; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				case depths <- depth:
+				}
+			}
+		}
+	}()
+
+	var prevScore int
+	var prevBestMove Move
+
+	for taskResult := range taskResults {
+		if taskResult.depth > e.mainLine.depth {
+			e.mainLine = taskResult
+
+			if e.mainLine.score >= winIn(e.mainLine.depth-3) ||
+				e.mainLine.score <= lossIn(e.mainLine.depth-3) {
+				cancel()
+			}
+			if e.timeManager.IsSoftTimeout(e.mainLine.moves[0] != prevBestMove,
+				e.mainLine.score < prevScore-PawnValue/2) {
+				cancel()
+			}
+
+			prevScore = e.mainLine.score
+			prevBestMove = e.mainLine.moves[0]
+			e.sendProgress()
+		}
+	}
+}
+
+func threadsPerDepth(depth, threads int) int {
+	if depth <= 4 {
+		return 1
+	}
+	return 1 + (threads-1)/2
+}
+
+func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 	const height = 0
-	var p = &mainThread.stack[height].position
+	t.stack[height].pv.clear()
+	var p = &t.stack[height].position
+	var child = &t.stack[height+1].position
 	var alpha = -valueInfinity
 	const beta = valueInfinity
 	var bestMoveIndex = 0
-	{
-		var child = &mainThread.stack[height+1].position
-		var move = ml[0]
+	for i, move := range ml {
 		p.MakeMove(move, child)
-		var newDepth = mainThread.newDepth(depth, height)
-		var score = -mainThread.alphaBeta(-beta, -alpha, newDepth, height+1)
-		alpha = score
-		e.mainLine.update(depth, score,
-			append([]Move{move}, mainThread.stack[height+1].pv.moves()...))
-	}
-	var gate = &sync.Mutex{}
-	var index = 1
-	parallelDo(e.Threads.Value, func(threadIndex int) {
-		defer recoverFromSearchTimeout()
-		var t = &e.threads[threadIndex]
-		var child = &t.stack[height+1].position
-		for {
-			gate.Lock()
-			var localAlpha = alpha
-			var localIndex = index
-			index++
-			gate.Unlock()
-			if localIndex >= len(ml) {
-				return
-			}
-			var move = ml[localIndex]
-			p.MakeMove(move, child)
-			var newDepth = t.newDepth(depth, height)
-			if -t.alphaBeta(-(localAlpha+1), -localAlpha, newDepth, height+1) <= localAlpha {
-				continue
-			}
-			var score = -t.alphaBeta(-beta, -localAlpha, newDepth, height+1)
-			gate.Lock()
-			if score > alpha {
-				alpha = score
-				e.mainLine.update(depth, score,
-					append([]Move{move}, t.stack[height+1].pv.moves()...))
-				bestMoveIndex = localIndex
-			}
-			gate.Unlock()
+		var newDepth = t.newDepth(depth, height)
+		if i > 0 && newDepth > 0 &&
+			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
+			continue
 		}
-	})
+		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
+		if score > alpha {
+			alpha = score
+			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
+			*line = mainLine{
+				depth: depth,
+				score: score,
+				moves: t.stack[height].pv.toSlice(),
+			}
+			bestMoveIndex = i
+		}
+	}
 	moveToBegin(ml, bestMoveIndex)
-	return alpha
 }
 
 func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
@@ -415,6 +488,12 @@ func moveToTop(ml []OrderedMove) {
 	if bestIndex != 0 {
 		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
 	}
+}
+
+func cloneMoves(ml []Move) []Move {
+	var result = make([]Move, len(ml))
+	copy(result, ml)
+	return result
 }
 
 func (e *Engine) genRootMoves() []Move {

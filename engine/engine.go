@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"runtime"
+	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 	"github.com/ChizhovVadim/CounterGo/eval"
@@ -12,7 +13,7 @@ type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings bool
-	timeManager        timeManager
+	timeManager        TimeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
 	historyKeys        map[uint64]int
@@ -20,6 +21,7 @@ type Engine struct {
 	threads            []thread
 	progress           func(SearchInfo)
 	mainLine           mainLine
+	start              time.Time
 }
 
 type thread struct {
@@ -44,6 +46,12 @@ type mainLine struct {
 	moves []Move
 	score int
 	depth int
+}
+
+type TimeManager interface {
+	Init(start time.Time, limits LimitsType, p *Position)
+	Deadline() (time.Time, bool)
+	BreakIterativeDeepening(line mainLine) bool
 }
 
 type Evaluator interface {
@@ -89,6 +97,9 @@ func (e *Engine) Prepare() {
 	if e.lateMoveReduction == nil {
 		e.lateMoveReduction = mainLmr
 	}
+	if e.timeManager == nil {
+		e.timeManager = &timeManager{}
+	}
 	if len(e.threads) != e.Threads.Value {
 		e.threads = make([]thread, e.Threads.Value)
 		for i := range e.threads {
@@ -101,14 +112,15 @@ func (e *Engine) Prepare() {
 }
 
 func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchInfo {
+	e.start = time.Now()
+	e.Prepare()
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	e.timeManager = NewTimeManager(searchParams.Limits, timeControlSmart, p.WhiteMove)
-	if e.timeManager.hardTime > 0 {
+	e.timeManager.Init(e.start, searchParams.Limits, p)
+	if deadline, ok := e.timeManager.Deadline(); ok {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, e.timeManager.start.Add(e.timeManager.hardTime))
+		ctx, cancel = context.WithDeadline(ctx, deadline)
 		defer cancel()
 	}
-	e.Prepare()
 	e.transTable.PrepareNewSearch()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for i := range e.threads {
@@ -161,7 +173,7 @@ func (e *Engine) currentSearchResult() SearchInfo {
 		MainLine: e.mainLine.moves,
 		Score:    newUciScore(e.mainLine.score),
 		Nodes:    e.nodes(),
-		Time:     e.timeManager.ElapsedMilliseconds(),
+		Time:     int64(time.Since(e.start) / time.Millisecond),
 	}
 }
 

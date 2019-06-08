@@ -8,96 +8,95 @@ import (
 )
 
 const (
-	bestMoveChangedTimeRatio = 1.5
-	bestMoveChangedStepCount = 3
+	minDifficulty   = 0.6
+	maxDifficulty   = 2
+	minBranchFactor = 0.75
+	maxBranchFactor = 1.5
 )
-
-var (
-	bestMoveChangedK = math.Log(bestMoveChangedTimeRatio)
-	timeRatioMin     = math.Exp(-0.5 * bestMoveChangedK)
-	timeRatioMax     = math.Exp(0.5 * bestMoveChangedK)
-	timeRatioMult    = math.Exp(-bestMoveChangedK / bestMoveChangedStepCount)
-)
-
-type timeControlStrategy func(main, inc, moves int) (softLimit, hardLimit int)
 
 type timeManager struct {
-	start    time.Time
-	softTime time.Duration
-	hardTime time.Duration
-	ratio    float64
+	start        time.Time
+	limits       LimitsType
+	side         bool
+	difficulty   float64
+	lastScore    int
+	lastBestMove Move
 }
 
-func (tm *timeManager) ElapsedMilliseconds() int64 {
-	return int64(time.Since(tm.start) / time.Millisecond)
+func (tm *timeManager) Init(start time.Time, limits LimitsType, p *Position) {
+	tm.start = start
+	tm.limits = limits
+	tm.side = p.WhiteMove
+	tm.difficulty = 1
 }
 
-func (tm *timeManager) IsSoftTimeout(bestMoveChanged, problem bool) bool {
-	if bestMoveChanged {
-		tm.ratio = timeRatioMax
+func (tm *timeManager) Deadline() (time.Time, bool) {
+	if tm.limits.Infinite {
+		return time.Time{}, false
+	}
+	var maximum time.Duration
+	if tm.limits.MoveTime > 0 {
+		maximum = time.Duration(tm.limits.MoveTime) * time.Millisecond
 	} else {
-		tm.ratio *= timeRatioMult
-		if tm.ratio < timeRatioMin {
-			tm.ratio = timeRatioMin
+		maximum = tm.calculateTimeLimit(maxDifficulty, maxBranchFactor)
+	}
+	return tm.start.Add(maximum), true
+}
+
+func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
+	if line.score >= winIn(line.depth-3) ||
+		line.score <= lossIn(line.depth-3) {
+		return true
+	}
+	if tm.limits.MoveTime > 0 || tm.limits.Infinite {
+		return false
+	}
+	if line.depth >= 5 {
+		if line.score < tm.lastScore-PawnValue/2 {
+			tm.difficulty = maxDifficulty
+		}
+		if line.moves[0] != tm.lastBestMove {
+			tm.difficulty = 1.23 * math.Max(tm.difficulty, 1)
+		} else {
+			tm.difficulty *= 0.9
 		}
 	}
-	if tm.softTime == 0 {
-		return false
-	}
-	if problem {
-		return false
-	}
-	return float64(time.Since(tm.start)) >= tm.ratio*float64(tm.softTime)
+	tm.difficulty = math.Max(minDifficulty, math.Min(maxDifficulty, tm.difficulty))
+	tm.lastScore = line.score
+	tm.lastBestMove = line.moves[0]
+	var optimum = tm.calculateTimeLimit(tm.difficulty, minBranchFactor)
+	return time.Since(tm.start) >= optimum
 }
 
-func NewTimeManager(limits LimitsType,
-	timeControlStrategy timeControlStrategy, side bool) timeManager {
-	var start = time.Now()
-
-	var main, increment int
-	if side {
-		main, increment = limits.WhiteTime, limits.WhiteIncrement
-	} else {
-		main, increment = limits.BlackTime, limits.BlackIncrement
-	}
-
-	var softTime, hardTime int
-	if limits.MoveTime > 0 {
-		hardTime = limits.MoveTime
-	} else if main > 0 {
-		softTime, hardTime = timeControlStrategy(main, increment, limits.MovesToGo)
-	}
-
-	return timeManager{
-		start:    start,
-		softTime: time.Duration(softTime) * time.Millisecond,
-		hardTime: time.Duration(hardTime) * time.Millisecond,
-		ratio:    1.0,
-	}
-}
-
-func timeControlSmart(main, inc, moves int) (softLimit, hardLimit int) {
+func (tm *timeManager) calculateTimeLimit(difficulty, branchFactor float64) time.Duration {
 	const (
-		MovesToGo       = 35
-		LastMoveReserve = 300
+		DefaultMovesToGo = 50
+		MoveOverhead     = 300 * time.Millisecond
+		MinTimeLimit     = 1 * time.Millisecond
 	)
-
-	if moves == 0 || moves > MovesToGo {
-		moves = MovesToGo
+	var main, inc time.Duration
+	if tm.side {
+		main = time.Duration(tm.limits.WhiteTime) * time.Millisecond
+		inc = time.Duration(tm.limits.WhiteIncrement) * time.Millisecond
+	} else {
+		main = time.Duration(tm.limits.BlackTime) * time.Millisecond
+		inc = time.Duration(tm.limits.BlackIncrement) * time.Millisecond
 	}
-
-	main = Max(1, main-LastMoveReserve)
-	var maxLimit = main
-	if moves > 1 {
-		maxLimit = Min(maxLimit, main/2+inc)
+	main -= MoveOverhead
+	if main < MinTimeLimit {
+		main = MinTimeLimit
 	}
-
-	var safeMoves = 1 + 1.41*float64(moves-1)
-	softLimit = int(float64(main)/safeMoves) + inc
-	hardLimit = 4 * softLimit
-
-	softLimit = Max(1, Min(maxLimit, softLimit))
-	hardLimit = Max(1, Min(maxLimit, hardLimit))
-
-	return
+	var moves = tm.limits.MovesToGo
+	if moves == 0 || moves > DefaultMovesToGo {
+		moves = DefaultMovesToGo
+	}
+	var total = float64(main) + float64(moves-1)*float64(inc)
+	var timeLimit = time.Duration(difficulty * branchFactor * total / (difficulty*maxBranchFactor + float64(moves-1)))
+	if timeLimit > main {
+		timeLimit = main
+	}
+	if timeLimit < MinTimeLimit {
+		timeLimit = MinTimeLimit
+	}
+	return timeLimit
 }

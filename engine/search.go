@@ -29,20 +29,11 @@ func iterativeDeepening(ctx context.Context, e *Engine) {
 	defer recoverFromSearchTimeout()
 	e.done = ctx.Done()
 
-	var prevScore int
-	var prevBestMove Move
 	for depth := 1; depth <= maxHeight; depth++ {
 		searchRoot(&e.threads[0], ml, depth, &e.mainLine)
-		if e.mainLine.score >= winIn(depth-3) ||
-			e.mainLine.score <= lossIn(depth-3) {
+		if e.timeManager.BreakIterativeDeepening(e.mainLine) {
 			break
 		}
-		if e.timeManager.IsSoftTimeout(e.mainLine.moves[0] != prevBestMove,
-			e.mainLine.score < prevScore-PawnValue/2) {
-			break
-		}
-		prevScore = e.mainLine.score
-		prevBestMove = e.mainLine.moves[0]
 		e.sendProgress()
 		savePV(e.transTable, &e.threads[0].stack[0].position, e.mainLine.moves)
 	}
@@ -120,24 +111,12 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 		}
 	}()
 
-	var prevScore int
-	var prevBestMove Move
-
 	for taskResult := range taskResults {
 		if taskResult.depth > e.mainLine.depth {
 			e.mainLine = taskResult
-
-			if e.mainLine.score >= winIn(e.mainLine.depth-3) ||
-				e.mainLine.score <= lossIn(e.mainLine.depth-3) {
+			if e.timeManager.BreakIterativeDeepening(e.mainLine) {
 				cancel()
 			}
-			if e.timeManager.IsSoftTimeout(e.mainLine.moves[0] != prevBestMove,
-				e.mainLine.score < prevScore-PawnValue/2) {
-				cancel()
-			}
-
-			prevScore = e.mainLine.score
-			prevBestMove = e.mainLine.moves[0]
 			e.sendProgress()
 		}
 	}

@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"math"
+
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
@@ -232,30 +234,30 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 }
 
 func mainLmr(d, m int) int {
-	switch {
-	case d >= 5 && m >= 16:
+	if m >= 16 {
 		return 3
-	case d >= 4 && m >= 9:
-		return 2
-	case d >= 3 && m >= 4:
-		return 1
-	default:
-		return 0
 	}
+	if m >= 9 {
+		return 2
+	}
+	if m >= 4 {
+		return 1
+	}
+	return 0
 }
 
-/*func initLmr() func(d, m int) int {
+func initLmr() func(d, m int) int {
 	var reductions [32][64]int
 	for d := 3; d < 32; d++ {
 		for m := 2; m < 64; m++ {
-			var r = 0.5 * math.Log(float64(d)) * math.Log(float64(m))
-			reductions[d][m] = Max(0, Min(d-2, int(math.Round(r))))
+			var r = 3 * math.Log(float64(d)) / math.Log(8) * math.Log(float64(m)) / math.Log(16)
+			reductions[d][m] = int(r)
 		}
 	}
 	return func(d, m int) int {
 		return reductions[Min(d, 31)][Min(m, 63)]
 	}
-}*/
+}
 
 func evaluateMaterial(p *Position) int {
 	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +

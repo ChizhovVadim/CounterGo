@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	minDifficulty   = 0.6
 	maxDifficulty   = 2
 	minBranchFactor = 0.75
 	maxBranchFactor = 1.5
@@ -54,14 +53,12 @@ func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
 	if line.depth >= 5 {
 		if line.score < tm.lastScore-PawnValue/2 {
 			tm.difficulty = maxDifficulty
-		}
-		if line.moves[0] != tm.lastBestMove {
-			tm.difficulty = 1.23 * math.Max(tm.difficulty, 1)
+		} else if line.moves[0] != tm.lastBestMove {
+			tm.difficulty = math.Max(1.5, tm.difficulty)
 		} else {
-			tm.difficulty *= 0.9
+			tm.difficulty = math.Max(0.95, 0.9*tm.difficulty)
 		}
 	}
-	tm.difficulty = math.Max(minDifficulty, math.Min(maxDifficulty, tm.difficulty))
 	tm.lastScore = line.score
 	tm.lastBestMove = line.moves[0]
 	var optimum = tm.calculateTimeLimit(tm.difficulty, minBranchFactor)

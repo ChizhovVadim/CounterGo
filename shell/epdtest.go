@@ -22,19 +22,8 @@ func RunEpdTest(epdTests []TestItem, uciEngine UciEngine, moveTime int) {
 	var start = time.Now()
 	var total, solved int
 	for _, test := range epdTests {
-		var searchParams = common.SearchParams{
-			Positions: []common.Position{test.position},
-			Limits:    common.LimitsType{MoveTime: moveTime},
-		}
-		var searchResult = uciEngine.Search(context.Background(), searchParams)
-
-		var passed = false
-		for _, bm := range test.bestMoves {
-			if bm == searchResult.MainLine[0] {
-				passed = true
-				break
-			}
-		}
+		var searchResult = executeTest(test, uciEngine, moveTime)
+		var passed = isTestPassed(test, searchResult.MainLine[0])
 
 		total++
 		if passed {
@@ -48,6 +37,40 @@ func RunEpdTest(epdTests []TestItem, uciEngine UciEngine, moveTime int) {
 		fmt.Println()
 	}
 	fmt.Printf("Test finished. Elapsed: %v\n", time.Since(start))
+}
+
+func cancelSearch(test TestItem, cancel context.CancelFunc) func(si common.SearchInfo) {
+	var count = 0
+	return func(si common.SearchInfo) {
+		if isTestPassed(test, si.MainLine[0]) {
+			count++
+		} else {
+			count = 0
+		}
+		if count >= 3 {
+			cancel()
+		}
+	}
+}
+
+func isTestPassed(test TestItem, foundMove common.Move) bool {
+	for _, bm := range test.bestMoves {
+		if bm == foundMove {
+			return true
+		}
+	}
+	return false
+}
+
+func executeTest(test TestItem, uciEngine UciEngine, moveTime int) common.SearchInfo {
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	var searchParams = common.SearchParams{
+		Positions: []common.Position{test.position},
+		Limits:    common.LimitsType{MoveTime: moveTime},
+		Progress:  cancelSearch(test, cancel),
+	}
+	return uciEngine.Search(ctx, searchParams)
 }
 
 func LoadEpdTests(filePath string) ([]TestItem, error) {

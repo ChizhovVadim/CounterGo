@@ -12,9 +12,9 @@ import (
 )
 
 type TestItem struct {
-	content   string
-	position  common.Position
-	bestMoves []common.Move
+	Content   string
+	Position  common.Position
+	BestMoves []common.Move
 }
 
 func RunEpdTest(epdTests []TestItem, uciEngine UciEngine, moveTime int) {
@@ -30,7 +30,7 @@ func RunEpdTest(epdTests []TestItem, uciEngine UciEngine, moveTime int) {
 			solved++
 		}
 
-		fmt.Println(test.content)
+		fmt.Println(test.Content)
 		PrintSearchInfo(searchResult)
 
 		fmt.Printf("Solved: %v, Total: %v\n", solved, total)
@@ -54,7 +54,7 @@ func cancelSearch(test TestItem, cancel context.CancelFunc) func(si common.Searc
 }
 
 func isTestPassed(test TestItem, foundMove common.Move) bool {
-	for _, bm := range test.bestMoves {
+	for _, bm := range test.BestMoves {
 		if bm == foundMove {
 			return true
 		}
@@ -66,7 +66,7 @@ func executeTest(test TestItem, uciEngine UciEngine, moveTime int) common.Search
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	var searchParams = common.SearchParams{
-		Positions: []common.Position{test.position},
+		Positions: []common.Position{test.Position},
 		Limits:    common.LimitsType{MoveTime: moveTime},
 		Progress:  cancelSearch(test, cancel),
 	}
@@ -116,8 +116,8 @@ func parseEpdTest(s string) (TestItem, error) {
 		return TestItem{}, fmt.Errorf("empty best moves %v", s)
 	}
 	return TestItem{
-		content:   s,
-		position:  p,
-		bestMoves: bestMoves,
+		Content:   s,
+		Position:  p,
+		BestMoves: bestMoves,
 	}, nil
 }

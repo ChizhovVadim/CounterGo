@@ -2,7 +2,6 @@ package shell
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -125,7 +124,7 @@ func PrintSearchInfo(si common.SearchInfo) {
 		scoreToUci = fmt.Sprintf("cp %v", si.Score.Centipawns)
 	}
 	var nps = si.Nodes * 1000 / (si.Time + 1)
-	var sb bytes.Buffer
+	var sb strings.Builder
 	for i, move := range si.MainLine {
 		if i > 0 {
 			sb.WriteString(" ")

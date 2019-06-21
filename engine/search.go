@@ -203,6 +203,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
+		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0 && ttDepth >= depth-4) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4
@@ -219,6 +220,28 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
+
+	var ttMoveSingular = false
+	if depth >= 8 && ttMove != MoveEmpty && ttDepth >= depth-2 && (ttBound&boundLower) != 0 {
+		ttMoveSingular = true
+		sortMoves(ml)
+		newDepth = depth/2 - 1
+		var ralpha = Max(-valueInfinity, ttValue-PawnValue/4)
+		for i := range ml {
+			var move = ml[i].Move
+			if move == ttMove {
+				continue
+			}
+			if !position.MakeMove(move, child) {
+				continue
+			}
+			score = -t.alphaBeta(-(ralpha + 1), -ralpha, newDepth, height+1)
+			if score > ralpha {
+				ttMoveSingular = false
+				break
+			}
+		}
+	}
 
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
@@ -239,26 +262,31 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		moveCount++
 
 		newDepth = t.newDepth(depth, height)
-		var reduction = 0
+		if move == ttMove && ttMoveSingular {
+			newDepth = depth
+		}
 
-		if !isCaptureOrPromotion(move) && moveCount > 1 &&
-			!isCheck && !child.IsCheck() &&
-			ml[i].Key < sortTableKeyImportant &&
-			!isPawnAdvance(move, position.WhiteMove) {
+		var reduction = 0
+		if !(moveCount == 1 ||
+			ml[i].Key >= sortTableKeyImportant ||
+			isCheck ||
+			child.IsCheck() ||
+			isCaptureOrPromotion(move) ||
+			isPawnAdvance(move, position.WhiteMove)) {
 
 			if depth >= 3 {
 				reduction = t.engine.lateMoveReduction(depth, moveCount)
 				if pvNode {
-					reduction--
+					reduction /= 2
 				}
 				reduction = Max(0, Min(depth-2, reduction))
-			} else {
-				if alpha > valueLoss && position.LastMove != MoveEmpty &&
-					moveCount >= 9+3*depth {
+			} else if !(pvNode ||
+				alpha <= valueLoss ||
+				position.LastMove == MoveEmpty) {
+				if moveCount >= 9+3*depth {
 					continue
 				}
-				if alpha > valueLoss && position.LastMove != MoveEmpty &&
-					lazyEval.Value()+PawnValue*depth <= alpha {
+				if lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -416,9 +444,14 @@ func (t *thread) isDraw(height int) bool {
 func (t *thread) newDepth(depth, height int) int {
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
-	var prevMove = p.LastMove
 	var move = child.LastMove
 	var givesCheck = child.IsCheck()
+
+	if givesCheck && (depth <= 1 || seeGEZero(p, move)) {
+		return depth
+	}
+
+	/*var prevMove = p.LastMove
 
 	if prevMove != MoveEmpty &&
 		prevMove.To() == move.To() &&
@@ -428,13 +461,9 @@ func (t *thread) newDepth(depth, height int) int {
 		return depth
 	}
 
-	if givesCheck && (depth <= 1 || seeGEZero(p, move)) {
-		return depth
-	}
-
 	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
 		return depth
-	}
+	}*/
 
 	return depth - 1
 }

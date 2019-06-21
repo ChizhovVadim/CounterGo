@@ -43,12 +43,12 @@ func (tm *timeManager) Deadline() (time.Time, bool) {
 }
 
 func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
+	if tm.limits.MoveTime > 0 || tm.limits.Infinite {
+		return false
+	}
 	if line.score >= winIn(line.depth-3) ||
 		line.score <= lossIn(line.depth-3) {
 		return true
-	}
-	if tm.limits.MoveTime > 0 || tm.limits.Infinite {
-		return false
 	}
 	if line.depth >= 5 {
 		if line.score < tm.lastScore-PawnValue/2 {

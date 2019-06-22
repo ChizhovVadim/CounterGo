@@ -1,9 +1,5 @@
 package engine
 
-import (
-	"testing"
-)
-
 /*func TestSEE(t *testing.T) {
 	var buffer [MaxMoves]Move
 	var child = &Position{}
@@ -75,7 +71,7 @@ func lvaRecapture(p, child *Position, ml []Move, square int) Move {
 	return bestMove
 }*/
 
-func TestTimeControl(t *testing.T) {
+/*func TestTimeControl(t *testing.T) {
 	var tc = timeControlSmart
 	var time = 60 * 1000
 	var moves = 40
@@ -90,7 +86,7 @@ func TestTimeControl(t *testing.T) {
 			t.Fatal("Timeout")
 		}
 	}
-}
+}*/
 
 var testFENs = []string{
 	// Initial position

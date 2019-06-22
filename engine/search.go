@@ -76,9 +76,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 		go func(i int) {
 			var t = &e.threads[i]
 			if i > 0 {
-				rand.Shuffle(len(ml), func(i, j int) {
-					ml[i], ml[j] = ml[j], ml[i]
-				})
+				shuffleMoves(ml[1:])
 			}
 			for depth := range depths {
 				func() {
@@ -221,28 +219,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
 
-	var ttMoveSingular = false
-	if depth >= 8 && ttMove != MoveEmpty && ttDepth >= depth-2 && (ttBound&boundLower) != 0 {
-		ttMoveSingular = true
-		sortMoves(ml)
-		newDepth = depth/2 - 1
-		var ralpha = Max(-valueInfinity, ttValue-PawnValue/4)
-		for i := range ml {
-			var move = ml[i].Move
-			if move == ttMove {
-				continue
-			}
-			if !position.MakeMove(move, child) {
-				continue
-			}
-			score = -t.alphaBeta(-(ralpha + 1), -ralpha, newDepth, height+1)
-			if score > ralpha {
-				ttMoveSingular = false
-				break
-			}
-		}
-	}
-
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
@@ -262,9 +238,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		moveCount++
 
 		newDepth = t.newDepth(depth, height)
-		if move == ttMove && ttMoveSingular {
-			newDepth = depth
-		}
 
 		var reduction = 0
 		if !(moveCount == 1 ||
@@ -502,6 +475,12 @@ func cloneMoves(ml []Move) []Move {
 	var result = make([]Move, len(ml))
 	copy(result, ml)
 	return result
+}
+
+func shuffleMoves(ml []Move) {
+	rand.Shuffle(len(ml), func(i, j int) {
+		ml[i], ml[j] = ml[j], ml[i]
+	})
 }
 
 func (e *Engine) genRootMoves() []Move {

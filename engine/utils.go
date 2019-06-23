@@ -252,13 +252,18 @@ func initLmr() func(d, m int) int {
 	var reductions [32][64]int
 	for d := 3; d < 32; d++ {
 		for m := 2; m < 64; m++ {
-			var r = 3 * math.Log(float64(d)) / math.Log(8) * math.Log(float64(m)) / math.Log(16)
+			var r = mean(3*math.Log(float64(d))/math.Log(8),
+				3*math.Log(float64(m))/math.Log(16))
 			reductions[d][m] = int(r)
 		}
 	}
 	return func(d, m int) int {
 		return reductions[Min(d, 31)][Min(m, 63)]
 	}
+}
+
+func mean(x, y float64) float64 {
+	return 0.5 * (x + y)
 }
 
 func evaluateMaterial(p *Position) int {

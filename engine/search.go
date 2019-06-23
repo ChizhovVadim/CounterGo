@@ -174,6 +174,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
 
+	// mate distance pruning
 	if winIn(height+1) <= alpha {
 		return alpha
 	}
@@ -183,6 +184,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var pvNode = beta != alpha+1
 
+	// transposition table
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
@@ -198,6 +200,15 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
 
+	// reverse futility pruning
+	if depth <= 1 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
+		beta < valueWin &&
+		!isLateEndgame(position, position.WhiteMove) &&
+		lazyEval.Value()-PawnValue*(depth+1) >= beta {
+		return beta
+	}
+
+	// null-move pruning
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin &&
@@ -253,13 +264,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					reduction /= 2
 				}
 				reduction = Max(0, Min(depth-2, reduction))
-			} else if !(pvNode ||
+			}
+
+			if !(pvNode ||
 				alpha <= valueLoss ||
 				position.LastMove == MoveEmpty) {
-				if moveCount >= 9+3*depth {
+				// late-move pruning
+				if depth <= 2 && moveCount >= 9+3*depth {
 					continue
 				}
-				if lazyEval.Value()+PawnValue*depth <= alpha {
+				// futility pruning
+				if depth <= 4 && lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -269,6 +284,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			quietsSearched = append(quietsSearched, move)
 		}
 
+		// PVS/LMR
 		if reduction > 0 ||
 			(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
@@ -424,7 +440,7 @@ func (t *thread) newDepth(depth, height int) int {
 		return depth
 	}
 
-	/*var prevMove = p.LastMove
+	var prevMove = p.LastMove
 
 	if prevMove != MoveEmpty &&
 		prevMove.To() == move.To() &&
@@ -436,7 +452,7 @@ func (t *thread) newDepth(depth, height int) int {
 
 	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
 		return depth
-	}*/
+	}
 
 	return depth - 1
 }

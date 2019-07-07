@@ -107,8 +107,13 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	if !p.WhiteMove {
 		score = -score
 	}
+	score = score * PawnValue / e.weights[2*fPawnMaterial+1]
 	const Tempo = 8
-	return score*PawnValue/e.weights[2*fPawnMaterial+1] + Tempo
+	// tempo bonus in endgame can prevent simple checkmates due to low pst values
+	if e.phase > 4 {
+		score += Tempo
+	}
+	return score
 }
 
 type evalEntry struct {

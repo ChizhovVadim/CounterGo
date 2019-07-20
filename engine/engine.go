@@ -83,7 +83,7 @@ func NewEngine() *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.3", "Vadim Chizhov"
+	return "Counter", "3.4dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {
@@ -95,7 +95,7 @@ func (e *Engine) Prepare() {
 		e.transTable = NewTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmr()
+		e.lateMoveReduction = lmrByMoveIndex
 	}
 	if e.timeManager == nil {
 		e.timeManager = &timeManager{}

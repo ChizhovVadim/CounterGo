@@ -138,10 +138,6 @@ func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 	for i, move := range ml {
 		p.MakeMove(move, child)
 		var newDepth = t.newDepth(depth, height)
-		if beta != alpha+1 && i > 0 && newDepth > 0 &&
-			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
-			continue
-		}
 		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		if score > alpha {
 			alpha = score
@@ -182,13 +178,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		return beta
 	}
 
-	var pvNode = beta != alpha+1
-
 	// transposition table
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
-		if ttDepth >= depth && !pvNode {
+		if ttDepth >= depth {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				return beta
 			}
@@ -200,18 +194,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
 
-	// reverse futility pruning
-	if depth <= 1 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
-		beta < valueWin &&
-		!isLateEndgame(position, position.WhiteMove) &&
-		lazyEval.Value()-PawnValue*(depth+1) >= beta {
-		return beta
-	}
-
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
-		beta < valueWin &&
+	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
+		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0 && ttDepth >= depth-4) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
@@ -260,21 +246,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 			if depth >= 3 {
 				reduction = t.engine.lateMoveReduction(depth, moveCount)
-				if pvNode {
-					reduction /= 2
-				}
 				reduction = Max(0, Min(depth-2, reduction))
 			}
 
-			if !(pvNode ||
-				alpha <= valueLoss ||
+			if !(alpha <= valueLoss ||
 				position.LastMove == MoveEmpty) {
 				// late-move pruning
 				if depth <= 2 && moveCount >= 9+3*depth {
 					continue
 				}
 				// futility pruning
-				if depth <= 4 && lazyEval.Value()+PawnValue*depth <= alpha {
+				if depth <= 3 && lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -284,9 +266,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			quietsSearched = append(quietsSearched, move)
 		}
 
-		// PVS/LMR
-		if reduction > 0 ||
-			(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
+		// LMR
+		if reduction > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 			if score <= alpha {
 				continue
@@ -437,20 +418,6 @@ func (t *thread) newDepth(depth, height int) int {
 	var givesCheck = child.IsCheck()
 
 	if givesCheck && (depth <= 1 || seeGEZero(p, move)) {
-		return depth
-	}
-
-	var prevMove = p.LastMove
-
-	if prevMove != MoveEmpty &&
-		prevMove.To() == move.To() &&
-		move.CapturedPiece() > Pawn &&
-		prevMove.CapturedPiece() > Pawn &&
-		seeGEZero(p, move) {
-		return depth
-	}
-
-	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
 		return depth
 	}
 

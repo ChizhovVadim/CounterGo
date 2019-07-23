@@ -157,7 +157,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var newDepth, score int
 	t.stack[height].pv.clear()
 
-	if height >= maxHeight || t.isDraw(height) {
+	var position = &t.stack[height].position
+
+	if height >= maxHeight {
+		return t.evaluator.Evaluate(position)
+	}
+	if t.isDraw(height) {
 		return valueDraw
 	}
 
@@ -167,7 +172,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	t.incNodes()
 
-	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
 
 	// mate distance pruning
@@ -312,10 +316,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	t.stack[height].pv.clear()
 	t.incNodes()
-	if height >= maxHeight {
-		return valueDraw
-	}
 	var position = &t.stack[height].position
+	if height >= maxHeight {
+		return t.evaluator.Evaluate(position)
+	}
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {

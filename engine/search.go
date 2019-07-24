@@ -202,7 +202,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
-		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0 && ttDepth >= depth-4) &&
+		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4

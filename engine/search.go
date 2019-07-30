@@ -425,6 +425,20 @@ func (t *thread) newDepth(depth, height int) int {
 		return depth
 	}
 
+	var prevMove = p.LastMove
+
+	if prevMove != MoveEmpty &&
+		prevMove.To() == move.To() &&
+		move.CapturedPiece() > Pawn &&
+		prevMove.CapturedPiece() > Pawn &&
+		seeGEZero(p, move) {
+		return depth
+	}
+
+	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
+		return depth
+	}
+
 	return depth - 1
 }
 

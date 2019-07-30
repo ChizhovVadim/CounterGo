@@ -2,21 +2,21 @@ package engine
 
 import . "github.com/ChizhovVadim/CounterGo/common"
 
-const sortTableKeyImportant = 27000
+const (
+	sortTableKeyImportant = 27000
+	historyMax            = 1 << 14
+)
 
 type sortTable struct {
-	killers [stackSize]Move
+	killers [stackSize][2]Move
 	history [1024]int
 	counter [1024]Move
 }
 
-func NewSortTable() *sortTable {
-	return &sortTable{}
-}
-
 func (st *sortTable) Clear() {
 	for i := range st.killers {
-		st.killers[i] = MoveEmpty
+		st.killers[i][0] = MoveEmpty
+		st.killers[i][1] = MoveEmpty
 	}
 	for i := range st.history {
 		st.history[i] = 0
@@ -26,33 +26,31 @@ func (st *sortTable) Clear() {
 	}
 }
 
-const (
-	historyMax      = 1 << 14
-	historyPeriod   = 11
-	historyMaxBonus = 100
-)
-
 func (st *sortTable) Update(p *Position, bestMove Move, searched []Move, depth, height int) {
-	st.killers[height] = bestMove
+	if st.killers[height][0] != bestMove {
+		st.killers[height][1] = st.killers[height][0]
+		st.killers[height][0] = bestMove
+	}
 	if p.LastMove != MoveEmpty {
 		st.counter[pieceSquareIndex(!p.WhiteMove, p.LastMove)] = bestMove
 	}
 	var side = p.WhiteMove
-	var bonus = Min(depth*depth, historyMaxBonus)
+	var bonus = Min(depth*depth, 400)
 	for _, m := range searched {
 		var index = pieceSquareIndex(side, m)
 		if m == bestMove {
-			st.history[index] += (historyMax - st.history[index]) * bonus / (historyMaxBonus * historyPeriod)
+			st.history[index] += (historyMax - st.history[index]) * bonus / 512
 			break
 		} else {
-			st.history[index] += (-historyMax - st.history[index]) * bonus / (historyMaxBonus * historyPeriod)
+			st.history[index] += (-historyMax - st.history[index]) * bonus / 512
 		}
 	}
 }
 
 func (st *sortTable) Note(p *Position, ml []OrderedMove, trans Move, height int) {
 	var side = p.WhiteMove
-	var killer = st.killers[height]
+	var killer1 = st.killers[height][0]
+	var killer2 = st.killers[height][1]
 	var counter Move
 	if p.LastMove != MoveEmpty {
 		counter = st.counter[pieceSquareIndex(!p.WhiteMove, p.LastMove)]
@@ -66,12 +64,14 @@ func (st *sortTable) Note(p *Position, ml []OrderedMove, trans Move, height int)
 			if seeGEZero(p, m) {
 				score = 29000 + mvvlva(m)
 			} else {
-				score = st.history[pieceSquareIndex(side, m)]
+				score = mvvlva(m)
 			}
-		} else if m == killer {
+		} else if m == killer1 {
 			score = 28000
-		} else if m == counter {
+		} else if m == killer2 {
 			score = 28000 - 1
+		} else if m == counter {
+			score = 28000 - 2
 		} else {
 			score = st.history[pieceSquareIndex(side, m)]
 		}

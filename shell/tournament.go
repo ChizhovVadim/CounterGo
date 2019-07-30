@@ -104,7 +104,7 @@ func playGame(engine1, engine2 UciEngine, initialPosition common.Position) int {
 	engine1.Clear()
 	engine2.Clear()
 	//var chessClock = MoveTimeChessClock{moveSeconds: 1}
-	var chessClock = NewClassicChessClock(4*60, 0, 40)
+	var chessClock = NewClassicChessClock(2*60, 0, 40)
 	var positions = []common.Position{initialPosition}
 	for {
 		var gameResult = computeGameResult(positions)

@@ -105,7 +105,7 @@ func (e *Engine) Prepare() {
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
-			t.sortTable = NewSortTable()
+			t.sortTable = &sortTable{}
 			t.evaluator = eval.NewEvaluationService()
 		}
 	}

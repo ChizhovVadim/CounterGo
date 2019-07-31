@@ -41,7 +41,7 @@ func (e *EvaluationService) initPst() {
 	var (
 		knightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
 		bishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-		kingLine   = [8]int{0, 3, 5, 6, 6, 5, 3, 0}
+		kingLine   = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
 	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
@@ -371,6 +371,19 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 		kingShield -= e.pstKingShield[FlipSquare(sq)]
 	}
 	e.add(fKingShelter, kingShield)
+
+	if p.WhiteMove {
+		black.kingAttackNb--
+	} else {
+		white.kingAttackNb--
+	}
+
+	/*if white.kingAttackNb >= 2 {
+		e.add(fKingAttack, white.kingAttackCount-1)
+	}
+	if black.kingAttackNb >= 2 {
+		e.add(fKingAttack, -(black.kingAttackCount-1))
+	}*/
 
 	if white.kingAttackNb >= 3 {
 		e.add(fKingAttack2, 1)

@@ -138,6 +138,10 @@ func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 	for i, move := range ml {
 		p.MakeMove(move, child)
 		var newDepth = t.newDepth(depth, height)
+		if i > 0 && beta != alpha+1 && newDepth > 0 &&
+			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
+			continue
+		}
 		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		if score > alpha {
 			alpha = score

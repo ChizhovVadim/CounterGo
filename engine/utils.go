@@ -241,6 +241,14 @@ func lmrByMoveIndex(d, m int) int {
 	return 1
 }
 
+func lmrMain(d, m int) int {
+	var r = 1
+	if m > 6 {
+		r += (2*d + m) / 16
+	}
+	return r
+}
+
 func evaluateMaterial(p *Position) int {
 	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +
 		400*(PopCount((p.Knights|p.Bishops)&p.White)-PopCount((p.Knights|p.Bishops)&p.Black)) +

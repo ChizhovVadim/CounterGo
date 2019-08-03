@@ -55,7 +55,7 @@ var chessSymbols = [2][7]string{
 	{" ", blackPawn, blackKnight, blackBishop, blackRook, blackQueen, blackKing},
 }
 
-func PrintPosition(p *common.Position) {
+func printPosition(p *common.Position) {
 	for i := 0; i < 64; i++ {
 		sq := common.FlipSquare(i)
 		piece, side := p.GetPieceTypeAndSide(sq)

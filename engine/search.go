@@ -161,7 +161,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var newDepth, score int
 	t.stack[height].pv.clear()
 
-	if height >= maxHeight || t.isDraw(height) {
+	var position = &t.stack[height].position
+
+	if height >= maxHeight {
+		return t.evaluator.Evaluate(position)
+	}
+
+	if t.isDraw(height) {
 		return valueDraw
 	}
 
@@ -171,7 +177,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	t.incNodes()
 
-	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
 
 	// mate distance pruning
@@ -200,19 +205,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
 
-	// reverse futility pruning
-	if depth <= 1 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
-		beta < valueWin &&
-		!isLateEndgame(position, position.WhiteMove) &&
-		lazyEval.Value()-PawnValue*(depth+1) >= beta {
-		return beta
-	}
-
 	// null-move pruning
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
-		beta < valueWin &&
-		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0 && ttDepth >= depth-4) &&
+		beta < valueWin && beta > valueLoss &&
+		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4
@@ -261,7 +258,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			if depth >= 3 {
 				reduction = t.engine.lateMoveReduction(depth, moveCount)
 				if pvNode {
-					reduction /= 2
+					reduction--
 				}
 				reduction = Max(0, Min(depth-2, reduction))
 			}
@@ -274,7 +271,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					continue
 				}
 				// futility pruning
-				if depth <= 4 && lazyEval.Value()+PawnValue*depth <= alpha {
+				if depth <= 3 && lazyEval.Value()+PawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -331,10 +328,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	t.stack[height].pv.clear()
 	t.incNodes()
-	if height >= maxHeight {
-		return valueDraw
-	}
 	var position = &t.stack[height].position
+	if height >= maxHeight {
+		return t.evaluator.Evaluate(position)
+	}
 	var isCheck = position.IsCheck()
 	var eval = 0
 	if !isCheck {

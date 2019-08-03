@@ -41,7 +41,7 @@ func (e *EvaluationService) initPst() {
 	var (
 		knightLine = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
 		bishopLine = [8]int{0, 1, 2, 3, 3, 2, 1, 0}
-		kingLine   = [8]int{0, 3, 5, 6, 6, 5, 3, 0}
+		kingLine   = [8]int{0, 2, 3, 4, 4, 3, 2, 0}
 	)
 	for sq := 0; sq < 64; sq++ {
 		var f = File(sq)
@@ -107,8 +107,13 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	if !p.WhiteMove {
 		score = -score
 	}
+	score = score * PawnValue / e.weights[2*fPawnMaterial+1]
 	const Tempo = 8
-	return score*PawnValue/e.weights[2*fPawnMaterial+1] + Tempo
+	// tempo bonus in endgame can prevent simple checkmates due to low pst values
+	if e.phase > 6 {
+		score += Tempo
+	}
+	return score
 }
 
 type evalEntry struct {

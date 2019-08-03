@@ -2,7 +2,8 @@ package main
 
 import (
 	"github.com/ChizhovVadim/CounterGo/engine"
-	"github.com/ChizhovVadim/CounterGo/shell"
+	"github.com/ChizhovVadim/CounterGo/eval"
+	"github.com/ChizhovVadim/CounterGo/uci"
 )
 
 /*
@@ -13,6 +14,7 @@ You should have received a copy of the GNU General Public License along with thi
 */
 
 func main() {
-	var uci = shell.NewUciProtocol(engine.NewEngine())
-	uci.Run()
+	uci.Run(engine.NewEngine(func() engine.Evaluator {
+		return eval.NewEvaluationService()
+	}))
 }

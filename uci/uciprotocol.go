@@ -1,4 +1,4 @@
-package shell
+package uci
 
 import (
 	"bufio"
@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/ChizhovVadim/CounterGo/common"
-	"github.com/ChizhovVadim/CounterGo/eval"
 )
 
 type UciEngine interface {
@@ -28,6 +27,11 @@ type UciProtocol struct {
 	done      chan struct{}
 	cancel    context.CancelFunc
 	fields    []string
+}
+
+func Run(eng UciEngine) {
+	var protocol = NewUciProtocol(eng)
+	protocol.Run()
 }
 
 func NewUciProtocol(uciEngine UciEngine) *UciProtocol {
@@ -97,12 +101,6 @@ func (uci *UciProtocol) handle(msg string) error {
 		h = uci.stopCommand
 
 	// My commands
-	case "epd":
-		h = uci.epdCommand
-	case "arena":
-		h = uci.arenaCommand
-	case "eval":
-		h = uci.evalCommand
 	case "move":
 		h = uci.moveCommand
 	}
@@ -316,32 +314,6 @@ func (uci *UciProtocol) stopCommand() error {
 	if uci.cancel != nil {
 		uci.cancel()
 	}
-	return nil
-}
-
-func (uci *UciProtocol) epdCommand() error {
-	var filePath = "tests.epd"
-	if len(uci.fields) > 0 {
-		filePath = uci.fields[0]
-	}
-	var tests, err = LoadEpdTests(filePath)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Loaded %v tests\n", len(tests))
-	RunEpdTest(tests, uci.engine, 3000)
-	return nil
-}
-
-func (uci *UciProtocol) arenaCommand() error {
-	RunTournament()
-	return nil
-}
-
-func (uci *UciProtocol) evalCommand() error {
-	var p = &uci.positions[len(uci.positions)-1]
-	var evalService = eval.NewEvaluationService()
-	evalService.Trace(p)
 	return nil
 }
 

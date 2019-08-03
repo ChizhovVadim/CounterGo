@@ -6,13 +6,13 @@ import (
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
-	"github.com/ChizhovVadim/CounterGo/eval"
 )
 
 type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
 	ExperimentSettings bool
+	evalBuilder        func() Evaluator
 	timeManager        TimeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
@@ -73,12 +73,13 @@ type TransTable interface {
 	Update(p *Position, depth, score, bound int, move Move)
 }
 
-func NewEngine() *Engine {
+func NewEngine(evalBuilder func() Evaluator) *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
 		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1024},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
 		ExperimentSettings: false,
+		evalBuilder:        evalBuilder,
 	}
 }
 
@@ -106,7 +107,7 @@ func (e *Engine) Prepare() {
 			var t = &e.threads[i]
 			t.engine = e
 			t.sortTable = NewSortTable()
-			t.evaluator = eval.NewEvaluationService()
+			t.evaluator = e.evalBuilder()
 		}
 	}
 }

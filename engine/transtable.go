@@ -39,7 +39,7 @@ type transTable struct {
 
 // good test: position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
 // good test: position fen 8/pp6/2p5/P1P5/1P3k2/3K4/8/8 w - - 5 47
-func NewTransTable(megabytes int) *transTable {
+func newTransTable(megabytes int) *transTable {
 	var size = roundPowerOfTwo(1024 * 1024 * megabytes / 16)
 	return &transTable{
 		megabytes: megabytes,

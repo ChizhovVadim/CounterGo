@@ -51,7 +51,7 @@ func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
 		return true
 	}
 	if line.depth >= 5 {
-		if line.score < tm.lastScore-PawnValue/2 {
+		if line.score < tm.lastScore-pawnValue/2 {
 			tm.difficulty = maxDifficulty
 		} else if line.moves[0] != tm.lastBestMove {
 			tm.difficulty = math.Max(1.5, tm.difficulty)

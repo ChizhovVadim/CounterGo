@@ -11,7 +11,7 @@ import (
 type Engine struct {
 	Hash               IntUciOption
 	Threads            IntUciOption
-	ExperimentSettings bool
+	ExperimentSettings BoolUciOption
 	evalBuilder        func() Evaluator
 	timeManager        TimeManager
 	transTable         TransTable
@@ -78,7 +78,7 @@ func NewEngine(evalBuilder func() Evaluator) *Engine {
 	return &Engine{
 		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1024},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
-		ExperimentSettings: false,
+		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
 		evalBuilder:        evalBuilder,
 	}
 }
@@ -88,12 +88,12 @@ func (e *Engine) GetInfo() (name, version, author string) {
 }
 
 func (e *Engine) GetOptions() []UciOption {
-	return []UciOption{&e.Hash, &e.Threads}
+	return []UciOption{&e.Hash, &e.Threads, &e.ExperimentSettings}
 }
 
 func (e *Engine) Prepare() {
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
-		e.transTable = NewTransTable(e.Hash.Value)
+		e.transTable = newTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
 		e.lateMoveReduction = lmrByMoveIndex
@@ -106,7 +106,7 @@ func (e *Engine) Prepare() {
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
-			t.sortTable = NewSortTable()
+			t.sortTable = &sortTable{}
 			t.evaluator = e.evalBuilder()
 		}
 	}

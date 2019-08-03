@@ -69,8 +69,8 @@ func isPawnEndgame(p *Position, side bool) bool {
 }
 
 var (
-	pieceValues = [...]int{0, PawnValue, 4 * PawnValue,
-		4 * PawnValue, 6 * PawnValue, 12 * PawnValue, 120 * PawnValue}
+	pieceValues = [...]int{0, pawnValue, 4 * pawnValue,
+		4 * pawnValue, 6 * pawnValue, 12 * pawnValue, 120 * pawnValue}
 
 	pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
 )

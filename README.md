@@ -11,9 +11,6 @@ Chess ratings are available at Computer Chess Rating Lists:
 
 ## Commands
 Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands and own commands:
-+ `arena` - start tournament against themself
-+ `epd [/home/vadim/wac.epd]` - analyze collection of [test chess positions](https://www.chessprogramming.org/Win_at_Chess)
-+ `eval` - trace evaluation function
 + `move e2e4` - play chess with engine in REPL mode
 
 ## Features

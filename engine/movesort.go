@@ -10,10 +10,6 @@ type sortTable struct {
 	counter [1024]Move
 }
 
-func NewSortTable() *sortTable {
-	return &sortTable{}
-}
-
 func (st *sortTable) Clear() {
 	for i := range st.killers {
 		st.killers[i] = MoveEmpty

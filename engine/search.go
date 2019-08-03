@@ -9,7 +9,7 @@ import (
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-const PawnValue = 100
+const pawnValue = 100
 
 var errSearchTimeout = errors.New("search timeout")
 
@@ -271,7 +271,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 					continue
 				}
 				// futility pruning
-				if depth <= 3 && lazyEval.Value()+PawnValue*depth <= alpha {
+				if depth <= 3 && lazyEval.Value()+pawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -364,7 +364,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 		}
 		moveCount++
 		if !isCheck && !danger && !child.IsCheck() &&
-			eval+moveValue(move)+2*PawnValue <= alpha {
+			eval+moveValue(move)+2*pawnValue <= alpha {
 			continue
 		}
 		var score = -t.quiescence(-beta, -alpha, depth-1, height+1)

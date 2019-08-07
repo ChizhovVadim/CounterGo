@@ -195,6 +195,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		ttValue = valueFromTT(ttValue, height)
 		if ttDepth >= depth && !pvNode {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
+				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
+					t.sortTable.Update(position, ttMove, nil, depth, height)
+				}
 				return beta
 			}
 			if ttValue <= alpha && (ttBound&boundUpper) != 0 {

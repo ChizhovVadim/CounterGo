@@ -207,13 +207,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
+	var lateEndgame = isLateEndgame(position, position.WhiteMove)
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
 	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
-		!isLateEndgame(position, position.WhiteMove) &&
+		!lateEndgame &&
 		(depth-4 <= 0 || lazyEval.Value() >= beta) {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
@@ -268,6 +269,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 			if !(pvNode ||
 				alpha <= valueLoss ||
+				lateEndgame ||
 				position.LastMove == MoveEmpty) {
 				// late-move pruning
 				if depth <= 2 && moveCount >= 9+3*depth {

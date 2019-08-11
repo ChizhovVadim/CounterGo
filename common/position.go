@@ -307,7 +307,7 @@ func (src *Position) MakeNullMove(result *Position) {
 	result.Kings = src.Kings
 	result.White = src.White
 	result.Black = src.Black
-	result.Rule50 = src.Rule50
+	result.Rule50 = src.Rule50 + 1
 	result.CastleRights = src.CastleRights
 
 	result.WhiteMove = !src.WhiteMove

@@ -258,6 +258,19 @@ func initLmr() func(d, m int) int {
 	}
 }
 
+func initLmrSum() func(d, m int) int {
+	var reductions [32][64]int
+	for d := 3; d < 32; d++ {
+		for m := 2; m < 64; m++ {
+			var r = 3*math.Log(float64(m))/math.Log(22) + float64(d-5)/8
+			reductions[d][m] = int(r)
+		}
+	}
+	return func(d, m int) int {
+		return reductions[Min(d, 31)][Min(m, 63)]
+	}
+}
+
 func lirp(x, x1, x2, y1, y2 float64) float64 {
 	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }

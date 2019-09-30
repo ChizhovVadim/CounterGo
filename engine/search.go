@@ -130,6 +130,7 @@ func threadsPerDepth(depth, threads int) int {
 func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 	const height = 0
 	t.stack[height].pv.clear()
+	t.stack[height].pvNode = true
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var alpha = -valueInfinity
@@ -138,8 +139,18 @@ func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 	for i, move := range ml {
 		p.MakeMove(move, child)
 		var newDepth = t.newDepth(depth, height)
-		if beta != alpha+1 && i > 0 && newDepth > 0 &&
-			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
+		var reduction = 0
+		if depth >= 3 && !(i == 0 ||
+			p.IsCheck() ||
+			child.IsCheck() ||
+			isCaptureOrPromotion(move) ||
+			isPawnAdvance(move, p.WhiteMove)) {
+			reduction = t.engine.lateMoveReduction(depth, i+1)
+			reduction--
+			reduction = Max(0, Min(depth-2, reduction))
+		}
+		if (reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0) &&
+			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1) <= alpha {
 			continue
 		}
 		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
@@ -188,6 +199,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var pvNode = beta != alpha+1
+	t.stack[height].pvNode = pvNode
 
 	// transposition table
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
@@ -206,8 +218,15 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
+	var staticEval = t.evaluator.Evaluate(position)
 	var lateEndgame = isLateEndgame(position, position.WhiteMove)
+
+	// reverse futility pruning
+	if depth <= 2 && height >= 1 && !t.stack[height-1].pvNode && !isCheck &&
+		beta < valueWin && beta > valueLoss &&
+		staticEval-pawnValue*depth >= beta {
+		return beta
+	}
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
@@ -215,7 +234,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame &&
-		(depth-4 <= 0 || lazyEval.Value() >= beta) {
+		staticEval >= beta {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
 		if newDepth <= 0 {
@@ -230,6 +249,34 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
+
+	// singular extension
+	var ttMoveIsSingular = false
+	if pvNode && depth >= 6 &&
+		ttMove != MoveEmpty && ttDepth >= depth-4 && (ttBound&boundLower) != 0 &&
+		ttValue < valueWin && ttValue > valueLoss {
+		ttMoveIsSingular = true
+		sortMoves(ml)
+		var bound = Max(-valueInfinity, ttValue-pawnValue/2)
+		newDepth = depth - 5
+		for i := range ml {
+			var move = ml[i].Move
+			if !position.MakeMove(move, child) {
+				continue
+			}
+			if move == ttMove {
+				if t.newDepth(depth, height) == depth {
+					break
+				}
+				continue
+			}
+			score = -t.alphaBeta(-(bound + 1), -bound, newDepth, height+1)
+			if score > bound {
+				ttMoveIsSingular = false
+				break
+			}
+		}
+	}
 
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
@@ -250,6 +297,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		moveCount++
 
 		newDepth = t.newDepth(depth, height)
+		if move == ttMove && ttMoveIsSingular {
+			newDepth = depth
+		}
 
 		var reduction = 0
 		if !(moveCount == 1 ||
@@ -269,14 +319,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 			if !(pvNode ||
 				alpha <= valueLoss ||
-				lateEndgame ||
 				position.LastMove == MoveEmpty) {
 				// late-move pruning
 				if depth <= 2 && moveCount >= 9+3*depth {
 					continue
 				}
 				// futility pruning
-				if depth <= 3 && lazyEval.Value()+pawnValue*depth <= alpha {
+				if depth <= 3 && staticEval+pawnValue*depth <= alpha {
 					continue
 				}
 			}
@@ -432,7 +481,7 @@ func (t *thread) isDraw(height int) bool {
 	return false
 }
 
-func (t *thread) newDepth(depth, height int) int {
+/*func (t *thread) newDepth(depth, height int) int {
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var move = child.LastMove
@@ -456,6 +505,10 @@ func (t *thread) newDepth(depth, height int) int {
 		return depth
 	}
 
+	return depth - 1
+}*/
+
+func (t *thread) newDepth(depth, height int) int {
 	return depth - 1
 }
 

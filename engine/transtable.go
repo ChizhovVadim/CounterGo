@@ -93,7 +93,8 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 			if move != MoveEmpty {
 				entry.move = move
 			}
-			if bound != 0 {
+			if bound != 0 &&
+				(bound == boundExact || depth >= int(entry.depth)-3 /*for singular extensions*/) {
 				entry.score = int16(score)
 				entry.depth = int8(depth)
 				entry.boundGen = uint8(bound) + (tt.generation << 2)

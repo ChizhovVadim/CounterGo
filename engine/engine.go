@@ -34,6 +34,7 @@ type thread struct {
 		moveList       [MaxMoves]OrderedMove
 		quietsSearched [MaxMoves]Move
 		pv             pv
+		pvNode         bool
 	}
 }
 
@@ -96,7 +97,7 @@ func (e *Engine) Prepare() {
 		e.transTable = newTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmr()
+		e.lateMoveReduction = initLmrSum()
 	}
 	if e.timeManager == nil {
 		e.timeManager = &timeManager{}

@@ -149,8 +149,12 @@ func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 			reduction--
 			reduction = Max(0, Min(depth-2, reduction))
 		}
-		if (reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0) &&
+		if reduction > 0 &&
 			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1) <= alpha {
+			continue
+		}
+		if beta != alpha+1 && i > 0 && newDepth > 0 &&
+			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
 			continue
 		}
 		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
@@ -335,10 +339,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			quietsSearched = append(quietsSearched, move)
 		}
 
-		// PVS/LMR
-		if reduction > 0 ||
-			(beta != alpha+1 && moveCount > 1 && newDepth > 0) {
+		// LMR
+		if reduction > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
+			if score <= alpha {
+				continue
+			}
+		}
+
+		// PVS
+		if beta != alpha+1 && moveCount > 1 && newDepth > 0 {
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
 			if score <= alpha {
 				continue
 			}

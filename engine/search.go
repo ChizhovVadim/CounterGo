@@ -238,7 +238,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame {
-		newDepth = depth - 4
+		newDepth = depth - (3 + depth/4)
 		position.MakeNullMove(child)
 		// take eval with opponent side-to-move bonus(es)
 		if -t.evaluator.Evaluate(child) >= beta {

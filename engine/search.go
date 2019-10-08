@@ -226,7 +226,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var lateEndgame = isLateEndgame(position, position.WhiteMove)
 
 	// reverse futility pruning
-	if depth <= 2 && height >= 1 && !t.stack[height-1].pvNode && !isCheck &&
+	if depth <= 1 && height >= 1 && !t.stack[height-1].pvNode && !isCheck &&
 		beta < valueWin && beta > valueLoss &&
 		lazyEval.Value()-pawnValue*depth >= beta {
 		return beta
@@ -238,7 +238,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame {
-		newDepth = depth - (3 + depth/4)
+		newDepth = depth - 4
 		position.MakeNullMove(child)
 		// take eval with opponent side-to-move bonus(es)
 		if -t.evaluator.Evaluate(child) >= beta {

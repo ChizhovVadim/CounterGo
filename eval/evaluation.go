@@ -115,15 +115,49 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	return score
 }
 
-func (e *EvaluationService) ComputeFeatures(p *Position) (features []int, phase float64) {
+const FeatureSize = int(fSize)
+
+type FeatureInfo struct {
+	Features    []FeatureEntry
+	phase       int
+	whiteFactor int
+	blackFactor int
+}
+
+// hold only non zero features for better performance
+type FeatureEntry struct{ Index, Value int }
+
+func (entry *FeatureInfo) ApplyWeights(weights []int) int {
+	var scoreOp, scoreEg int
+	for _, f := range entry.Features {
+		scoreOp += weights[2*f.Index] * f.Value
+		scoreEg += weights[2*f.Index+1] * f.Value
+	}
+	var score = (scoreOp*entry.phase + scoreEg*(maxPhase-entry.phase)) / maxPhase
+	if score > 0 {
+		score /= entry.whiteFactor
+	} else {
+		score /= entry.blackFactor
+	}
+	return score
+}
+
+func (e *EvaluationService) ComputeFeatures(p *Position) FeatureInfo {
 	for i := range e.features {
 		e.features[i] = 0
 	}
 	e.evaluateCore(p)
-	features = make([]int, len(e.features))
-	copy(features, e.features[:])
-	phase = float64(maxPhase-e.phase) / maxPhase
-	return
+	var result = FeatureInfo{
+		phase:       e.phase,
+		whiteFactor: e.whiteFactor,
+		blackFactor: e.blackFactor,
+	}
+	for i, v := range e.features {
+		if v != 0 {
+			result.Features = append(result.Features, FeatureEntry{i, v})
+		}
+	}
+	return result
 }
 
 type evalInfo struct {

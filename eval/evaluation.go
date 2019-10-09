@@ -543,6 +543,7 @@ func (e *EvaluationService) evaluateCore(p *Position) int {
 	e.whiteFactor = computeFactor(&white, &black, ocb)
 	e.blackFactor = computeFactor(&black, &white, ocb)
 
+	//TODO (bug) Q VS R+3minors is not draw
 	if result > 0 {
 		result /= e.whiteFactor
 	} else {

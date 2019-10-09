@@ -30,7 +30,7 @@ func iterativeDeepening(ctx context.Context, e *Engine) {
 	e.done = ctx.Done()
 
 	for depth := 1; depth <= maxHeight; depth++ {
-		searchRoot(&e.threads[0], ml, depth, &e.mainLine)
+		aspirationWindow(&e.threads[0], ml, depth, &e.mainLine)
 		if e.timeManager.BreakIterativeDeepening(e.mainLine) {
 			break
 		}
@@ -82,7 +82,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 				func() {
 					defer recoverFromSearchTimeout()
 					var line mainLine
-					searchRoot(t, ml, depth, &line)
+					aspirationWindow(t, ml, depth, &line)
 					taskResults <- line
 				}()
 			}
@@ -127,14 +127,35 @@ func threadsPerDepth(depth, threads int) int {
 	return 1 + (threads-1)/2
 }
 
-func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
+func aspirationWindow(t *thread, ml []Move, depth int, line *mainLine) {
+	var prevScore = line.score
+	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
+		var alphaMargin = 25
+		var betaMargin = 25
+		for i := 0; i < 2; i++ {
+			var alpha = Max(-valueInfinity, prevScore-alphaMargin)
+			var beta = Min(valueInfinity, prevScore+betaMargin)
+			var score = searchRoot(t, ml, alpha, beta, depth, line)
+			if score >= valueWin || score <= valueLoss {
+				break
+			} else if score >= beta {
+				betaMargin *= 2
+			} else if score <= alpha {
+				alphaMargin *= 2
+			} else {
+				return
+			}
+		}
+	}
+	searchRoot(t, ml, -valueInfinity, valueInfinity, depth, line)
+}
+
+func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) int {
 	const height = 0
 	t.stack[height].pv.clear()
 	t.stack[height].pvNode = true
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
-	var alpha = -valueInfinity
-	const beta = valueInfinity
 	var bestMoveIndex = 0
 	for i, move := range ml {
 		p.MakeMove(move, child)
@@ -167,9 +188,13 @@ func searchRoot(t *thread, ml []Move, depth int, line *mainLine) {
 				moves: t.stack[height].pv.toSlice(),
 			}
 			bestMoveIndex = i
+			if alpha >= beta {
+				break
+			}
 		}
 	}
 	moveToBegin(ml, bestMoveIndex)
+	return alpha
 }
 
 func (t *thread) alphaBeta(alpha, beta, depth, height int) int {

@@ -159,7 +159,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 	var bestMoveIndex = 0
 	for i, move := range ml {
 		p.MakeMove(move, child)
-		var newDepth = t.newDepth(depth, height)
+		var newDepth = t.newDepth(depth, height, true)
 		var reduction = 0
 		if depth >= 3 && !(i == 0 ||
 			p.IsCheck() ||
@@ -296,7 +296,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				continue
 			}
 			if move == ttMove {
-				if t.newDepth(depth, height) == depth {
+				if t.newDepth(depth, height, pvNode) == depth {
 					break
 				}
 				continue
@@ -327,7 +327,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 		moveCount++
 
-		newDepth = t.newDepth(depth, height)
+		newDepth = t.newDepth(depth, height, pvNode)
 		if move == ttMove && ttMoveIsSingular {
 			newDepth = depth
 		}
@@ -546,7 +546,18 @@ func (t *thread) isDraw(height int) bool {
 	return depth - 1
 }*/
 
-func (t *thread) newDepth(depth, height int) int {
+func (t *thread) newDepth(depth, height int, pvNode bool) int {
+	if pvNode && depth < 6 {
+		var p = &t.stack[height].position
+		var child = &t.stack[height+1].position
+		var move = child.LastMove
+		var givesCheck = child.IsCheck()
+
+		if givesCheck && seeGEZero(p, move) {
+			return depth
+		}
+	}
+
 	return depth - 1
 }
 

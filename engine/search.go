@@ -153,13 +153,12 @@ func aspirationWindow(t *thread, ml []Move, depth int, line *mainLine) {
 func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) int {
 	const height = 0
 	t.stack[height].pv.clear()
-	t.stack[height].pvNode = true
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var bestMoveIndex = 0
 	for i, move := range ml {
 		p.MakeMove(move, child)
-		var newDepth = t.newDepth(depth, height, true)
+		var newDepth = t.newDepth(depth, height)
 		var reduction = 0
 		if depth >= 3 && !(i == 0 ||
 			p.IsCheck() ||
@@ -167,15 +166,10 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 			isCaptureOrPromotion(move) ||
 			isPawnAdvance(move, p.WhiteMove)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
-			reduction--
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 		if reduction > 0 &&
 			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1) <= alpha {
-			continue
-		}
-		if beta != alpha+1 && i > 0 && newDepth > 0 &&
-			-t.alphaBeta(-(alpha+1), -alpha, newDepth, height+1) <= alpha {
 			continue
 		}
 		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
@@ -227,14 +221,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		return beta
 	}
 
-	var pvNode = beta != alpha+1
-	t.stack[height].pvNode = pvNode
-
 	// transposition table
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
-		if ttDepth >= depth && !pvNode {
+		if ttDepth >= depth {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
 					t.sortTable.Update(position, ttMove, nil, depth, height)
@@ -251,7 +242,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var lateEndgame = isLateEndgame(position, position.WhiteMove)
 
 	// reverse futility pruning
-	if depth <= 1 && height >= 1 && !t.stack[height-1].pvNode && !isCheck &&
+	if depth <= 1 && !isCheck &&
 		beta < valueWin && beta > valueLoss &&
 		lazyEval.Value()-pawnValue*depth >= beta {
 		return beta
@@ -259,7 +250,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if depth >= 2 && !pvNode && !isCheck && position.LastMove != MoveEmpty &&
+	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame {
@@ -283,20 +274,20 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	// singular extension
 	var ttMoveIsSingular = false
-	if pvNode && depth >= 6 &&
+	if depth >= 6 &&
 		ttMove != MoveEmpty && ttDepth >= depth-4 && (ttBound&boundLower) != 0 &&
 		ttValue < valueWin && ttValue > valueLoss {
 		ttMoveIsSingular = true
 		sortMoves(ml)
 		var bound = Max(-valueInfinity, ttValue-pawnValue/2)
-		newDepth = depth - 5
+		newDepth = depth - (3 + depth/3)
 		for i := range ml {
 			var move = ml[i].Move
 			if !position.MakeMove(move, child) {
 				continue
 			}
 			if move == ttMove {
-				if t.newDepth(depth, height, pvNode) == depth {
+				if t.newDepth(depth, height) == depth {
 					break
 				}
 				continue
@@ -327,7 +318,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 		moveCount++
 
-		newDepth = t.newDepth(depth, height, pvNode)
+		newDepth = t.newDepth(depth, height)
 		if move == ttMove && ttMoveIsSingular {
 			newDepth = depth
 		}
@@ -342,14 +333,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 			if depth >= 3 {
 				reduction = t.engine.lateMoveReduction(depth, moveCount)
-				if pvNode {
-					reduction--
-				}
 				reduction = Max(0, Min(depth-2, reduction))
 			}
 
-			if !(pvNode ||
-				alpha <= valueLoss ||
+			if !(alpha <= valueLoss ||
 				position.LastMove == MoveEmpty) {
 				// late-move pruning
 				if depth <= 2 && moveCount >= 9+3*depth {
@@ -369,14 +356,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		// LMR
 		if reduction > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
-			if score <= alpha {
-				continue
-			}
-		}
-
-		// PVS
-		if beta != alpha+1 && moveCount > 1 && newDepth > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
 			if score <= alpha {
 				continue
 			}
@@ -546,16 +525,14 @@ func (t *thread) isDraw(height int) bool {
 	return depth - 1
 }*/
 
-func (t *thread) newDepth(depth, height int, pvNode bool) int {
-	if pvNode && depth < 6 {
-		var p = &t.stack[height].position
-		var child = &t.stack[height+1].position
-		var move = child.LastMove
-		var givesCheck = child.IsCheck()
+func (t *thread) newDepth(depth, height int) int {
+	var p = &t.stack[height].position
+	var child = &t.stack[height+1].position
+	var move = child.LastMove
+	var givesCheck = child.IsCheck()
 
-		if givesCheck && seeGEZero(p, move) {
-			return depth
-		}
+	if depth <= 6 && givesCheck && seeGEZero(p, move) {
+		return depth
 	}
 
 	return depth - 1

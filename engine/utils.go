@@ -244,20 +244,6 @@ func lmrByMoveIndex(d, m int) int {
 	}
 }
 
-func initLmr() func(d, m int) int {
-	var reductions [32][64]int
-	for d := 3; d < 32; d++ {
-		for m := 2; m < 64; m++ {
-			var baseR = lirp(math.Log(float64(d)), math.Log(5), math.Log(31), 3, 5)
-			var r = lirp(math.Log(float64(m)), math.Log(2), math.Log(22), 1, baseR)
-			reductions[d][m] = int(r)
-		}
-	}
-	return func(d, m int) int {
-		return reductions[Min(d, 31)][Min(m, 63)]
-	}
-}
-
 func initLmrSum() func(d, m int) int {
 	var reductions [32][64]int
 	for d := 3; d < 32; d++ {
@@ -269,10 +255,6 @@ func initLmrSum() func(d, m int) int {
 	return func(d, m int) int {
 		return reductions[Min(d, 31)][Min(m, 63)]
 	}
-}
-
-func lirp(x, x1, x2, y1, y2 float64) float64 {
-	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }
 
 func evaluateMaterial(p *Position) int {

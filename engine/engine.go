@@ -34,7 +34,6 @@ type thread struct {
 		moveList       [MaxMoves]OrderedMove
 		quietsSearched [MaxMoves]Move
 		pv             pv
-		pvNode         bool
 	}
 }
 

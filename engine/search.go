@@ -272,34 +272,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
 
-	// singular extension
-	var ttMoveIsSingular = false
-	if depth >= 6 &&
-		ttMove != MoveEmpty && ttDepth >= depth-4 && (ttBound&boundLower) != 0 &&
-		ttValue < valueWin && ttValue > valueLoss {
-		ttMoveIsSingular = true
-		sortMoves(ml)
-		var bound = Max(-valueInfinity, ttValue-pawnValue/2)
-		newDepth = depth - (3 + depth/3)
-		for i := range ml {
-			var move = ml[i].Move
-			if !position.MakeMove(move, child) {
-				continue
-			}
-			if move == ttMove {
-				if t.newDepth(depth, height) == depth {
-					break
-				}
-				continue
-			}
-			score = -t.alphaBeta(-(bound + 1), -bound, newDepth, height+1)
-			if score > bound {
-				ttMoveIsSingular = false
-				break
-			}
-		}
-	}
-
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
@@ -319,9 +291,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		moveCount++
 
 		newDepth = t.newDepth(depth, height)
-		if move == ttMove && ttMoveIsSingular {
-			newDepth = depth
-		}
 
 		var reduction = 0
 		if !(moveCount == 1 ||

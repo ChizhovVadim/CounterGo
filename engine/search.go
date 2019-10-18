@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"math/rand"
 	"sync"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -75,9 +74,6 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 		wg.Add(1)
 		go func(i int) {
 			var t = &e.threads[i]
-			if i > 0 {
-				shuffleMoves(ml[1:])
-			}
 			for depth := range depths {
 				func() {
 					defer recoverFromSearchTimeout()
@@ -541,12 +537,6 @@ func cloneMoves(ml []Move) []Move {
 	var result = make([]Move, len(ml))
 	copy(result, ml)
 	return result
-}
-
-func shuffleMoves(ml []Move) {
-	rand.Shuffle(len(ml), func(i, j int) {
-		ml[i], ml[j] = ml[j], ml[i]
-	})
 }
 
 func (e *Engine) genRootMoves() []Move {

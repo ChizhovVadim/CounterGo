@@ -252,8 +252,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		!lateEndgame {
 		newDepth = depth - 4
 		position.MakeNullMove(child)
-		// take eval with opponent side-to-move bonus(es)
-		if -t.evaluator.Evaluate(child) >= beta {
+		if newDepth <= 0 || -t.evaluator.Evaluate(child) >= beta {
 			if newDepth <= 0 {
 				score = -t.quiescence(-beta, -(beta - 1), 1, height+1)
 			} else {

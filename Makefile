@@ -2,7 +2,7 @@
 
 NAME = Counter
 PACKAGE = github.com/ChizhovVadim/CounterGo/counter
-VERSION = v3.4dev
+VERSION = v3.4
 
 all:
 	GOOS=linux   GOARCH=amd64 go build -o $(NAME)-$(VERSION)-linux-64       $(PACKAGE)

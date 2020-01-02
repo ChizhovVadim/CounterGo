@@ -76,7 +76,7 @@ type TransTable interface {
 func NewEngine(evalBuilder func() Evaluator) *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
-		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1024},
+		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1 << 16},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
 		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
 		evalBuilder:        evalBuilder,
@@ -93,6 +93,10 @@ func (e *Engine) GetOptions() []UciOption {
 
 func (e *Engine) Prepare() {
 	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
+		if e.transTable != nil {
+			e.transTable = nil
+			runtime.GC()
+		}
 		e.transTable = newTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {

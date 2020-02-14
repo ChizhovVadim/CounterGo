@@ -154,16 +154,17 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 	var bestMoveIndex = 0
 	for i, move := range ml {
 		p.MakeMove(move, child)
-		var newDepth = t.newDepth(depth, height)
-		var reduction = 0
-		if depth >= 3 && !(i == 0 ||
-			p.IsCheck() ||
-			child.IsCheck() ||
-			isCaptureOrPromotion(move) ||
-			isPawnAdvance(move, p.WhiteMove)) {
+		var extension, reduction int
+		extension = t.extend(depth, height)
+		if depth >= 3 && i > 0 &&
+			!(p.IsCheck() ||
+				child.IsCheck() ||
+				isCaptureOrPromotion(move) ||
+				isPawnAdvance(move, p.WhiteMove)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
 			reduction = Max(0, Min(depth-2, reduction))
 		}
+		var newDepth = depth - 1 + extension
 		if reduction > 0 &&
 			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1) <= alpha {
 			continue
@@ -285,37 +286,42 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 		moveCount++
 
-		newDepth = t.newDepth(depth, height)
-
-		var reduction = 0
-		if !(moveCount == 1 ||
+		if !(alpha <= valueLoss ||
+			position.LastMove == MoveEmpty ||
+			moveCount == 1 ||
 			ml[i].Key >= sortTableKeyImportant ||
 			isCheck ||
 			child.IsCheck() ||
 			isCaptureOrPromotion(move) ||
 			isPawnAdvance(move, position.WhiteMove)) {
-
-			if depth >= 3 {
-				reduction = t.engine.lateMoveReduction(depth, moveCount)
-				reduction = Max(0, Min(depth-2, reduction))
+			// late-move pruning
+			if depth <= 2 && moveCount >= 9+3*depth {
+				continue
 			}
-
-			if !(alpha <= valueLoss ||
-				position.LastMove == MoveEmpty) {
-				// late-move pruning
-				if depth <= 2 && moveCount >= 9+3*depth {
-					continue
-				}
-				// futility pruning
-				if depth <= 3 && lazyEval.Value()+pawnValue*depth <= alpha {
-					continue
-				}
+			// futility pruning
+			if depth <= 3 && lazyEval.Value()+pawnValue*depth <= alpha {
+				continue
 			}
+		}
+
+		var extension, reduction int
+
+		extension = t.extend(depth, height)
+		if depth >= 3 && moveCount > 1 &&
+			!(ml[i].Key >= sortTableKeyImportant ||
+				isCheck ||
+				child.IsCheck() ||
+				isCaptureOrPromotion(move) ||
+				isPawnAdvance(move, position.WhiteMove)) {
+			reduction = t.engine.lateMoveReduction(depth, moveCount)
+			reduction = Max(0, Min(depth-2, reduction))
 		}
 
 		if !isCaptureOrPromotion(move) {
 			quietsSearched = append(quietsSearched, move)
 		}
+
+		newDepth = depth - 1 + extension
 
 		// LMR
 		if reduction > 0 {
@@ -462,44 +468,17 @@ func (t *thread) isDraw(height int) bool {
 	return false
 }
 
-/*func (t *thread) newDepth(depth, height int) int {
-	var p = &t.stack[height].position
-	var child = &t.stack[height+1].position
-	var move = child.LastMove
-	var givesCheck = child.IsCheck()
-
-	if givesCheck && (depth <= 1 || seeGEZero(p, move)) {
-		return depth
-	}
-
-	var prevMove = p.LastMove
-
-	if prevMove != MoveEmpty &&
-		prevMove.To() == move.To() &&
-		move.CapturedPiece() > Pawn &&
-		prevMove.CapturedPiece() > Pawn &&
-		seeGEZero(p, move) {
-		return depth
-	}
-
-	if isPawnPush7th(move, p.WhiteMove) && seeGEZero(p, move) {
-		return depth
-	}
-
-	return depth - 1
-}*/
-
-func (t *thread) newDepth(depth, height int) int {
+func (t *thread) extend(depth, height int) int {
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var move = child.LastMove
 	var givesCheck = child.IsCheck()
 
 	if depth <= 6 && givesCheck && seeGEZero(p, move) {
-		return depth
+		return 1
 	}
 
-	return depth - 1
+	return 0
 }
 
 func recoverFromSearchTimeout() {

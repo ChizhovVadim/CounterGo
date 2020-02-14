@@ -233,37 +233,22 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 	return bs
 }
 
-func lmrByMoveIndex(d, m int) int {
-	switch {
-	case m > 20:
-		return 3
-	case m > 8:
-		return 2
-	default:
-		return 1
-	}
-}
-
-func initLmrSum() func(d, m int) int {
-	var reductions [32][64]int
-	for d := 3; d < 32; d++ {
+func initLmr(f func(d, m float64) float64) func(d, m int) int {
+	var reductions [64][64]int
+	for d := 3; d < 64; d++ {
 		for m := 2; m < 64; m++ {
-			var r = 3*math.Log(float64(m))/math.Log(22) + float64(d-5)/8
-			reductions[d][m] = int(r)
+			reductions[d][m] = int(f(float64(d), float64(m)))
 		}
 	}
 	return func(d, m int) int {
-		return reductions[Min(d, 31)][Min(m, 63)]
+		return reductions[Min(d, 63)][Min(m, 63)]
 	}
 }
 
-func evaluateMaterial(p *Position) int {
-	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +
-		400*(PopCount((p.Knights|p.Bishops)&p.White)-PopCount((p.Knights|p.Bishops)&p.Black)) +
-		600*(PopCount(p.Rooks&p.White)-PopCount(p.Rooks&p.Black)) +
-		1200*(PopCount(p.Queens&p.White)-PopCount(p.Queens&p.Black))
-	if !p.WhiteMove {
-		score = -score
-	}
-	return score
+func lmrSum(d, m float64) float64 {
+	return 3*math.Log(m)/math.Log(22) + (d-5)/8
+}
+
+func lmrMult(d, m float64) float64 {
+	return 3 * math.Log(d) / math.Log(5) * math.Log(m) / math.Log(22)
 }

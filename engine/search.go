@@ -173,10 +173,12 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
-			*line = mainLine{
-				depth: depth,
-				score: score,
-				moves: t.stack[height].pv.toSlice(),
+			if score < beta {
+				*line = mainLine{
+					depth: depth,
+					score: score,
+					moves: t.stack[height].pv.toSlice(),
+				}
 			}
 			bestMoveIndex = i
 			if alpha >= beta {
@@ -451,6 +453,9 @@ func (t *thread) isDraw(height int) bool {
 		return true
 	}
 
+	if p.Rule50 == 0 || p.LastMove == MoveEmpty {
+		return false
+	}
 	for i := height - 1; i >= 0; i-- {
 		var temp = &t.stack[i].position
 		if temp.Key == p.Key {

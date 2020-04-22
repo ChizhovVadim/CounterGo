@@ -84,7 +84,7 @@ func NewEngine(evalBuilder func() Evaluator) *Engine {
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.4", "Vadim Chizhov"
+	return "Counter", "3.5dev", "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {

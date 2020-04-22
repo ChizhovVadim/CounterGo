@@ -162,10 +162,11 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 				isCaptureOrPromotion(move) ||
 				isPawnAdvance(move, p.WhiteMove)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
+			reduction--
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 		var newDepth = depth - 1 + extension
-		if reduction > 0 &&
+		if (reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0) &&
 			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1) <= alpha {
 			continue
 		}
@@ -220,11 +221,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		return beta
 	}
 
+	var pvNode = beta != alpha+1
+
 	// transposition table
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
-		if ttDepth >= depth {
+		if ttDepth >= depth && !pvNode {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
 					t.sortTable.Update(position, ttMove, nil, depth, height)
@@ -249,7 +252,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
+	if !pvNode && depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame {
@@ -269,6 +272,37 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
+
+	var ttMoveIsSingular = false
+	if pvNode && depth >= 6 &&
+		ttHit && ttMove != MoveEmpty &&
+		(ttBound&boundLower) != 0 && ttDepth >= depth-4 &&
+		ttValue > valueLoss && ttValue < valueWin {
+
+		ttMoveIsSingular = true
+		sortMoves(ml)
+		var singularBeta = Max(-valueInfinity, ttValue-pawnValue/2)
+		newDepth = depth - 5
+		for i := range ml {
+			var move = ml[i].Move
+			if !position.MakeMove(move, child) {
+				continue
+			}
+			if move == ttMove {
+				if t.extend(depth, height) == 1 {
+					ttMoveIsSingular = false
+					break
+				}
+				continue
+			}
+			score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1)
+			if score >= singularBeta {
+				ttMoveIsSingular = false
+				break
+			}
+		}
+
+	}
 
 	var moveCount = 0
 	var quietsSearched = t.stack[height].quietsSearched[:0]
@@ -309,6 +343,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		var extension, reduction int
 
 		extension = t.extend(depth, height)
+		if move == ttMove && ttMoveIsSingular {
+			extension = 1
+		}
+
 		if depth >= 3 && moveCount > 1 &&
 			!(ml[i].Key >= sortTableKeyImportant ||
 				isCheck ||
@@ -316,6 +354,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				isCaptureOrPromotion(move) ||
 				isPawnAdvance(move, position.WhiteMove)) {
 			reduction = t.engine.lateMoveReduction(depth, moveCount)
+			if pvNode {
+				reduction--
+			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 
@@ -325,8 +366,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 		newDepth = depth - 1 + extension
 
-		// LMR
-		if reduction > 0 {
+		// LMR/PVS
+		if reduction > 0 || beta != alpha+1 && moveCount > 1 && newDepth > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 			if score <= alpha {
 				continue

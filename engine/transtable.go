@@ -6,15 +6,6 @@ import (
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
 
-type transEntry struct {
-	gate     int32
-	key32    uint32
-	move     Move
-	score    int16
-	depth    int8
-	boundGen uint8
-}
-
 const (
 	boundLower = 1 << iota
 	boundUpper
@@ -30,11 +21,32 @@ func roundPowerOfTwo(size int) int {
 	return x
 }
 
+type transEntry struct {
+	gate     int32
+	key32    uint32
+	moveDate uint32
+	score    int16
+	depth    int8
+	bound    uint8
+}
+
+func (entry *transEntry) Move() Move {
+	return Move(entry.moveDate & 0x1fffff)
+}
+
+func (entry *transEntry) Date() uint16 {
+	return uint16(entry.moveDate >> 21)
+}
+
+func (entry *transEntry) SetMoveAndDate(move Move, date uint16) {
+	entry.moveDate = uint32(move) + uint32(date)<<21
+}
+
 type transTable struct {
-	megabytes  int
-	entries    []transEntry
-	generation uint8
-	mask       uint32
+	megabytes int
+	entries   []transEntry
+	date      uint16
+	mask      uint32
 }
 
 // good test: position fen 8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1
@@ -53,18 +65,11 @@ func (tt *transTable) Megabytes() int {
 }
 
 func (tt *transTable) PrepareNewSearch() {
-	tt.generation = (tt.generation + 1) % 64
-	if tt.generation == 0 {
-		tt.generation = 1
-		for i := range tt.entries {
-			var entry = &tt.entries[i]
-			entry.boundGen = entry.boundGen & 3
-		}
-	}
+	tt.date = (tt.date + 1) & 0x7ff
 }
 
 func (tt *transTable) Clear() {
-	tt.generation = 0
+	tt.date = 0
 	for i := range tt.entries {
 		tt.entries[i] = transEntry{}
 	}
@@ -74,11 +79,11 @@ func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok 
 	var entry = &tt.entries[uint32(p.Key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		if entry.key32 == uint32(p.Key>>32) {
-			entry.boundGen = (entry.boundGen & 3) + (tt.generation << 2)
+			entry.SetMoveAndDate(entry.Move(), tt.date)
 			score = int(entry.score)
-			move = entry.move
+			move = entry.Move()
 			depth = int(entry.depth)
-			bound = int(entry.boundGen & 3)
+			bound = int(entry.bound)
 			ok = true
 		}
 		atomic.StoreInt32(&entry.gate, 0)
@@ -91,23 +96,24 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		if entry.key32 == uint32(p.Key>>32) {
 			if move != MoveEmpty {
-				entry.move = move
+				entry.SetMoveAndDate(move, entry.Date())
 			}
 			if bound != 0 &&
 				(bound == boundExact || depth >= int(entry.depth)-3 /*for singular extensions*/) {
 				entry.score = int16(score)
 				entry.depth = int8(depth)
-				entry.boundGen = uint8(bound) + (tt.generation << 2)
+				entry.bound = uint8(bound)
+				entry.SetMoveAndDate(entry.Move(), tt.date)
 			}
 		} else {
-			if (entry.boundGen>>2) != tt.generation ||
+			if entry.Date() != tt.date ||
 				depth >= int(entry.depth) ||
 				bound == 0 {
 				entry.key32 = uint32(p.Key >> 32)
-				entry.move = move
 				entry.score = int16(score)
 				entry.depth = int8(depth)
-				entry.boundGen = uint8(bound) + (tt.generation << 2)
+				entry.bound = uint8(bound)
+				entry.SetMoveAndDate(move, tt.date)
 			}
 		}
 		atomic.StoreInt32(&entry.gate, 0)

@@ -13,6 +13,7 @@ type Engine struct {
 	Threads            IntUciOption
 	ExperimentSettings BoolUciOption
 	evalBuilder        func() Evaluator
+	versionName        string
 	timeManager        TimeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
@@ -73,18 +74,19 @@ type TransTable interface {
 	Update(p *Position, depth, score, bound int, move Move)
 }
 
-func NewEngine(evalBuilder func() Evaluator) *Engine {
+func NewEngine(evalBuilder func() Evaluator, versionName string) *Engine {
 	var numCPUs = runtime.NumCPU()
 	return &Engine{
 		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1 << 16},
 		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
 		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
 		evalBuilder:        evalBuilder,
+		versionName:        versionName,
 	}
 }
 
 func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", "3.5dev", "Vadim Chizhov"
+	return "Counter", e.versionName, "Vadim Chizhov"
 }
 
 func (e *Engine) GetOptions() []UciOption {

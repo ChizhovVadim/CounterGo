@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -46,9 +45,6 @@ func newUciProtocol(uciEngine UciEngine) *uciProtocol {
 }
 
 func (uci *uciProtocol) Run() {
-	var name, version, _ = uci.engine.GetInfo()
-	fmt.Printf("%v %v build with %v\n", name, version, runtime.Version())
-
 	var scanner = bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		var commandLine = scanner.Text()

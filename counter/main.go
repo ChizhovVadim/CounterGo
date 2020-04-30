@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"runtime"
+
 	"github.com/ChizhovVadim/CounterGo/engine"
 	"github.com/ChizhovVadim/CounterGo/eval"
 	"github.com/ChizhovVadim/CounterGo/uci"
@@ -13,8 +16,20 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+var (
+	versionName = "dev"
+	buildDate   = "(null)"
+	gitRevision = "(null)"
+)
+
 func main() {
+	fmt.Println("Counter",
+		"VersionName", versionName,
+		"BuildDate", buildDate,
+		"GitRevision", gitRevision,
+		"RuntimeVersion", runtime.Version())
+
 	uci.Run(engine.NewEngine(func() engine.Evaluator {
 		return eval.NewEvaluationService()
-	}))
+	}, versionName))
 }

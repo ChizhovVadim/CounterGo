@@ -148,6 +148,7 @@ func aspirationWindow(t *thread, ml []Move, depth int, line *mainLine) {
 
 func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) int {
 	const height = 0
+	const pvNode = true
 	t.stack[height].pv.clear()
 	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
@@ -157,12 +158,11 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 		var extension, reduction int
 		extension = t.extend(depth, height)
 		if depth >= 3 && i > 0 &&
-			!(p.IsCheck() ||
-				child.IsCheck() ||
-				isCaptureOrPromotion(move) ||
-				isPawnAdvance(move, p.WhiteMove)) {
+			!(isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
-			reduction--
+			if pvNode {
+				reduction--
+			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 		var newDepth = depth - 1 + extension
@@ -256,7 +256,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!lateEndgame {
-		newDepth = depth - 4
+		newDepth = depth - (4 + (depth-2)/6)
 		position.MakeNullMove(child)
 		if newDepth <= 0 || -t.evaluator.Evaluate(child) >= beta {
 			if newDepth <= 0 {
@@ -349,10 +349,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 		if depth >= 3 && moveCount > 1 &&
 			!(ml[i].Key >= sortTableKeyImportant ||
-				isCheck ||
-				child.IsCheck() ||
-				isCaptureOrPromotion(move) ||
-				isPawnAdvance(move, position.WhiteMove)) {
+				isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, moveCount)
 			if pvNode {
 				reduction--
@@ -515,12 +512,10 @@ func (t *thread) isDraw(height int) bool {
 }
 
 func (t *thread) extend(depth, height int) int {
-	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
-	var move = child.LastMove
 	var givesCheck = child.IsCheck()
 
-	if depth <= 6 && givesCheck && seeGEZero(p, move) {
+	if givesCheck {
 		return 1
 	}
 

@@ -102,7 +102,7 @@ func (e *Engine) Prepare() {
 		e.transTable = newTransTable(e.Hash.Value)
 	}
 	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmr(lmrSum)
+		e.lateMoveReduction = initLmr(lmrMult)
 	}
 	if e.timeManager == nil {
 		e.timeManager = &timeManager{}

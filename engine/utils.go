@@ -233,6 +233,10 @@ func seeRec(pos *Position, sd bool, to int, pieces uint64, cp int) int {
 	return bs
 }
 
+func lmrOff(d, m int) int {
+	return 0
+}
+
 func initLmr(f func(d, m float64) float64) func(d, m int) int {
 	var reductions [64][64]int
 	for d := 3; d < 64; d++ {

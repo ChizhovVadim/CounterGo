@@ -67,7 +67,7 @@ func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
 
 func (tm *timeManager) calculateTimeLimit(difficulty, branchFactor float64) time.Duration {
 	const (
-		DefaultMovesToGo = 50
+		DefaultMovesToGo = 40
 		MoveOverhead     = 300 * time.Millisecond
 		MinTimeLimit     = 1 * time.Millisecond
 	)

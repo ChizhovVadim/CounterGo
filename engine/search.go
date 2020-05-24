@@ -69,7 +69,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 	var taskResults = make(chan mainLine)
 	var wg = &sync.WaitGroup{}
 
-	for i := 0; i < e.Threads.Value; i++ {
+	for i := 0; i < e.Threads; i++ {
 		var ml = cloneMoves(ml)
 		wg.Add(1)
 		go func(i int) {
@@ -94,7 +94,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 	go func() {
 		defer close(depths)
 		for depth := 1; depth <= maxHeight; depth++ {
-			var numThreads = threadsPerDepth(depth, e.Threads.Value)
+			var numThreads = threadsPerDepth(depth, e.Threads)
 			for i := 0; i < numThreads; i++ {
 				select {
 				case <-ctx.Done():

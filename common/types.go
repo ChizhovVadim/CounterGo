@@ -163,25 +163,3 @@ type UciScore struct {
 	Centipawns int
 	Mate       int
 }
-
-type UciOption interface {
-	GetName() string
-}
-
-type BoolUciOption struct {
-	Name  string
-	Value bool
-}
-
-func (o *BoolUciOption) GetName() string {
-	return o.Name
-}
-
-type IntUciOption struct {
-	Name            string
-	Value, Min, Max int
-}
-
-func (o *IntUciOption) GetName() string {
-	return o.Name
-}

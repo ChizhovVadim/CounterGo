@@ -12,39 +12,33 @@ import (
 	"github.com/ChizhovVadim/CounterGo/common"
 )
 
-type UciEngine interface {
-	GetInfo() (name, version, author string)
-	GetOptions() []common.UciOption
+type Engine interface {
 	Prepare()
 	Clear()
 	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
 }
 
-type uciProtocol struct {
-	engine    UciEngine
+type Protocol struct {
+	Name      string
+	Author    string
+	Version   string
+	Options   []Option
+	Engine    Engine
 	positions []common.Position
 	done      chan struct{}
 	cancel    context.CancelFunc
 	fields    []string
 }
 
-func Run(eng UciEngine) {
-	var protocol = newUciProtocol(eng)
-	protocol.Run()
-}
-
-func newUciProtocol(uciEngine UciEngine) *uciProtocol {
-	var initPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
-	var uci = &uciProtocol{
-		engine:    uciEngine,
-		positions: []common.Position{initPosition},
-		done:      make(chan struct{}),
+func (uci *Protocol) Run() {
+	var initPosition, err = common.NewPositionFromFEN(common.InitialPositionFen)
+	if err != nil {
+		panic(err)
 	}
+	uci.positions = []common.Position{initPosition}
+	uci.done = make(chan struct{})
 	close(uci.done)
-	return uci
-}
 
-func (uci *uciProtocol) Run() {
 	var scanner = bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		var commandLine = scanner.Text()
@@ -58,7 +52,7 @@ func (uci *uciProtocol) Run() {
 	}
 }
 
-func (uci *uciProtocol) handle(msg string) error {
+func (uci *Protocol) handle(msg string) error {
 	var fields = strings.Fields(msg)
 	if len(fields) == 0 {
 		return nil
@@ -129,61 +123,36 @@ func printSearchInfo(si common.SearchInfo) {
 		si.Depth, scoreToUci, si.Nodes, si.Time, nps, sb.String())
 }
 
-func (uci *uciProtocol) uciCommand() error {
-	var name, version, author = uci.engine.GetInfo()
-	fmt.Printf("id name %s %s\n", name, version)
-	fmt.Printf("id author %s\n", author)
-	for _, option := range uci.engine.GetOptions() {
-		switch option := option.(type) {
-		case *common.BoolUciOption:
-			fmt.Printf("option name %v type %v default %v\n",
-				option.GetName(), "check", option.Value)
-		case *common.IntUciOption:
-			fmt.Printf("option name %v type %v default %v min %v max %v\n",
-				option.GetName(), "spin", option.Value, option.Min, option.Max)
-		}
+func (uci *Protocol) uciCommand() error {
+	fmt.Printf("id name %s %s\n", uci.Name, uci.Version)
+	fmt.Printf("id author %s\n", uci.Author)
+	for _, option := range uci.Options {
+		fmt.Println(option.UciString())
 	}
 	fmt.Println("uciok")
 	return nil
 }
 
-func (uci *uciProtocol) setOptionCommand() error {
+func (uci *Protocol) setOptionCommand() error {
 	if len(uci.fields) < 4 {
 		return errors.New("invalid setoption arguments")
 	}
 	var name, value = uci.fields[1], uci.fields[3]
-	for _, option := range uci.engine.GetOptions() {
-		if strings.EqualFold(option.GetName(), name) {
-			switch option := option.(type) {
-			case *common.BoolUciOption:
-				v, err := strconv.ParseBool(value)
-				if err != nil {
-					return err
-				}
-				option.Value = v
-			case *common.IntUciOption:
-				v, err := strconv.Atoi(value)
-				if err != nil {
-					return err
-				}
-				if v < option.Min || v > option.Max {
-					return errors.New("argument out of range")
-				}
-				option.Value = v
-			}
-			return nil
+	for _, option := range uci.Options {
+		if strings.EqualFold(option.UciName(), name) {
+			return option.Set(value)
 		}
 	}
 	return errors.New("unhandled option")
 }
 
-func (uci *uciProtocol) isReadyCommand() error {
-	uci.engine.Prepare()
+func (uci *Protocol) isReadyCommand() error {
+	uci.Engine.Prepare()
 	fmt.Println("readyok")
 	return nil
 }
 
-func (uci *uciProtocol) positionCommand() error {
+func (uci *Protocol) positionCommand() error {
 	var args = uci.fields
 	var token = args[0]
 	var fen string
@@ -226,7 +195,7 @@ func findIndexString(slice []string, value string) int {
 	return -1
 }
 
-func (uci *uciProtocol) goCommand() error {
+func (uci *Protocol) goCommand() error {
 	var limits = parseLimits(uci.fields)
 	var ctx, cancel = context.WithCancel(context.Background())
 	var searchParams = common.SearchParams{
@@ -241,7 +210,7 @@ func (uci *uciProtocol) goCommand() error {
 	uci.done = make(chan struct{})
 	uci.cancel = cancel
 	go func() {
-		var searchResult = uci.engine.Search(ctx, searchParams)
+		var searchResult = uci.Engine.Search(ctx, searchParams)
 		printSearchInfo(searchResult)
 		/*Probably even better:
 		uci.gate.Lock()
@@ -297,23 +266,23 @@ func parseLimits(args []string) (result common.LimitsType) {
 	return
 }
 
-func (uci *uciProtocol) uciNewGameCommand() error {
-	uci.engine.Clear()
+func (uci *Protocol) uciNewGameCommand() error {
+	uci.Engine.Clear()
 	return nil
 }
 
-func (uci *uciProtocol) ponderhitCommand() error {
+func (uci *Protocol) ponderhitCommand() error {
 	return errors.New("not implemented")
 }
 
-func (uci *uciProtocol) stopCommand() error {
+func (uci *Protocol) stopCommand() error {
 	if uci.cancel != nil {
 		uci.cancel()
 	}
 	return nil
 }
 
-func (uci *uciProtocol) moveCommand() error {
+func (uci *Protocol) moveCommand() error {
 	if len(uci.fields) == 0 {
 		return errors.New("invalid move arguments")
 	}
@@ -332,7 +301,7 @@ func (uci *uciProtocol) moveCommand() error {
 			}
 		},
 	}
-	var searchResult = uci.engine.Search(context.Background(), searchParams)
+	var searchResult = uci.Engine.Search(context.Background(), searchParams)
 	printSearchInfo(searchResult)
 	var child common.Position
 	newPos.MakeMove(searchResult.MainLine[0], &child)

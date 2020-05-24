@@ -9,11 +9,10 @@ import (
 )
 
 type Engine struct {
-	Hash               IntUciOption
-	Threads            IntUciOption
-	ExperimentSettings BoolUciOption
+	Hash               int
+	Threads            int
+	ExperimentSettings bool
 	evalBuilder        func() Evaluator
-	versionName        string
 	timeManager        TimeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
@@ -74,32 +73,22 @@ type TransTable interface {
 	Update(p *Position, depth, score, bound int, move Move)
 }
 
-func NewEngine(evalBuilder func() Evaluator, versionName string) *Engine {
-	var numCPUs = runtime.NumCPU()
+func NewEngine(evalBuilder func() Evaluator) *Engine {
 	return &Engine{
-		Hash:               IntUciOption{Name: "Hash", Value: 16, Min: 4, Max: 1 << 16},
-		Threads:            IntUciOption{Name: "Threads", Value: 1, Min: 1, Max: numCPUs},
-		ExperimentSettings: BoolUciOption{Name: "ExperimentSettings", Value: false},
+		Hash:               16,
+		Threads:            1,
+		ExperimentSettings: false,
 		evalBuilder:        evalBuilder,
-		versionName:        versionName,
 	}
 }
 
-func (e *Engine) GetInfo() (name, version, author string) {
-	return "Counter", e.versionName, "Vadim Chizhov"
-}
-
-func (e *Engine) GetOptions() []UciOption {
-	return []UciOption{&e.Hash, &e.Threads, &e.ExperimentSettings}
-}
-
 func (e *Engine) Prepare() {
-	if e.transTable == nil || e.transTable.Megabytes() != e.Hash.Value {
+	if e.transTable == nil || e.transTable.Megabytes() != e.Hash {
 		if e.transTable != nil {
 			e.transTable = nil
 			runtime.GC()
 		}
-		e.transTable = newTransTable(e.Hash.Value)
+		e.transTable = newTransTable(e.Hash)
 	}
 	if e.lateMoveReduction == nil {
 		e.lateMoveReduction = initLmr(lmrMult)
@@ -107,8 +96,8 @@ func (e *Engine) Prepare() {
 	if e.timeManager == nil {
 		e.timeManager = &timeManager{}
 	}
-	if len(e.threads) != e.Threads.Value {
-		e.threads = make([]thread, e.Threads.Value)
+	if len(e.threads) != e.Threads {
+		e.threads = make([]thread, e.Threads)
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
@@ -136,7 +125,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		t.stack[0].position = *p
 	}
 	e.progress = searchParams.Progress
-	if e.Threads.Value > 1 {
+	if e.Threads > 1 {
 		iterativeDeepeningLazySmp(ctx, e)
 	} else {
 		iterativeDeepening(ctx, e)

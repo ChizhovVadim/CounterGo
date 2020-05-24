@@ -16,6 +16,11 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+const (
+	name   = "Counter"
+	author = "Vadim Chizhov"
+)
+
 var (
 	versionName = "dev"
 	buildDate   = "(null)"
@@ -29,7 +34,21 @@ func main() {
 		"GitRevision", gitRevision,
 		"RuntimeVersion", runtime.Version())
 
-	uci.Run(engine.NewEngine(func() engine.Evaluator {
+	var engine = engine.NewEngine(func() engine.Evaluator {
 		return eval.NewEvaluationService()
-	}, versionName))
+	})
+
+	var protocol = &uci.Protocol{
+		Name:    name,
+		Author:  author,
+		Version: versionName,
+		Engine:  engine,
+		Options: []uci.Option{
+			&uci.IntOption{Name: "Hash", Min: 4, Max: 1 << 16, Value: &engine.Hash},
+			&uci.IntOption{Name: "Threads", Min: 1, Max: runtime.NumCPU(), Value: &engine.Threads},
+			&uci.BoolOption{Name: "ExperimentSettings", Value: &engine.ExperimentSettings},
+		},
+	}
+
+	protocol.Run()
 }

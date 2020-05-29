@@ -65,39 +65,11 @@ func isLateEndgame(p *Position, side bool) bool {
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
-func isPawnEndgame(p *Position, side bool) bool {
-	return ((p.Knights | p.Bishops | p.Rooks | p.Queens) &
-		p.PiecesByColor(side)) == 0
-}
-
-var (
-	pieceValues = [...]int{0, pawnValue, 4 * pawnValue,
-		4 * pawnValue, 6 * pawnValue, 12 * pawnValue, 120 * pawnValue}
-
-	pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
-)
-
-func moveValue(move Move) int {
-	var result = pieceValues[move.CapturedPiece()]
-	if move.Promotion() != Empty {
-		result += pieceValues[move.Promotion()] - pieceValues[Pawn]
-	}
-	return result
-}
+var pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
 
 func isCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||
 		move.Promotion() != Empty
-}
-
-func isDangerCapture(p *Position, m Move) bool {
-	if m.CapturedPiece() == Pawn {
-		var pawns = p.Pawns & p.PiecesByColor(!p.WhiteMove)
-		if (pawns & (pawns - 1)) == 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func isPawnPush7th(move Move, side bool) bool {
@@ -247,10 +219,6 @@ func initLmr(f func(d, m float64) float64) func(d, m int) int {
 	return func(d, m int) int {
 		return reductions[Min(d, 63)][Min(m, 63)]
 	}
-}
-
-func lmrSum(d, m float64) float64 {
-	return 3*math.Log(m)/math.Log(22) + (d-5)/8
 }
 
 func lmrMult(d, m float64) float64 {

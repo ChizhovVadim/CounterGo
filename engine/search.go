@@ -241,10 +241,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var lazyEval = lazyEval{evaluator: t.evaluator, position: position}
-	var lateEndgame = isLateEndgame(position, position.WhiteMove)
 
 	// reverse futility pruning
-	if depth <= 1 && !isCheck &&
+	if !pvNode && depth <= 1 && !isCheck &&
 		beta < valueWin && beta > valueLoss &&
 		lazyEval.Value()-pawnValue*depth >= beta {
 		return beta
@@ -255,7 +254,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	if !pvNode && depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
-		!lateEndgame {
+		!isLateEndgame(position, position.WhiteMove) {
 		newDepth = depth - (4 + (depth-2)/6)
 		position.MakeNullMove(child)
 		if newDepth <= 0 || -t.evaluator.Evaluate(child) >= beta {
@@ -414,18 +413,17 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 		return t.evaluator.Evaluate(position)
 	}
 	var isCheck = position.IsCheck()
-	var eval = 0
 	if !isCheck {
-		eval = t.evaluator.Evaluate(position)
+		var eval = t.evaluator.Evaluate(position)
 		if eval > alpha {
 			alpha = eval
-		}
-		if eval >= beta {
-			return alpha
+			if alpha >= beta {
+				return alpha
+			}
 		}
 	}
 	var ml = t.stack[height].moveList[:]
-	if position.IsCheck() {
+	if isCheck {
 		ml = position.GenerateMoves(ml)
 	} else {
 		ml = position.GenerateCaptures(ml, depth > 0)
@@ -436,22 +434,17 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	var child = &t.stack[height+1].position
 	for i := range ml {
 		var move = ml[i].Move
-		var danger = isDangerCapture(position, move)
-		if !isCheck && !danger && !seeGEZero(position, move) {
+		if !isCheck && !seeGEZero(position, move) {
 			continue
 		}
 		if !position.MakeMove(move, child) {
 			continue
 		}
 		moveCount++
-		if !isCheck && !danger && !child.IsCheck() &&
-			eval+moveValue(move)+2*pawnValue <= alpha {
-			continue
-		}
 		var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
 		if score > alpha {
 			alpha = score
-			if score >= beta {
+			if alpha >= beta {
 				break
 			}
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)

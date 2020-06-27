@@ -43,6 +43,9 @@ func createPosition(board [64]coloredPiece, wtm bool,
 
 func NewPositionFromFEN(fen string) (Position, error) {
 	var tokens = s.Split(fen, " ")
+	if len(tokens) <= 3 {
+		return Position{}, fmt.Errorf("parse fen failed %v", fen)
+	}
 
 	var board [64]coloredPiece
 

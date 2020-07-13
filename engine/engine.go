@@ -34,6 +34,7 @@ type thread struct {
 		moveList       [MaxMoves]OrderedMove
 		quietsSearched [MaxMoves]Move
 		pv             pv
+		staticEval     int
 	}
 }
 

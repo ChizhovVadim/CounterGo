@@ -48,12 +48,20 @@ func PopCount(b uint64) int {
 	return int((b * 0x0101010101010101) >> 56)*/
 }
 
-func FirstOne(b uint64) int {
+func OldFirstOne(b uint64) int {
 	return index64[(((b-1)^b)*0x03f79d71b4cb0a89)>>58]
 }
 
-func MoreThanOne(value uint64) bool {
+func FirstOne(b uint64) int {
+	return bits.TrailingZeros64(b)
+}
+
+func OldMoreThanOne(value uint64) bool {
 	return value != 0 && ((value-1)&value) != 0
+}
+
+func MoreThanOne(value uint64) bool {
+	return value&(value-1) != 0
 }
 
 func Up(b uint64) uint64 {

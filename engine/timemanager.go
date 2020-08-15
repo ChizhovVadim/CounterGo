@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -20,49 +21,73 @@ type timeManager struct {
 	difficulty   float64
 	lastScore    int
 	lastBestMove Move
+	cancel       context.CancelFunc
 }
 
-func (tm *timeManager) Init(start time.Time, limits LimitsType, p *Position) {
-	tm.start = start
-	tm.limits = limits
-	tm.side = p.WhiteMove
-	tm.difficulty = 1
-}
+func withTimeManager(ctx context.Context, start time.Time,
+	limits LimitsType, p *Position) (context.Context, *timeManager) {
 
-func (tm *timeManager) Deadline() (time.Time, bool) {
-	if tm.limits.Infinite {
-		return time.Time{}, false
+	var tm = &timeManager{
+		start:      start,
+		limits:     limits,
+		side:       p.WhiteMove,
+		difficulty: 1,
 	}
-	var maximum time.Duration
-	if tm.limits.MoveTime > 0 {
-		maximum = time.Duration(tm.limits.MoveTime) * time.Millisecond
+
+	var cancel context.CancelFunc
+	if limits.MoveTime > 0 || limits.WhiteTime > 0 || limits.BlackTime > 0 {
+		var maximum time.Duration
+		if limits.MoveTime > 0 {
+			maximum = time.Duration(limits.MoveTime) * time.Millisecond
+		} else {
+			maximum = tm.calculateTimeLimit(maxDifficulty, maxBranchFactor)
+		}
+		ctx, cancel = context.WithDeadline(ctx, start.Add(maximum))
 	} else {
-		maximum = tm.calculateTimeLimit(maxDifficulty, maxBranchFactor)
+		ctx, cancel = context.WithCancel(ctx)
 	}
-	return tm.start.Add(maximum), true
+
+	tm.cancel = cancel
+	return ctx, tm
 }
 
-func (tm *timeManager) BreakIterativeDeepening(line mainLine) bool {
-	if tm.limits.MoveTime > 0 || tm.limits.Infinite {
-		return false
+func (tm *timeManager) OnNodesChanged(nodes int) {
+	if tm.limits.Nodes > 0 && nodes >= tm.limits.Nodes {
+		tm.cancel()
+	}
+}
+
+func (tm *timeManager) OnIterationComplete(line mainLine) {
+	if tm.limits.Infinite {
+		return
 	}
 	if line.score >= winIn(line.depth-3) ||
 		line.score <= lossIn(line.depth-3) {
-		return true
+		tm.cancel()
+		return
 	}
-	if line.depth >= 5 {
-		if line.score < tm.lastScore-pawnValue/2 {
-			tm.difficulty = maxDifficulty
-		} else if line.moves[0] != tm.lastBestMove {
-			tm.difficulty = math.Max(1.5, tm.difficulty)
-		} else {
-			tm.difficulty = math.Max(0.95, 0.9*tm.difficulty)
+	if tm.limits.WhiteTime > 0 || tm.limits.BlackTime > 0 {
+		if line.depth >= 5 {
+			if line.score < tm.lastScore-pawnValue/2 {
+				tm.difficulty = maxDifficulty
+			} else if line.moves[0] != tm.lastBestMove {
+				tm.difficulty = math.Max(1.5, tm.difficulty)
+			} else {
+				tm.difficulty = math.Max(0.95, 0.9*tm.difficulty)
+			}
+		}
+		tm.lastScore = line.score
+		tm.lastBestMove = line.moves[0]
+		var optimum = tm.calculateTimeLimit(tm.difficulty, minBranchFactor)
+		if time.Since(tm.start) >= optimum {
+			tm.cancel()
+			return
 		}
 	}
-	tm.lastScore = line.score
-	tm.lastBestMove = line.moves[0]
-	var optimum = tm.calculateTimeLimit(tm.difficulty, minBranchFactor)
-	return time.Since(tm.start) >= optimum
+}
+
+func (tm *timeManager) Close() {
+	tm.cancel()
 }
 
 func (tm *timeManager) calculateTimeLimit(difficulty, branchFactor float64) time.Duration {

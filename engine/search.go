@@ -30,7 +30,8 @@ func iterativeDeepening(ctx context.Context, e *Engine) {
 
 	for depth := 1; depth <= maxHeight; depth++ {
 		aspirationWindow(&e.threads[0], ml, depth, &e.mainLine)
-		if e.timeManager.BreakIterativeDeepening(e.mainLine) {
+		e.timeManager.OnIterationComplete(e.mainLine)
+		if isDone(e.done) {
 			break
 		}
 		e.sendProgress()
@@ -61,8 +62,6 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 		return
 	}
 
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithCancel(ctx)
 	e.done = ctx.Done()
 
 	var depths = make(chan int)
@@ -108,9 +107,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 	for taskResult := range taskResults {
 		if taskResult.depth > e.mainLine.depth {
 			e.mainLine = taskResult
-			if e.timeManager.BreakIterativeDeepening(e.mainLine) {
-				cancel()
-			}
+			e.timeManager.OnIterationComplete(e.mainLine)
 			e.sendProgress()
 		}
 	}
@@ -454,8 +451,11 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 
 func (t *thread) incNodes() {
 	t.nodes++
-	if (t.nodes&255) == 0 && isDone(t.engine.done) {
-		panic(errSearchTimeout)
+	if (t.nodes & 255) == 0 {
+		t.engine.timeManager.OnNodesChanged(t.nodes)
+		if isDone(t.engine.done) {
+			panic(errSearchTimeout)
+		}
 	}
 }
 

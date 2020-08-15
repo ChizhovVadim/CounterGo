@@ -50,9 +50,9 @@ type mainLine struct {
 }
 
 type TimeManager interface {
-	Init(start time.Time, limits LimitsType, p *Position)
-	Deadline() (time.Time, bool)
-	BreakIterativeDeepening(line mainLine) bool
+	OnNodesChanged(nodes int)
+	OnIterationComplete(line mainLine)
+	Close()
 }
 
 type Evaluator interface {
@@ -94,9 +94,6 @@ func (e *Engine) Prepare() {
 	if e.lateMoveReduction == nil {
 		e.lateMoveReduction = initLmr(lmrMult)
 	}
-	if e.timeManager == nil {
-		e.timeManager = &timeManager{}
-	}
 	if len(e.threads) != e.Threads {
 		e.threads = make([]thread, e.Threads)
 		for i := range e.threads {
@@ -112,12 +109,8 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	e.start = time.Now()
 	e.Prepare()
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	e.timeManager.Init(e.start, searchParams.Limits, p)
-	if deadline, ok := e.timeManager.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline)
-		defer cancel()
-	}
+	ctx, e.timeManager = withTimeManager(ctx, e.start, searchParams.Limits, p)
+	defer e.timeManager.Close()
 	e.transTable.PrepareNewSearch()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	for i := range e.threads {

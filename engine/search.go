@@ -320,9 +320,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		moveCount++
 
 		if !(alpha <= valueLoss ||
-			firstline ||
-			position.LastMove == MoveEmpty ||
-			moveCount == 1 ||
 			ml[i].Key >= sortTableKeyImportant ||
 			isCheck ||
 			child.IsCheck() ||

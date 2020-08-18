@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"runtime"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -22,13 +24,17 @@ type Engine struct {
 	progress           func(SearchInfo)
 	mainLine           mainLine
 	start              time.Time
+	nodes              int64
+	depth              int32 // duplication mainLine.depth
+	mu                 sync.Mutex
 }
 
 type thread struct {
 	engine    *Engine
 	sortTable SortTable
 	evaluator Evaluator
-	nodes     int
+	nodes     int64
+	depth     int32
 	stack     [stackSize]struct {
 		position       Position
 		moveList       [MaxMoves]OrderedMove
@@ -113,26 +119,15 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	defer e.timeManager.Close()
 	e.transTable.PrepareNewSearch()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
+	e.nodes = 0
 	for i := range e.threads {
 		var t = &e.threads[i]
 		t.nodes = 0
 		t.stack[0].position = *p
 	}
 	e.progress = searchParams.Progress
-	if e.Threads > 1 {
-		iterativeDeepeningLazySmp(ctx, e)
-	} else {
-		iterativeDeepening(ctx, e)
-	}
+	lazySmp(ctx, e)
 	return e.currentSearchResult()
-}
-
-func (e *Engine) nodes() int64 {
-	var result = 0
-	for i := range e.threads {
-		result += e.threads[i].nodes
-	}
-	return int64(result)
 }
 
 func getHistoryKeys(positions []Position) map[uint64]int {
@@ -162,7 +157,7 @@ func (e *Engine) currentSearchResult() SearchInfo {
 		Depth:    e.mainLine.depth,
 		MainLine: e.mainLine.moves,
 		Score:    newUciScore(e.mainLine.score),
-		Nodes:    e.nodes(),
+		Nodes:    atomic.LoadInt64(&e.nodes),
 		Time:     int64(time.Since(e.start) / time.Millisecond),
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
 )
@@ -12,34 +13,7 @@ const pawnValue = 100
 
 var errSearchTimeout = errors.New("search timeout")
 
-func iterativeDeepening(ctx context.Context, e *Engine) {
-	var ml = e.genRootMoves()
-	if len(ml) != 0 {
-		e.mainLine = mainLine{
-			depth: 0,
-			score: 0,
-			moves: []Move{ml[0]},
-		}
-	}
-	if len(ml) <= 1 {
-		return
-	}
-
-	defer recoverFromSearchTimeout()
-	e.done = ctx.Done()
-
-	for depth := 1; depth <= maxHeight; depth++ {
-		aspirationWindow(&e.threads[0], ml, depth, &e.mainLine)
-		e.timeManager.OnIterationComplete(e.mainLine)
-		if isDone(e.done) {
-			break
-		}
-		e.sendProgress()
-		savePV(e.transTable, &e.threads[0].stack[0].position, e.mainLine.moves)
-	}
-}
-
-func savePV(transTable TransTable, p *Position, pv []Move) {
+/*func savePV(transTable TransTable, p *Position, pv []Move) {
 	var parent = *p
 	var child Position
 	for _, m := range pv {
@@ -47,9 +21,9 @@ func savePV(transTable TransTable, p *Position, pv []Move) {
 		parent.MakeMove(m, &child)
 		parent = child
 	}
-}
+}*/
 
-func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
+func lazySmp(ctx context.Context, e *Engine) {
 	var ml = e.genRootMoves()
 	if len(ml) != 0 {
 		e.mainLine = mainLine{
@@ -57,6 +31,7 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 			score: 0,
 			moves: []Move{ml[0]},
 		}
+		e.depth = 0
 	}
 	if len(ml) <= 1 {
 		return
@@ -64,71 +39,72 @@ func iterativeDeepeningLazySmp(ctx context.Context, e *Engine) {
 
 	e.done = ctx.Done()
 
-	var depths = make(chan int)
-	var taskResults = make(chan mainLine)
-	var wg = &sync.WaitGroup{}
+	if e.Threads == 1 {
+		iterativeDeepening(&e.threads[0], ml, 1, 1)
+	} else {
 
-	for i := 0; i < e.Threads; i++ {
-		var ml = cloneMoves(ml)
-		wg.Add(1)
-		go func(i int) {
-			var t = &e.threads[i]
-			for depth := range depths {
-				func() {
-					defer recoverFromSearchTimeout()
-					var line mainLine
-					aspirationWindow(t, ml, depth, &line)
-					taskResults <- line
-				}()
-			}
-			wg.Done()
-		}(i)
-	}
+		var wg = &sync.WaitGroup{}
 
-	go func() {
+		for i := 0; i < e.Threads; i++ {
+			var ml = cloneMoves(ml)
+			wg.Add(1)
+			go func(i int) {
+				var t = &e.threads[i]
+				iterativeDeepening(t, ml, 1+i%2, 2)
+				wg.Done()
+			}(i)
+		}
+
 		wg.Wait()
-		close(taskResults)
-	}()
+	}
+}
 
-	go func() {
-		defer close(depths)
-		for depth := 1; depth <= maxHeight; depth++ {
-			var numThreads = threadsPerDepth(depth, e.Threads)
-			for i := 0; i < numThreads; i++ {
-				select {
-				case <-ctx.Done():
-					return
-				case depths <- depth:
+func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO, aspirationMargin
+	for depth := startDepth; depth <= maxHeight; depth += incDepth {
+		t.depth = int32(depth)
+		if isDone(t.engine.done) {
+			break
+		}
+
+		var globalLine mainLine
+		t.engine.mu.Lock()
+		globalLine = t.engine.mainLine
+		t.engine.mu.Unlock()
+
+		if depth <= globalLine.depth {
+			continue
+		}
+		if index := findMoveIndex(ml, globalLine.moves[0]); index >= 0 {
+			moveToBegin(ml, index)
+		}
+
+		var score, iterationComplete = aspirationWindow(t, ml, depth, globalLine.score)
+		if iterationComplete {
+			t.engine.mu.Lock()
+			if depth > t.engine.mainLine.depth {
+				atomic.StoreInt32(&t.engine.depth, int32(depth))
+				t.engine.mainLine = mainLine{
+					depth: depth,
+					score: score,
+					moves: t.stack[0].pv.toSlice(),
 				}
+				t.engine.timeManager.OnIterationComplete(t.engine.mainLine)
+				t.engine.sendProgress()
 			}
-		}
-	}()
-
-	for taskResult := range taskResults {
-		if taskResult.depth > e.mainLine.depth {
-			e.mainLine = taskResult
-			e.timeManager.OnIterationComplete(e.mainLine)
-			e.sendProgress()
+			t.engine.mu.Unlock()
 		}
 	}
 }
 
-func threadsPerDepth(depth, threads int) int {
-	if depth <= 4 {
-		return 1
-	}
-	return 1 + (threads-1)/2
-}
-
-func aspirationWindow(t *thread, ml []Move, depth int, line *mainLine) {
-	var prevScore = line.score
+func aspirationWindow(t *thread, ml []Move, depth, prevScore int) (int, bool) {
+	defer recoverFromSearchTimeout()
 	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
 		var alphaMargin = 25
 		var betaMargin = 25
 		for i := 0; i < 2; i++ {
 			var alpha = Max(-valueInfinity, prevScore-alphaMargin)
 			var beta = Min(valueInfinity, prevScore+betaMargin)
-			var score = searchRoot(t, ml, alpha, beta, depth, line)
+			var score = searchRoot(t, ml, alpha, beta, depth)
 			if score >= valueWin || score <= valueLoss {
 				break
 			} else if score >= beta {
@@ -136,14 +112,14 @@ func aspirationWindow(t *thread, ml []Move, depth int, line *mainLine) {
 			} else if score <= alpha {
 				alphaMargin *= 2
 			} else {
-				return
+				return score, true
 			}
 		}
 	}
-	searchRoot(t, ml, -valueInfinity, valueInfinity, depth, line)
+	return searchRoot(t, ml, -valueInfinity, valueInfinity, depth), true
 }
 
-func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) int {
+func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 	const height = 0
 	t.stack[height].pv.clear()
 	var p = &t.stack[height].position
@@ -169,13 +145,6 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int, line *mainLine) in
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
-			if score < beta {
-				*line = mainLine{
-					depth: depth,
-					score: score,
-					moves: t.stack[height].pv.toSlice(),
-				}
-			}
 			bestMoveIndex = i
 			if alpha >= beta {
 				break
@@ -448,9 +417,13 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 
 func (t *thread) incNodes() {
 	t.nodes++
-	if (t.nodes & 255) == 0 {
-		t.engine.timeManager.OnNodesChanged(t.nodes)
-		if isDone(t.engine.done) {
+	if t.nodes > 255 {
+		var globalNodes = atomic.AddInt64(&t.engine.nodes, t.nodes)
+		var globalDepth = atomic.LoadInt32(&t.engine.depth)
+		t.nodes = 0
+		t.engine.timeManager.OnNodesChanged(int(globalNodes))
+		if t.depth <= globalDepth ||
+			isDone(t.engine.done) {
 			panic(errSearchTimeout)
 		}
 	}
@@ -513,6 +486,15 @@ func recoverFromSearchTimeout() {
 	if r != nil && r != errSearchTimeout {
 		panic(r)
 	}
+}
+
+func findMoveIndex(ml []Move, move Move) int {
+	for i := range ml {
+		if ml[i] == move {
+			return i
+		}
+	}
+	return -1
 }
 
 func moveToBegin(ml []Move, index int) {

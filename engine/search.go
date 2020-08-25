@@ -215,7 +215,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if !firstline && depth >= 2 && !isCheck && position.LastMove != MoveEmpty &&
+	if !firstline && depth >= 3 && !isCheck && position.LastMove != MoveEmpty &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
@@ -224,10 +224,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		if staticEval >= beta+2*pawnValue {
 			reduction++
 		}
-		position.MakeNullMove(child)
-		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
-		if score >= beta {
-			return beta
+		reduction = Min(reduction, depth-1)
+		if reduction >= 2 {
+			position.MakeNullMove(child)
+			score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
+			if score >= beta {
+				return beta
+			}
 		}
 	}
 
@@ -385,7 +388,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	if isCheck {
 		ml = position.GenerateMoves(ml)
 	} else {
-		ml = position.GenerateCaptures(ml, depth > 0)
+		ml = position.GenerateCaptures(ml, false)
 	}
 	t.sortTable.NoteQS(position, ml)
 	sortMoves(ml)

@@ -388,7 +388,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	if isCheck {
 		ml = position.GenerateMoves(ml)
 	} else {
-		ml = position.GenerateCaptures(ml, false)
+		ml = position.GenerateCaptures(ml)
 	}
 	t.sortTable.NoteQS(position, ml)
 	sortMoves(ml)

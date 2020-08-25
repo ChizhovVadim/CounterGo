@@ -204,7 +204,7 @@ func (p *Position) GenerateMoves(ml []OrderedMove) []OrderedMove {
 	return ml[:count]
 }
 
-func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedMove {
+func (p *Position) GenerateCaptures(ml []OrderedMove) []OrderedMove {
 	var count = 0
 	var fromBB, toBB, ownPieces, oppPieces uint64
 	var from, to, promotion int
@@ -247,33 +247,6 @@ func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedM
 				count++
 			}
 		}
-		if genChecks {
-			var oppKing = FirstOne(p.Kings & oppPieces)
-
-			if (((p.Pawns&p.White & ^FileHMask)<<17)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing-9]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing-17, oppKing-9, Pawn, Empty)
-				count++
-			}
-			if (((p.Pawns&p.White&Rank2Mask & ^FileHMask)<<25)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing-9]&allPieces) == 0 &&
-				(SquareMask[oppKing-17]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing-25, oppKing-9, Pawn, Empty)
-				count++
-			}
-
-			if (((p.Pawns&p.White & ^FileAMask)<<15)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing-7]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing-15, oppKing-7, Pawn, Empty)
-				count++
-			}
-			if (((p.Pawns&p.White&Rank2Mask & ^FileAMask)<<23)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing-7]&allPieces) == 0 &&
-				(SquareMask[oppKing-15]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing-23, oppKing-7, Pawn, Empty)
-				count++
-			}
-		}
 	} else {
 		fromBB = (AllWhitePawnAttacks(oppPieces) | Rank2Mask) & p.Pawns & p.Black
 		for ; fromBB != 0; fromBB &= fromBB - 1 {
@@ -292,111 +265,11 @@ func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedM
 				count++
 			}
 		}
-		if genChecks {
-			var oppKing = FirstOne(p.Kings & oppPieces)
-
-			if (((p.Pawns&p.Black & ^FileHMask)>>15)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing+7]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing+15, oppKing+7, Pawn, Empty)
-				count++
-			}
-			if (((p.Pawns&p.Black&Rank7Mask & ^FileHMask)>>23)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing+7]&allPieces) == 0 &&
-				(SquareMask[oppKing+15]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing+23, oppKing+7, Pawn, Empty)
-				count++
-			}
-
-			if (((p.Pawns&p.Black & ^FileAMask)>>17)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing+9]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing+17, oppKing+9, Pawn, Empty)
-				count++
-			}
-			if (((p.Pawns&p.Black&Rank7Mask & ^FileAMask)>>25)&p.Kings&oppPieces) != 0 &&
-				(SquareMask[oppKing+9]&allPieces) == 0 &&
-				(SquareMask[oppKing+17]&allPieces) == 0 {
-				ml[count].Move = makeMove(oppKing+25, oppKing+9, Pawn, Empty)
-				count++
-			}
-		}
-	}
-
-	var checksN, checksB, checksR, checksQ uint64
-	if genChecks {
-		var oppKing = FirstOne(p.Kings & oppPieces)
-		checksN = KnightAttacks[oppKing] &^ allPieces
-		checksB = BishopAttacks(oppKing, allPieces) &^ allPieces
-		checksR = RookAttacks(oppKing, allPieces) &^ allPieces
-		checksQ = checksB | checksR
-
-		//discovered checks
-		//TODO pawn, king discovered checks
-		for fromBB = (p.Rooks | p.Queens) & ownPieces & rookMoves[oppKing]; fromBB != 0; fromBB &= fromBB - 1 {
-			var blockers = betweenMask[FirstOne(fromBB)][oppKing] & allPieces
-			if blockers&(blockers-1) == 0 {
-				from = FirstOne(blockers)
-				if (SquareMask[from] & ownPieces) != 0 {
-					var piece = p.WhatPiece(from)
-					if piece == Knight {
-						for toBB = KnightAttacks[from] & ^allPieces & ^checksN; toBB != 0; toBB &= toBB - 1 {
-							to = FirstOne(toBB)
-							ml[count].Move = makeMove(from, to, Knight, p.WhatPiece(to))
-							count++
-						}
-					} else if piece == Bishop {
-						for toBB = BishopAttacks(from, allPieces) & ^allPieces & ^checksB; toBB != 0; toBB &= toBB - 1 {
-							to = FirstOne(toBB)
-							ml[count].Move = makeMove(from, to, Bishop, p.WhatPiece(to))
-							count++
-						}
-					}
-				}
-			}
-		}
-
-		for fromBB = (p.Bishops | p.Queens) & ownPieces & bishopMoves[oppKing]; fromBB != 0; fromBB &= fromBB - 1 {
-			var blockers = betweenMask[FirstOne(fromBB)][oppKing] & allPieces
-			if blockers&(blockers-1) == 0 {
-				from = FirstOne(blockers)
-				if (SquareMask[from] & ownPieces) != 0 {
-					var piece = p.WhatPiece(from)
-					if piece == Knight {
-						for toBB = KnightAttacks[from] & ^allPieces & ^checksN; toBB != 0; toBB &= toBB - 1 {
-							to = FirstOne(toBB)
-							ml[count].Move = makeMove(from, to, Knight, p.WhatPiece(to))
-							count++
-						}
-					} else if piece == Rook {
-						for toBB = RookAttacks(from, allPieces) & ^allPieces & ^checksR; toBB != 0; toBB &= toBB - 1 {
-							to = FirstOne(toBB)
-							ml[count].Move = makeMove(from, to, Rook, p.WhatPiece(to))
-							count++
-						}
-					} else if piece == Pawn {
-						if p.WhiteMove {
-							if (allPieces&SquareMask[from+8]) == 0 &&
-								Rank(from) != Rank7 &&
-								(SquareMask[from+8]&PawnAttacks(oppKing, false)) == 0 {
-								ml[count].Move = makeMove(from, from+8, Pawn, Empty)
-								count++
-							}
-						} else {
-							if (allPieces&SquareMask[from-8]) == 0 &&
-								Rank(from) != Rank2 &&
-								(SquareMask[from-8]&PawnAttacks(oppKing, true)) == 0 {
-								ml[count].Move = makeMove(from, from-8, Pawn, Empty)
-								count++
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
 	for fromBB = p.Knights & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)
-		for toBB = KnightAttacks[from] & (target | checksN); toBB != 0; toBB &= toBB - 1 {
+		for toBB = KnightAttacks[from] & (target); toBB != 0; toBB &= toBB - 1 {
 			to = FirstOne(toBB)
 			ml[count].Move = makeMove(from, to, Knight, p.WhatPiece(to))
 			count++
@@ -405,7 +278,7 @@ func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedM
 
 	for fromBB = p.Bishops & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)
-		for toBB = BishopAttacks(from, allPieces) & (target | checksB); toBB != 0; toBB &= toBB - 1 {
+		for toBB = BishopAttacks(from, allPieces) & (target); toBB != 0; toBB &= toBB - 1 {
 			to = FirstOne(toBB)
 			ml[count].Move = makeMove(from, to, Bishop, p.WhatPiece(to))
 			count++
@@ -414,7 +287,7 @@ func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedM
 
 	for fromBB = p.Rooks & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)
-		for toBB = RookAttacks(from, allPieces) & (target | checksR); toBB != 0; toBB &= toBB - 1 {
+		for toBB = RookAttacks(from, allPieces) & (target); toBB != 0; toBB &= toBB - 1 {
 			to = FirstOne(toBB)
 			ml[count].Move = makeMove(from, to, Rook, p.WhatPiece(to))
 			count++
@@ -423,7 +296,7 @@ func (p *Position) GenerateCaptures(ml []OrderedMove, genChecks bool) []OrderedM
 
 	for fromBB = p.Queens & ownPieces; fromBB != 0; fromBB &= fromBB - 1 {
 		from = FirstOne(fromBB)
-		for toBB = QueenAttacks(from, allPieces) & (target | checksQ); toBB != 0; toBB &= toBB - 1 {
+		for toBB = QueenAttacks(from, allPieces) & (target); toBB != 0; toBB &= toBB - 1 {
 			to = FirstOne(toBB)
 			ml[count].Move = makeMove(from, to, Queen, p.WhatPiece(to))
 			count++

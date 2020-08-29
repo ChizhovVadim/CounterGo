@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 )
@@ -234,23 +233,4 @@ func ParseMoveSAN(pos *Position, san string) Move {
 		}
 	}
 	return MoveEmpty
-}
-
-func (si SearchInfo) String() string {
-	var sScore string
-	if si.Score.Mate != 0 {
-		sScore = fmt.Sprintf("M%v", si.Score.Mate)
-	} else {
-		sScore = fmt.Sprintf("%v", si.Score.Centipawns)
-	}
-	var knps = si.Nodes / (si.Time + 1) // *1000/1000==1
-	var sb strings.Builder
-	for i, move := range si.MainLine {
-		if i > 0 {
-			sb.WriteString(" ")
-		}
-		sb.WriteString(move.String())
-	}
-	return fmt.Sprintf("depth: %v score: %v knodes: %v time: %v knps: %v pv: %v",
-		si.Depth, sScore, si.Nodes/1000, si.Time, knps, sb.String())
 }

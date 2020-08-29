@@ -28,7 +28,7 @@ var (
 )
 
 func main() {
-	fmt.Println("Counter",
+	fmt.Println(name,
 		"VersionName", versionName,
 		"BuildDate", buildDate,
 		"GitRevision", gitRevision,

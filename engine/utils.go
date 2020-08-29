@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	stackSize     = 64
+	stackSize     = 128
 	maxHeight     = stackSize - 1
 	valueDraw     = 0
 	valueMate     = 30000

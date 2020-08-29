@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"fmt"
 	"math"
 
 	. "github.com/ChizhovVadim/CounterGo/common"
@@ -14,6 +15,10 @@ const (
 type Score struct {
 	Mg int
 	Eg int
+}
+
+func (s Score) String() string {
+	return fmt.Sprintf("Score(%d, %d)", s.Mg, s.Eg)
 }
 
 func (s *Score) add(v Score) {

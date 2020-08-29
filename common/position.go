@@ -1,11 +1,10 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"strconv"
-	s "strings"
+	"strings"
 	"unicode"
 )
 
@@ -42,7 +41,7 @@ func createPosition(board [64]coloredPiece, wtm bool,
 }
 
 func NewPositionFromFEN(fen string) (Position, error) {
-	var tokens = s.Split(fen, " ")
+	var tokens = strings.Split(fen, " ")
 	if len(tokens) <= 3 {
 		return Position{}, fmt.Errorf("parse fen failed %v", fen)
 	}
@@ -65,16 +64,16 @@ func NewPositionFromFEN(fen string) (Position, error) {
 
 	var sCastleRights = tokens[2]
 	var cr = 0
-	if s.Contains(sCastleRights, "K") {
+	if strings.Contains(sCastleRights, "K") {
 		cr |= WhiteKingSide
 	}
-	if s.Contains(sCastleRights, "Q") {
+	if strings.Contains(sCastleRights, "Q") {
 		cr |= WhiteQueenSide
 	}
-	if s.Contains(sCastleRights, "k") {
+	if strings.Contains(sCastleRights, "k") {
 		cr |= BlackKingSide
 	}
-	if s.Contains(sCastleRights, "q") {
+	if strings.Contains(sCastleRights, "q") {
 		cr |= BlackQueenSide
 	}
 
@@ -93,7 +92,7 @@ func NewPositionFromFEN(fen string) (Position, error) {
 }
 
 func (p *Position) String() string {
-	var sb bytes.Buffer
+	var sb strings.Builder
 
 	var emptyCount = 0
 
@@ -167,7 +166,7 @@ func (p *Position) String() string {
 func pieceToChar(pieceType int, side bool) string {
 	var result = string("pnbrqk"[pieceType-Pawn])
 	if side {
-		result = s.ToUpper(result)
+		result = strings.ToUpper(result)
 	}
 	return result
 }

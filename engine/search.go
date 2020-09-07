@@ -237,6 +237,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
 
+	// singular extension
 	var ttMoveIsSingular = false
 	if depth >= 8 &&
 		ttHit && ttMove != MoveEmpty &&
@@ -301,6 +302,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			if lmp != -1 && moveCount > lmp {
 				continue
 			}
+		}
+
+		// SEE pruning
+		if depth <= 4 &&
+			!(alpha <= valueLoss ||
+				isCheck ||
+				isCaptureOrPromotion(move) ||
+				move == ttMove ||
+				move.MovingPiece() == King) &&
+			!seeGEZero(position, move) {
+			continue
 		}
 
 		var extension, reduction int

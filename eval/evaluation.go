@@ -6,7 +6,13 @@ import (
 
 const (
 	pawnValue = 100
-	maxPhase  = 24
+)
+
+const (
+	minorPhase = 4
+	rookPhase  = 6
+	queenPhase = 12
+	totalPhase = 2 * (4*minorPhase + 2*rookPhase + queenPhase)
 )
 
 type EvaluationService struct {
@@ -221,10 +227,10 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 		s.addN(e.KingQueenTropism, -dist[sq][white.king])
 	}
 
-	white.force = white.knightCount + white.bishopCount +
-		2*white.rookCount + 4*white.queenCount
-	black.force = black.knightCount + black.bishopCount +
-		2*black.rookCount + 4*black.queenCount
+	white.force = minorPhase*(white.knightCount+white.bishopCount) +
+		rookPhase*white.rookCount + queenPhase*white.queenCount
+	black.force = minorPhase*(black.knightCount+black.bishopCount) +
+		rookPhase*black.rookCount + queenPhase*black.queenCount
 
 	s.add(e.PST[sideWhite][King][white.king])
 	s.add(e.PST[sideBlack][King][black.king])
@@ -359,12 +365,12 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	// mix score
 
 	var phase = white.force + black.force
-	if phase > maxPhase {
-		phase = maxPhase
+	if phase > totalPhase {
+		phase = totalPhase
 	}
 
 	// tempo bonus in endgame can prevent simple checkmates due to low pst values
-	if phase > 6 {
+	if phase > queenPhase+rookPhase {
 		if p.WhiteMove {
 			s.add(e.Tempo)
 		} else {
@@ -372,18 +378,15 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 		}
 	}
 
-	var result = (s.Mg*phase + s.Eg*(maxPhase-phase)) / maxPhase
+	var result = (s.Mg*phase + s.Eg*(totalPhase-phase)) / totalPhase
 
-	var ocb = white.force == 1 && black.force == 1 &&
+	var ocb = white.force == minorPhase && black.force == minorPhase &&
 		(p.Bishops&darkSquares) != 0 && (p.Bishops & ^darkSquares) != 0
-	var whiteFactor = computeFactor(&white, &black, ocb)
-	var blackFactor = computeFactor(&black, &white, ocb)
 
-	//TODO (bug) Q VS R+3minors is not draw
 	if result > 0 {
-		result /= whiteFactor
+		result /= computeFactor(&white, &black, ocb)
 	} else {
-		result /= blackFactor
+		result /= computeFactor(&black, &white, ocb)
 	}
 
 	if !p.WhiteMove {
@@ -394,21 +397,21 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 }
 
 func computeFactor(own, their *evalInfo, ocb bool) int {
-	if own.force >= 6 {
+	if own.force >= queenPhase+rookPhase {
 		return 1
 	}
 	if own.pawnCount == 0 {
 		if own.force <= 1 {
 			return 16
 		}
-		if own.force == 2 && own.knightCount == 2 && their.pawnCount == 0 {
+		if own.force == 2*minorPhase && own.knightCount == 2 && their.pawnCount == 0 {
 			return 16
 		}
-		if own.force-their.force <= 1 {
+		if own.force-their.force <= minorPhase {
 			return 4
 		}
 	} else if own.pawnCount == 1 {
-		if own.force <= 1 && their.knightCount+their.bishopCount != 0 {
+		if own.force <= minorPhase && their.knightCount+their.bishopCount != 0 {
 			return 8
 		}
 		if own.force == their.force && their.knightCount+their.bishopCount != 0 {

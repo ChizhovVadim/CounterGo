@@ -215,7 +215,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if !firstline && depth >= 3 && !isCheck && position.LastMove != MoveEmpty &&
+	if !firstline && depth >= 3 && !isCheck &&
+		position.LastMove != MoveEmpty &&
+		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
@@ -323,9 +325,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 
 		if depth >= 3 && moveCount > 1 &&
-			!(ml[i].Key >= sortTableKeyImportant ||
-				isCaptureOrPromotion(move)) {
+			!(isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, moveCount)
+			if ml[i].Key >= sortTableKeyImportant {
+				reduction = Min(reduction, 1)
+			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 

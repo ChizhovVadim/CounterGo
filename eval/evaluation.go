@@ -401,7 +401,7 @@ func computeFactor(own, their *evalInfo, ocb bool) int {
 		return 1
 	}
 	if own.pawnCount == 0 {
-		if own.force <= 1 {
+		if own.force <= minorPhase {
 			return 16
 		}
 		if own.force == 2*minorPhase && own.knightCount == 2 && their.pawnCount == 0 {

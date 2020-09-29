@@ -117,8 +117,8 @@ func sigmoid(s float64) float64 {
 
 func coordinateDescent(weights []int, errf func([]int) float64) {
 	var bestE = errf(weights)
-	var stepRatio = 1.0
-	for iter := 0; iter < 30; iter++ {
+	var stepRatio = 2.0
+	for iter := 0; iter < 34; iter++ {
 		log.Printf("Iteration: %v Error: %.6f Params: %#v\n",
 			iter, bestE, weights)
 		if iter > 0 {

@@ -223,9 +223,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
 		var reduction = 4 + (depth-2)/6
-		if staticEval >= beta+2*pawnValue {
-			reduction++
-		}
 		reduction = Min(reduction, depth-1)
 		if reduction >= 2 {
 			position.MakeNullMove(child)

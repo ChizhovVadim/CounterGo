@@ -543,7 +543,7 @@ func cloneMoves(ml []Move) []Move {
 }
 
 func (e *Engine) genRootMoves() []Move {
-	var t = e.threads[0]
+	var t = &e.threads[0]
 	const height = 0
 	var p = &t.stack[height].position
 	_, _, _, transMove, _ := e.transTable.Read(p)

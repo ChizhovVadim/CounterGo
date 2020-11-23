@@ -32,8 +32,7 @@ var (
 	index64                            [64]int
 	rookAttacks                        [64][1 << 12]uint64
 	bishopAttacks                      [64][1 << 9]uint64
-	betweenMask                        [][]uint64
-	bishopMoves, rookMoves             [64]uint64
+	betweenMask                        [64][64]uint64
 )
 
 var FileMask = [8]uint64{
@@ -245,6 +244,9 @@ func computeSlideAttacks(f int, occ uint64, fs []func(sq uint64) uint64) uint64 
 }
 
 func init() {
+	var rookShifts = [...]func(uint64) uint64{Up, Right, Down, Left}
+	var bishopShifts = [...]func(uint64) uint64{UpRight, UpLeft, DownRight, DownLeft}
+
 	for sq := 0; sq < 64; sq++ {
 		var b = uint64(1) << uint(sq)
 		SquareMask[sq] = b
@@ -264,28 +266,25 @@ func init() {
 		// Rooks.
 		var mask = rookMask[sq]
 		var count = 1 << uint(PopCount(mask))
-		var shifts = []func(uint64) uint64{Up, Right, Down, Left}
 		for i := 0; i < count; i++ {
 			var occ = magicify(mask, i)
-			var attacks = computeSlideAttacks(sq, occ, shifts)
+			var attacks = computeSlideAttacks(sq, occ, rookShifts[:])
 			rookAttacks[sq][((rookMask[sq]&occ)*rookMult[sq])>>rookShift] = attacks
 		}
 
 		// Bishops.
 		mask = bishopMask[sq]
 		count = 1 << uint(PopCount(mask))
-		shifts = []func(uint64) uint64{UpRight, UpLeft, DownRight, DownLeft}
 		for i := 0; i < count; i++ {
 			var occ = magicify(mask, i)
-			var attacks = computeSlideAttacks(sq, occ, shifts)
+			var attacks = computeSlideAttacks(sq, occ, bishopShifts[:])
 			bishopAttacks[sq][((bishopMask[sq]&occ)*bishopMult[sq])>>bishopShift] = attacks
 		}
 	}
 
-	betweenMask = make([][]uint64, 64)
 	for s1 := 0; s1 < 64; s1++ {
-		betweenMask[s1] = make([]uint64, 64)
 		for s2 := 0; s2 < 64; s2++ {
+			betweenMask[s1][s2] = 0
 			if (QueenAttacks(s1, 0) & SquareMask[s2]) != 0 {
 				var delta = ((s2 - s1) / SquareDistance(s1, s2))
 				for s := s1 + delta; s != s2; s += delta {
@@ -293,10 +292,5 @@ func init() {
 				}
 			}
 		}
-	}
-
-	for sq := 0; sq < 64; sq++ {
-		bishopMoves[sq] = BishopAttacks(sq, 0)
-		rookMoves[sq] = RookAttacks(sq, 0)
 	}
 }

@@ -173,9 +173,12 @@ func (pv *pv) clear() {
 }
 
 func (pv *pv) assign(m Move, child *pv) {
-	pv.size = 1 + child.size
+	pv.size = 1
 	pv.items[0] = m
-	copy(pv.items[1:], child.items[:child.size])
+	if child.size > 0 {
+		pv.size += child.size
+		copy(pv.items[1:], child.items[:child.size])
+	}
 }
 
 func (pv *pv) toSlice() []Move {

@@ -350,10 +350,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		if score > alpha {
 			alpha = score
 			bestMove = move
+			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 			if alpha >= beta {
 				break
 			}
-			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 		}
 	}
 
@@ -419,10 +419,10 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 		var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
 		if score > alpha {
 			alpha = score
+			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 			if alpha >= beta {
 				break
 			}
-			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 		}
 	}
 	if isCheck && moveCount == 0 {

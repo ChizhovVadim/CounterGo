@@ -107,12 +107,12 @@ func pieceSquareIndex(side bool, move Move) int {
 	return result
 }
 
+var sortPieceValues = [...]int{Empty: 0, Pawn: 1, Knight: 2, Bishop: 3, Rook: 4, Queen: 5, King: 6}
+
 func mvvlva(move Move) int {
-	var captureScore = pieceValuesSEE[move.CapturedPiece()]
-	if move.Promotion() != Empty {
-		captureScore += pieceValuesSEE[move.Promotion()] - pieceValuesSEE[Pawn]
-	}
-	return captureScore*8 - move.MovingPiece()
+	return 8*(sortPieceValues[move.CapturedPiece()]+
+		sortPieceValues[move.Promotion()]) -
+		sortPieceValues[move.MovingPiece()]
 }
 
 func sortMoves(moves []OrderedMove) {

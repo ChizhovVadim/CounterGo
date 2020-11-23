@@ -65,7 +65,7 @@ func isLateEndgame(p *Position, side bool) bool {
 		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
-var pieceValuesSEE = [...]int{0, 1, 4, 4, 6, 12, 120}
+var pieceValuesSEE = [...]int{Empty: 0, Pawn: 1, Knight: 4, Bishop: 4, Rook: 6, Queen: 12, King: 120}
 
 func isCaptureOrPromotion(move Move) bool {
 	return move.CapturedPiece() != Empty ||

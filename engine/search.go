@@ -215,21 +215,18 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if !firstline && depth >= 3 && !isCheck &&
+	if !firstline && depth >= 2 && !isCheck &&
 		position.LastMove != MoveEmpty &&
 		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
 		beta < valueWin && beta > valueLoss &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + (depth-2)/6
-		reduction = Min(reduction, depth-1)
-		if reduction >= 2 {
-			position.MakeNullMove(child)
-			score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
-			if score >= beta {
-				return beta
-			}
+		var reduction = 4 + depth/6
+		position.MakeNullMove(child)
+		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
+		if score >= beta {
+			return beta
 		}
 	}
 
@@ -245,10 +242,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 		ttMoveIsSingular = true
 		sortMoves(ml)
-		var singularBeta = Max(-valueInfinity, ttValue-pawnValue/2)
+		var singularBeta = Max(-valueInfinity, ttValue-2*depth)
 		newDepth = depth/2 - 1
+		var quiets = 0
 		for i := range ml {
 			var move = ml[i].Move
+			if !isCaptureOrPromotion(move) && quiets >= 6 {
+				continue
+			}
 			if !position.MakeMove(move, child) {
 				continue
 			}
@@ -258,6 +259,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 					break
 				}
 				continue
+			}
+			if !isCaptureOrPromotion(move) {
+				quiets++
 			}
 			score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
 			if score >= singularBeta {
@@ -286,6 +290,18 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 		var move = ml[i].Move
 
+		if !(alpha <= valueLoss ||
+			moveCount == 0 ||
+			ml[i].Key >= sortTableKeyImportant ||
+			isCheck ||
+			isCaptureOrPromotion(move) ||
+			isPawnAdvance(move, position.WhiteMove)) {
+			// late-move pruning
+			if lmp != -1 && moveCount >= lmp {
+				continue
+			}
+		}
+
 		if !position.MakeMove(move, child) {
 			continue
 		}
@@ -297,20 +313,20 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			child.IsCheck() ||
 			isCaptureOrPromotion(move) ||
 			isPawnAdvance(move, position.WhiteMove)) {
-			// late-move pruning
-			if lmp != -1 && moveCount > lmp {
+			// futility pruning
+			if depth <= 5 && staticEval+pawnValue*depth <= alpha {
 				continue
 			}
 		}
 
 		// SEE pruning
-		if depth <= 4 &&
+		if depth <= 5 &&
 			!(alpha <= valueLoss ||
 				isCheck ||
 				isCaptureOrPromotion(move) ||
 				move == ttMove ||
 				move.MovingPiece() == King) &&
-			!seeGEZero(position, move) {
+			!seeGE(position, move, 1-depth) {
 			continue
 		}
 

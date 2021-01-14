@@ -67,6 +67,7 @@ type Evaluator interface {
 
 type SortTable interface {
 	Clear()
+	ResetKillers(h int)
 	Update(p *Position, bestMove Move, searched []Move, depth, height int)
 	Note(p *Position, ml []OrderedMove, trans Move, height int)
 	NoteQS(p *Position, ml []OrderedMove)

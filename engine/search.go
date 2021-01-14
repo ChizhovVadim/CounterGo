@@ -60,6 +60,9 @@ func lazySmp(ctx context.Context, e *Engine) {
 }
 
 func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO, aspirationMargin
+	const height = 0
+	t.sortTable.ResetKillers(height)
+	t.sortTable.ResetKillers(height + 1)
 	for depth := startDepth; depth <= maxHeight; depth += incDepth {
 		t.depth = int32(depth)
 		if isDone(t.engine.done) {
@@ -204,29 +207,45 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	var staticEval = t.evaluator.Evaluate(position)
 	t.stack[height].staticEval = staticEval
-	var improving = height >= 2 && staticEval > t.stack[height-2].staticEval
+	var improving = position.LastMove == MoveEmpty ||
+		height >= 2 && staticEval > t.stack[height-2].staticEval
 
 	// reverse futility pruning
-	if !firstline && depth <= 5 && !isCheck &&
-		beta < valueWin && beta > valueLoss &&
-		staticEval-pawnValue*depth >= beta {
-		return beta
+	if !firstline && depth <= 8 && !isCheck {
+		var score = staticEval - pawnValue*depth
+		if score >= beta {
+			return beta
+		}
 	}
+
+	t.sortTable.ResetKillers(height + 1)
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
 	if !firstline && depth >= 2 && !isCheck &&
 		position.LastMove != MoveEmpty &&
 		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
-		beta < valueWin && beta > valueLoss &&
+		beta < valueWin &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + depth/6
+		var reduction = 4 + depth/6 + Min(3, (staticEval-beta)/200)
+		if depth >= 5 {
+			reduction = Min(reduction, depth-1)
+		}
 		position.MakeNullMove(child)
 		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 		if score >= beta {
 			return beta
+		}
+	}
+
+	// Internal iterative deepening
+	if depth >= 8 && ttMove == MoveEmpty && !isCheck {
+		t.alphaBeta(alpha, beta, depth-7, height, firstline)
+		if t.stack[height].pv.size > 0 {
+			ttMove = t.stack[height].pv.items[0]
+			t.stack[height].pv.clear()
 		}
 	}
 
@@ -272,7 +291,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	}
 
-	var moveCount = 0
+	var movesSearched = 0
+	var hasLegalMove = false
+
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
 	const SortMovesIndex = 4
@@ -290,45 +311,36 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 		var move = ml[i].Move
 
-		if !(alpha <= valueLoss ||
-			moveCount == 0 ||
-			ml[i].Key >= sortTableKeyImportant ||
-			isCheck ||
-			isCaptureOrPromotion(move) ||
-			isPawnAdvance(move, position.WhiteMove)) {
-			// late-move pruning
-			if lmp != -1 && moveCount >= lmp {
-				continue
-			}
-		}
-
 		if !position.MakeMove(move, child) {
 			continue
 		}
-		moveCount++
+		hasLegalMove = true
 
-		if !(alpha <= valueLoss ||
-			ml[i].Key >= sortTableKeyImportant ||
-			isCheck ||
-			child.IsCheck() ||
-			isCaptureOrPromotion(move) ||
-			isPawnAdvance(move, position.WhiteMove)) {
-			// futility pruning
-			if depth <= 5 && staticEval+pawnValue*depth <= alpha {
+		if depth <= 8 && alpha > valueLoss &&
+			!(isCaptureOrPromotion(move) || isCheck) {
+			if !(child.IsCheck() ||
+				ml[i].Key >= sortTableKeyImportant) {
+
+				// late-move pruning
+				if movesSearched >= lmp {
+					continue
+				}
+
+				// futility pruning
+				if staticEval+pawnValue*depth <= alpha &&
+					!isPawnAdvance(move, position.WhiteMove) {
+					continue
+				}
+			}
+
+			// SEE pruning
+			if !MoreThanOne(child.Checkers) &&
+				!seeGE(position, move, -depth) {
 				continue
 			}
 		}
 
-		// SEE pruning
-		if depth <= 5 &&
-			!(alpha <= valueLoss ||
-				isCheck ||
-				isCaptureOrPromotion(move) ||
-				move == ttMove ||
-				move.MovingPiece() == King) &&
-			!seeGE(position, move, 1-depth) {
-			continue
-		}
+		movesSearched++
 
 		var extension, reduction int
 
@@ -337,11 +349,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			extension = 1
 		}
 
-		if depth >= 3 && moveCount > 1 &&
+		if depth >= 3 && movesSearched > 1 &&
 			!(isCaptureOrPromotion(move)) {
-			reduction = t.engine.lateMoveReduction(depth, moveCount)
+			reduction = t.engine.lateMoveReduction(depth, movesSearched)
 			if ml[i].Key >= sortTableKeyImportant {
-				reduction = Min(reduction, 1)
+				reduction--
 			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
@@ -351,7 +363,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 
 		newDepth = depth - 1 + extension
-		var nextFirstline = firstline && moveCount == 1
+		var nextFirstline = firstline && movesSearched == 1
 
 		// LMR
 		if reduction > 0 {
@@ -373,7 +385,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 	}
 
-	if moveCount == 0 {
+	if !hasLegalMove {
 		if isCheck {
 			return lossIn(height)
 		}

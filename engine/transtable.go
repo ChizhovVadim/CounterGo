@@ -98,8 +98,7 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 			if move != MoveEmpty {
 				entry.SetMoveAndDate(move, entry.Date())
 			}
-			if bound != 0 &&
-				(bound == boundExact || depth >= int(entry.depth)-3 /*for singular extensions*/) {
+			if bound == boundExact || depth >= int(entry.depth)-3 /*for singular extensions*/ {
 				entry.score = int16(score)
 				entry.depth = int8(depth)
 				entry.bound = uint8(bound)
@@ -107,8 +106,7 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 			}
 		} else {
 			if entry.Date() != tt.date ||
-				depth >= int(entry.depth) ||
-				bound == 0 {
+				depth >= int(entry.depth) {
 				entry.key32 = uint32(p.Key >> 32)
 				entry.score = int16(score)
 				entry.depth = int8(depth)

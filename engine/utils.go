@@ -222,5 +222,9 @@ func initLmr(f func(d, m float64) float64) func(d, m int) int {
 }
 
 func lmrMult(d, m float64) float64 {
-	return 0.5 + 2.5*math.Log(d)/math.Log(5)*math.Log(m)/math.Log(22)
+	return lirp(math.Log(d)*math.Log(m), math.Log(5)*math.Log(22), math.Log(63)*math.Log(63), 3, 8)
+}
+
+func lirp(x, x1, x2, y1, y2 float64) float64 {
+	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }

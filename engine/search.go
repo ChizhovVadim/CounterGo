@@ -229,23 +229,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + depth/6 + Min(3, (staticEval-beta)/200)
-		if depth >= 5 {
-			reduction = Min(reduction, depth-1)
-		}
+		var reduction = 4 + depth/6
 		position.MakeNullMove(child)
 		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 		if score >= beta {
 			return beta
-		}
-	}
-
-	// Internal iterative deepening
-	if depth >= 8 && ttMove == MoveEmpty && !isCheck {
-		t.alphaBeta(alpha, beta, depth-7, height, firstline)
-		if t.stack[height].pv.size > 0 {
-			ttMove = t.stack[height].pv.items[0]
-			t.stack[height].pv.clear()
 		}
 	}
 
@@ -311,14 +299,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 		var move = ml[i].Move
 
-		if !position.MakeMove(move, child) {
-			continue
-		}
-		hasLegalMove = true
-
 		if depth <= 8 && alpha > valueLoss &&
-			!(isCaptureOrPromotion(move) || isCheck) {
-			if !(child.IsCheck() ||
+			!isCheck && hasLegalMove {
+			if !(isCaptureOrPromotion(move) ||
 				ml[i].Key >= sortTableKeyImportant) {
 
 				// late-move pruning
@@ -334,11 +317,22 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			}
 
 			// SEE pruning
-			if !MoreThanOne(child.Checkers) &&
-				!seeGE(position, move, -depth) {
+
+			var seeMargin int
+			if isCaptureOrPromotion(move) {
+				seeMargin = Min(-depth, -depth*depth/4)
+			} else {
+				seeMargin = -depth
+			}
+			if !seeGE(position, move, seeMargin) {
 				continue
 			}
 		}
+
+		if !position.MakeMove(move, child) {
+			continue
+		}
+		hasLegalMove = true
 
 		movesSearched++
 

@@ -1,3 +1,4 @@
+![logo](https://raw.githubusercontent.com/ChizhovVadim/CounterGo/master/logo.png)
 # Counter
 Counter is a free, open-source chess engine, implemented in [Go](https://golang.org/).
 Counter supports standard UCI (universal chess interface) protocol.
@@ -10,8 +11,7 @@ Chess ratings are available at Computer Chess Rating Lists:
 - [CCRL 40/40](http://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Counter&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents)
 
 ## Commands
-Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands and own commands:
-+ `move e2e4` - play chess with engine in REPL mode
+Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands.
 
 ## Features
 ### Board
@@ -21,7 +21,6 @@ Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features
 ### Search
 + Parallel search
 + Iterative Deepening
-+ Principal Variation Search
 + Transposition Table
 + Null Move Pruning
 + Late Move Reductions

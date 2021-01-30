@@ -310,8 +310,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 				}
 
 				// futility pruning
-				if staticEval+pawnValue*depth <= alpha &&
-					!isPawnAdvance(move, position.WhiteMove) {
+				if movesSearched >= 5 && staticEval+pawnValue*depth <= alpha {
 					continue
 				}
 			}

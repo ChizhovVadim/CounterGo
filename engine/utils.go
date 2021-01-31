@@ -126,10 +126,10 @@ func getLeastValuableAttacker(p *Position, to int, side bool, occ uint64) (attac
 }
 
 func seeGEZero(p *Position, move Move) bool {
-	return seeGE(p, move, 0)
+	return SeeGE(p, move, 0)
 }
 
-func seeGE(p *Position, move Move, bound int) bool {
+func SeeGE(p *Position, move Move, bound int) bool {
 	var piece = move.MovingPiece()
 	var score0 = pieceValuesSEE[move.CapturedPiece()]
 	if promotion := move.Promotion(); promotion != Empty {
@@ -172,7 +172,7 @@ func seeGE(p *Position, move Move, bound int) bool {
 	}
 }
 
-func see(pos *Position, mv Move) int {
+func See(pos *Position, mv Move) int {
 	var from = mv.From()
 	var to = mv.To()
 	var pc = mv.MovingPiece()

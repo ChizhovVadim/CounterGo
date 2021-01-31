@@ -12,6 +12,7 @@ import (
 const pawnValue = 100
 
 var errSearchTimeout = errors.New("search timeout")
+var errSearchLowDepth = errors.New("search low depth")
 
 /*func savePV(transTable TransTable, p *Position, pv []Move) {
 	var parent = *p
@@ -60,6 +61,15 @@ func lazySmp(ctx context.Context, e *Engine) {
 }
 
 func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO, aspirationMargin
+	defer func() {
+		if r := recover(); r != nil {
+			if r == errSearchTimeout {
+				return
+			}
+			panic(r)
+		}
+	}()
+
 	const height = 0
 	t.sortTable.ResetKillers(height)
 	t.sortTable.ResetKillers(height + 1)
@@ -83,24 +93,25 @@ func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO
 
 		var score, iterationComplete = aspirationWindow(t, ml, depth, globalLine.score)
 		if iterationComplete {
-			t.engine.mu.Lock()
-			if depth > t.engine.mainLine.depth {
-				atomic.StoreInt32(&t.engine.depth, int32(depth))
-				t.engine.mainLine = mainLine{
-					depth: depth,
-					score: score,
-					moves: t.stack[0].pv.toSlice(),
-				}
-				t.engine.timeManager.OnIterationComplete(t.engine.mainLine)
-				t.engine.sendProgress()
-			}
-			t.engine.mu.Unlock()
+			t.engine.updateMainLine(mainLine{
+				depth: depth,
+				score: score,
+				moves: t.stack[height].pv.toSlice(),
+			})
 		}
 	}
 }
 
 func aspirationWindow(t *thread, ml []Move, depth, prevScore int) (int, bool) {
-	defer recoverFromSearchTimeout()
+	defer func() {
+		if r := recover(); r != nil {
+			if r == errSearchLowDepth {
+				return
+			}
+			panic(r)
+		}
+	}()
+
 	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
 		var alphaMargin = 25
 		var betaMargin = 25
@@ -173,7 +184,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	if depth <= 0 {
-		return t.quiescence(alpha, beta, 1, height)
+		return t.quiescence(alpha, beta, height)
 	}
 
 	t.incNodes()
@@ -323,7 +334,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			} else {
 				seeMargin = -depth
 			}
-			if !seeGE(position, move, seeMargin) {
+			if !SeeGE(position, move, seeMargin) {
 				continue
 			}
 		}
@@ -401,7 +412,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	return alpha
 }
 
-func (t *thread) quiescence(alpha, beta, depth, height int) int {
+func (t *thread) quiescence(alpha, beta, height int) int {
 	t.stack[height].pv.clear()
 	t.incNodes()
 	var position = &t.stack[height].position
@@ -426,7 +437,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 	}
 	t.sortTable.NoteQS(position, ml)
 	sortMoves(ml)
-	var moveCount = 0
+	var hasLegalMove = false
 	var child = &t.stack[height+1].position
 	for i := range ml {
 		var move = ml[i].Move
@@ -436,8 +447,8 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 		if !position.MakeMove(move, child) {
 			continue
 		}
-		moveCount++
-		var score = -t.quiescence(-beta, -alpha, depth-1, height+1)
+		hasLegalMove = true
+		var score = -t.quiescence(-beta, -alpha, height+1)
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
@@ -446,7 +457,7 @@ func (t *thread) quiescence(alpha, beta, depth, height int) int {
 			}
 		}
 	}
-	if isCheck && moveCount == 0 {
+	if isCheck && !hasLegalMove {
 		return lossIn(height)
 	}
 	return alpha
@@ -459,8 +470,10 @@ func (t *thread) incNodes() {
 		var globalDepth = atomic.LoadInt32(&t.engine.depth)
 		t.nodes = 0
 		t.engine.timeManager.OnNodesChanged(int(globalNodes))
-		if t.depth <= globalDepth ||
-			isDone(t.engine.done) {
+		if t.depth <= globalDepth {
+			panic(errSearchLowDepth)
+		}
+		if isDone(t.engine.done) {
 			panic(errSearchTimeout)
 		}
 	}
@@ -518,13 +531,6 @@ func (t *thread) extend(depth, height int) int {
 	return 0
 }
 
-func recoverFromSearchTimeout() {
-	var r = recover()
-	if r != nil && r != errSearchTimeout {
-		panic(r)
-	}
-}
-
 func findMoveIndex(ml []Move, move Move) int {
 	for i := range ml {
 		if ml[i] == move {
@@ -580,19 +586,4 @@ func (e *Engine) genRootMoves() []Move {
 		}
 	}
 	return result
-}
-
-type lazyEval struct {
-	evaluator Evaluator
-	position  *Position
-	hasValue  bool
-	value     int
-}
-
-func (le *lazyEval) Value() int {
-	if !le.hasValue {
-		le.value = le.evaluator.Evaluate(le.position)
-		le.hasValue = true
-	}
-	return le.value
 }

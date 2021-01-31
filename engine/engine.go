@@ -163,10 +163,17 @@ func (e *Engine) currentSearchResult() SearchInfo {
 	}
 }
 
-func (e *Engine) sendProgress() {
-	if e.progress != nil {
-		e.progress(e.currentSearchResult())
+func (e *Engine) updateMainLine(line mainLine) {
+	e.mu.Lock()
+	if line.depth > e.mainLine.depth {
+		atomic.StoreInt32(&e.depth, int32(line.depth))
+		e.mainLine = line
+		e.timeManager.OnIterationComplete(e.mainLine)
+		if e.progress != nil {
+			e.progress(e.currentSearchResult())
+		}
 	}
+	e.mu.Unlock()
 }
 
 func (pv *pv) clear() {

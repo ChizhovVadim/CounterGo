@@ -49,6 +49,7 @@ func (st *sortTable) Update(p *Position, bestMove Move, searched []Move, depth, 
 			break
 		}
 		var index = sideFromToIndex(side, m)
+		// Exponential moving average
 		st.history[index] += (-historyMax - st.history[index]) * bonus / 512
 	}
 	var index = sideFromToIndex(side, bestMove)

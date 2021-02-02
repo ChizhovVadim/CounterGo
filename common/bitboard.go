@@ -120,6 +120,7 @@ func PawnAttacks(from int, side bool) uint64 {
 	return blackPawnAttacks[from]
 }
 
+// https://www.chessprogramming.org/Magic_Bitboards
 func BishopAttacks(from int, occ uint64) uint64 {
 	return bishopAttacks[from][((bishopMask[from]&occ)*bishopMult[from])>>bishopShift]
 }

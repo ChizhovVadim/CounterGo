@@ -21,6 +21,7 @@ func roundPowerOfTwo(size int) int {
 	return x
 }
 
+//16 bytes
 type transEntry struct {
 	gate     int32
 	key32    uint32
@@ -60,11 +61,11 @@ func newTransTable(megabytes int) *transTable {
 	}
 }
 
-func (tt *transTable) Megabytes() int {
+func (tt *transTable) Size() int {
 	return tt.megabytes
 }
 
-func (tt *transTable) PrepareNewSearch() {
+func (tt *transTable) IncDate() {
 	tt.date = (tt.date + 1) & 0x7ff
 }
 
@@ -75,10 +76,10 @@ func (tt *transTable) Clear() {
 	}
 }
 
-func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok bool) {
-	var entry = &tt.entries[uint32(p.Key)&tt.mask]
+func (tt *transTable) Read(key uint64) (depth, score, bound int, move Move, ok bool) {
+	var entry = &tt.entries[uint32(key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
-		if entry.key32 == uint32(p.Key>>32) {
+		if entry.key32 == uint32(key>>32) {
 			entry.SetMoveAndDate(entry.Move(), tt.date)
 			score = int(entry.score)
 			move = entry.Move()
@@ -91,10 +92,10 @@ func (tt *transTable) Read(p *Position) (depth, score, bound int, move Move, ok 
 	return
 }
 
-func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
-	var entry = &tt.entries[uint32(p.Key)&tt.mask]
+func (tt *transTable) Update(key uint64, depth, score, bound int, move Move) {
+	var entry = &tt.entries[uint32(key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
-		if entry.key32 == uint32(p.Key>>32) {
+		if entry.key32 == uint32(key>>32) {
 			if move != MoveEmpty {
 				entry.SetMoveAndDate(move, entry.Date())
 			}
@@ -107,7 +108,7 @@ func (tt *transTable) Update(p *Position, depth, score, bound int, move Move) {
 		} else {
 			if entry.Date() != tt.date ||
 				depth >= int(entry.depth) {
-				entry.key32 = uint32(p.Key >> 32)
+				entry.key32 = uint32(key >> 32)
 				entry.score = int16(score)
 				entry.depth = int8(depth)
 				entry.bound = uint8(bound)

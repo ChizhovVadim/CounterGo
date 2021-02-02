@@ -74,11 +74,11 @@ type SortTable interface {
 }
 
 type TransTable interface {
-	Megabytes() int
-	PrepareNewSearch()
+	Size() (megabytes int)
+	IncDate()
 	Clear()
-	Read(p *Position) (depth, score, bound int, move Move, ok bool)
-	Update(p *Position, depth, score, bound int, move Move)
+	Read(key uint64) (depth, score, bound int, move Move, found bool)
+	Update(key uint64, depth, score, bound int, move Move)
 }
 
 func NewEngine(evalBuilder func() Evaluator) *Engine {
@@ -91,7 +91,7 @@ func NewEngine(evalBuilder func() Evaluator) *Engine {
 }
 
 func (e *Engine) Prepare() {
-	if e.transTable == nil || e.transTable.Megabytes() != e.Hash {
+	if e.transTable == nil || e.transTable.Size() != e.Hash {
 		if e.transTable != nil {
 			e.transTable = nil
 			runtime.GC()
@@ -118,7 +118,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
 	ctx, e.timeManager = withTimeManager(ctx, e.start, searchParams.Limits, p)
 	defer e.timeManager.Close()
-	e.transTable.PrepareNewSearch()
+	e.transTable.IncDate()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
 	e.nodes = 0
 	for i := range e.threads {

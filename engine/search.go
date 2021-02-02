@@ -169,6 +169,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 	return alpha
 }
 
+// main search method
 func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	var newDepth, score int
 	t.stack[height].pv.clear()
@@ -200,7 +201,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	// transposition table
-	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position)
+	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
 		if ttDepth >= depth {
@@ -327,7 +328,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			}
 
 			// SEE pruning
-
 			var seeMargin int
 			if isCaptureOrPromotion(move) {
 				seeMargin = Min(-depth, -depth*depth/4)
@@ -407,7 +407,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	if alpha < beta {
 		ttBound |= boundUpper
 	}
-	t.engine.transTable.Update(position, depth, valueToTT(alpha, height), ttBound, bestMove)
+	t.engine.transTable.Update(position.Key, depth, valueToTT(alpha, height), ttBound, bestMove)
 
 	return alpha
 }
@@ -573,7 +573,7 @@ func (e *Engine) genRootMoves() []Move {
 	var t = &e.threads[0]
 	const height = 0
 	var p = &t.stack[height].position
-	_, _, _, transMove, _ := e.transTable.Read(p)
+	_, _, _, transMove, _ := e.transTable.Read(p.Key)
 	var ml = p.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(p, ml, transMove, height)
 	sortMoves(ml)

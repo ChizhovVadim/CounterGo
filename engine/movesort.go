@@ -84,7 +84,7 @@ func (st *sortTable) Note(p *Position, ml []OrderedMove, trans Move, height int)
 		} else {
 			score = st.history[sideFromToIndex(side, m)]
 		}
-		ml[i].Key = score
+		ml[i].Key = int32(score)
 	}
 }
 
@@ -98,7 +98,7 @@ func (st *sortTable) NoteQS(p *Position, ml []OrderedMove) {
 		} else {
 			score = st.history[sideFromToIndex(side, m)]
 		}
-		ml[i].Key = score
+		ml[i].Key = int32(score)
 	}
 }
 

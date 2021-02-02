@@ -48,6 +48,7 @@ func PopCount(b uint64) int {
 }
 
 func FirstOne(b uint64) int {
+	//return bits.TrailingZeros64(b)
 	return index64[(((b-1)^b)*0x03f79d71b4cb0a89)>>58]
 }
 

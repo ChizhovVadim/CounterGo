@@ -209,7 +209,7 @@ func (p *Position) WhatPiece(sq int) int {
 	if (p.Kings & bb) != 0 {
 		return King
 	}
-	panic(fmt.Errorf("Wrong piece on %s", SquareName(sq)))
+	return -1
 }
 
 func (src *Position) MakeMove(move Move, result *Position) bool {
@@ -419,7 +419,7 @@ func (p *Position) computeCheckers() uint64 {
 
 func (p *Position) isLegal() bool {
 	var kingSq = FirstOne(p.Kings & p.PiecesByColor(!p.WhiteMove))
-	return !p.isAttackedBySide(kingSq, p.WhiteMove)
+	return (p.attackersTo(kingSq) & p.PiecesByColor(p.WhiteMove)) == 0
 }
 
 func (p *Position) IsCheck() bool {

@@ -61,8 +61,12 @@ func (tm *timeManager) OnIterationComplete(line mainLine) {
 	if tm.limits.Infinite {
 		return
 	}
-	if line.score >= winIn(line.depth-3) ||
-		line.score <= lossIn(line.depth-3) {
+	if tm.limits.Depth != 0 && line.depth >= tm.limits.Depth {
+		tm.cancel()
+		return
+	}
+	if line.score >= winIn(line.depth-5) ||
+		line.score <= lossIn(line.depth-5) {
 		tm.cancel()
 		return
 	}

@@ -33,7 +33,7 @@ const (
 
 type OrderedMove struct {
 	Move Move
-	Key  int
+	Key  int32
 }
 
 type LimitsType struct {

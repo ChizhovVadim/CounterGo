@@ -223,8 +223,9 @@ func searchInfoToUci(si common.SearchInfo) string {
 	} else {
 		fmt.Fprintf(sb, " score cp %v", si.Score.Centipawns)
 	}
-	var nps = si.Nodes * 1000 / (si.Time + 1)
-	fmt.Fprintf(sb, " nodes %v time %v nps %v", si.Nodes, si.Time, nps)
+	var timeMs = si.Time.Milliseconds()
+	var nps = si.Nodes * 1000 / (timeMs + 1)
+	fmt.Fprintf(sb, " nodes %v time %v nps %v", si.Nodes, timeMs, nps)
 	if len(si.MainLine) != 0 {
 		fmt.Fprintf(sb, " pv")
 		for _, move := range si.MainLine {

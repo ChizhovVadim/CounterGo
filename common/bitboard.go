@@ -39,6 +39,18 @@ var FileMask = [8]uint64{
 	FileAMask, FileBMask, FileCMask, FileDMask, FileEMask, FileFMask, FileGMask, FileHMask,
 }
 
+func BitboardString(b uint64) string {
+	var s = ""
+	for x := b; x != 0; x &= x - 1 {
+		sq := FirstOne(x)
+		if s != "" {
+			s += ","
+		}
+		s += SquareName(sq)
+	}
+	return "(" + s + ")"
+}
+
 func PopCount(b uint64) int {
 	return bits.OnesCount64(b)
 	/*b -= (b >> 1) & 0x5555555555555555

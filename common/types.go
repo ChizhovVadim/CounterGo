@@ -1,5 +1,12 @@
 package common
 
+import "time"
+
+const (
+	SideWhite = 0
+	SideBlack = 1
+)
+
 const (
 	WhiteKingSide = 1 << iota
 	WhiteQueenSide
@@ -60,7 +67,7 @@ type SearchInfo struct {
 	Score    UciScore
 	Depth    int
 	Nodes    int64
-	Time     int64
+	Time     time.Duration
 	MainLine []Move
 }
 

@@ -159,7 +159,7 @@ func (e *Engine) currentSearchResult() SearchInfo {
 		MainLine: e.mainLine.moves,
 		Score:    newUciScore(e.mainLine.score),
 		Nodes:    atomic.LoadInt64(&e.nodes),
-		Time:     int64(time.Since(e.start) / time.Millisecond),
+		Time:     time.Since(e.start),
 	}
 }
 

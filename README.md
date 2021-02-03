@@ -5,10 +5,12 @@ Counter supports standard UCI (universal chess interface) protocol.
 
 ## Strength
 
-Chess ratings are available at Computer Chess Rating Lists:
-- [CCRL 40/4](http://www.computerchess.org.uk/ccrl/404/cgi/compare_engines.cgi?family=Counter&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents)
-
-- [CCRL 40/40](http://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Counter&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents)
+Chess Rating lists:
++ [CCRL](https://ccrl.chessdom.com/ccrl/)
+  + [CCRL 40/4](http://www.computerchess.org.uk/ccrl/404/cgi/compare_engines.cgi?family=Counter&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents)
+  + [CCRL 40/40](http://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Counter&print=Rating+list&print=Results+table&print=LOS+table&print=Ponder+hit+table&print=Eval+difference+table&print=Comopp+gamenum+table&print=Overlap+table&print=Score+with+common+opponents)
++ [FGRL](http://fastgm.de/)
++ [CEGT](http://www.cegt.net/)
 
 ## Commands
 Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands.
@@ -19,13 +21,16 @@ Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features
 ### Evaluation
 + Texel's Tuning Method
 ### Search
-+ Parallel search
++ Parallel search (Lazy SMP)
 + Iterative Deepening
++ Aspiration Windows
 + Transposition Table
 + Null Move Pruning
 + Late Move Reductions
 + Futility Pruning
 + Move Count Based Pruning
++ SEE Pruning
++ Singular extensions
 
 ## Information about chess programming
 + [Chess Programming Wiki](https://www.chessprogramming.org)

@@ -180,8 +180,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		return t.evaluator.Evaluate(position)
 	}
 
-	if t.isDraw(height) {
-		return valueDraw
+	if alpha < valueDraw && t.isRepeat(height) {
+		alpha = valueDraw
+		if alpha >= beta {
+			return alpha
+		}
 	}
 
 	if depth <= 0 {
@@ -189,6 +192,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	t.incNodes()
+
+	if isDraw(position) {
+		return valueDraw
+	}
 
 	var isCheck = position.IsCheck()
 
@@ -416,6 +423,9 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	t.stack[height].pv.clear()
 	t.incNodes()
 	var position = &t.stack[height].position
+	if isDraw(position) {
+		return valueDraw
+	}
 	if height >= maxHeight {
 		return t.evaluator.Evaluate(position)
 	}
@@ -488,19 +498,23 @@ func isDone(done <-chan struct{}) bool {
 	}
 }
 
-func (t *thread) isDraw(height int) bool {
-	var p = &t.stack[height].position
+func isDraw(p *Position) bool {
+	if p.Rule50 > 100 {
+		return true
+	}
 
 	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
 		!MoreThanOne(p.Knights|p.Bishops) {
 		return true
 	}
 
-	if p.Rule50 > 100 {
-		return true
-	}
+	return false
+}
 
-	if p.Rule50 == 0 || p.LastMove == MoveEmpty {
+func (t *thread) isRepeat(height int) bool {
+	var p = &t.stack[height].position
+
+	if p.Rule50 == 0 {
 		return false
 	}
 	for i := height - 1; i >= 0; i-- {

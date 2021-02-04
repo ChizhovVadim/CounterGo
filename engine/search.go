@@ -256,6 +256,15 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 	}
 
+	// Internal iterative deepening
+	if depth >= 8 && ttMove == MoveEmpty && !isCheck {
+		t.alphaBeta(alpha, beta, depth-7, height, firstline)
+		if t.stack[height].pv.size != 0 {
+			ttMove = t.stack[height].pv.items[0]
+			t.stack[height].pv.clear()
+		}
+	}
+
 	var ml = position.GenerateMoves(t.stack[height].moveList[:])
 	t.sortTable.Note(position, ml, ttMove, height)
 

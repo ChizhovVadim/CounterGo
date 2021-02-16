@@ -248,7 +248,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + depth/6 + Min(3, (staticEval-beta)/200)
+		var reduction = 4 + depth/6
+		//+ Min(3, (staticEval-beta)/200)
 		position.MakeNullMove(child)
 		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 		if score >= beta {
@@ -279,12 +280,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		sortMoves(ml)
 		var singularBeta = Max(-valueInfinity, ttValue-2*depth)
 		newDepth = depth/2 - 1
-		var quiets = 0
 		for i := range ml {
 			var move = ml[i].Move
-			if !isCaptureOrPromotion(move) && quiets >= 6 {
-				continue
-			}
 			if !position.MakeMove(move, child) {
 				continue
 			}
@@ -295,20 +292,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 				}
 				continue
 			}
-			if !isCaptureOrPromotion(move) {
-				quiets++
-			}
 			score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
 			if score >= singularBeta {
 				ttMoveIsSingular = false
 				break
 			}
 		}
-
 	}
 
 	var movesSearched = 0
 	var hasLegalMove = false
+	var movesSeen = 0
 
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
@@ -326,36 +320,23 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			sortMoves(ml[i:])
 		}
 		var move = ml[i].Move
+		movesSeen++
 
-		if depth <= 8 && alpha > valueLoss &&
-			!isCheck && hasLegalMove {
-			if !(isCaptureOrPromotion(move) ||
-				ml[i].Key >= sortTableKeyImportant) {
-
-				// late-move pruning
-				if movesSearched >= lmp {
-					continue
-				}
-
-				// futility pruning
-				if movesSearched >= 5 && staticEval+pawnValue*depth <= alpha {
-					continue
-				}
+		if depth <= 8 && alpha > valueLoss && hasLegalMove {
+			// late-move pruning
+			if !isCaptureOrPromotion(move) && movesSeen > lmp {
+				continue
 			}
 
 			// SEE pruning
-			var seeMargin int
-			if isCaptureOrPromotion(move) {
-				seeMargin = Min(-depth, -depth*depth/4)
-			} else {
-				seeMargin = -depth
-			}
-			if !SeeGE(position, move, seeMargin) {
+			if !isCheck && staticEval-pawnValue*depth <= alpha &&
+				!SeeGE(position, move, -depth) {
 				continue
 			}
 		}
 
 		if !position.MakeMove(move, child) {
+			movesSeen--
 			continue
 		}
 		hasLegalMove = true
@@ -544,10 +525,11 @@ func (t *thread) isRepeat(height int) bool {
 }
 
 func (t *thread) extend(depth, height int) int {
+	var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var givesCheck = child.IsCheck()
 
-	if givesCheck {
+	if givesCheck && (depth <= 2 || seeGEZero(p, child.LastMove)) {
 		return 1
 	}
 

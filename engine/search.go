@@ -249,7 +249,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
 		var reduction = 4 + depth/6
-		//+ Min(3, (staticEval-beta)/200)
 		position.MakeNullMove(child)
 		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 		if score >= beta {

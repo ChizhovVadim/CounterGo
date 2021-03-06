@@ -1,12 +1,14 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/engine"
 	"github.com/ChizhovVadim/CounterGo/eval"
+	evalpesto "github.com/ChizhovVadim/CounterGo/evalpesto"
 	"github.com/ChizhovVadim/CounterGo/uci"
 )
 
@@ -26,9 +28,12 @@ var (
 	versionName = "dev"
 	buildDate   = "(null)"
 	gitRevision = "(null)"
+	flagPesto   = flag.Bool("pesto", false, "evaluation Piece Square Tables only")
 )
 
 func main() {
+	flag.Parse()
+
 	var logger = log.New(os.Stderr, "", log.LstdFlags)
 
 	logger.Println(name,
@@ -37,9 +42,18 @@ func main() {
 		"GitRevision", gitRevision,
 		"RuntimeVersion", runtime.Version())
 
-	var engine = engine.NewEngine(func() engine.Evaluator {
-		return eval.NewEvaluationService()
-	})
+	var evalBuilder func() engine.Evaluator
+	if *flagPesto {
+		evalBuilder = func() engine.Evaluator {
+			return evalpesto.NewEvaluationService()
+		}
+	} else {
+		evalBuilder = func() engine.Evaluator {
+			return eval.NewEvaluationService()
+		}
+	}
+
+	var engine = engine.NewEngine(evalBuilder)
 
 	var protocol = uci.New(name, author, versionName, engine,
 		[]uci.Option{

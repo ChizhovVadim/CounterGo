@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/engine"
@@ -28,7 +29,9 @@ var (
 )
 
 func main() {
-	fmt.Println(name,
+	var logger = log.New(os.Stderr, "", log.LstdFlags)
+
+	logger.Println(name,
 		"VersionName", versionName,
 		"BuildDate", buildDate,
 		"GitRevision", gitRevision,
@@ -38,17 +41,13 @@ func main() {
 		return eval.NewEvaluationService()
 	})
 
-	var protocol = &uci.Protocol{
-		Name:    name,
-		Author:  author,
-		Version: versionName,
-		Engine:  engine,
-		Options: []uci.Option{
+	var protocol = uci.New(name, author, versionName, engine,
+		[]uci.Option{
 			&uci.IntOption{Name: "Hash", Min: 4, Max: 1 << 16, Value: &engine.Hash},
 			&uci.IntOption{Name: "Threads", Min: 1, Max: runtime.NumCPU(), Value: &engine.Threads},
 			&uci.BoolOption{Name: "ExperimentSettings", Value: &engine.ExperimentSettings},
 		},
-	}
+	)
 
-	protocol.Run()
+	uci.RunCli(logger, protocol)
 }

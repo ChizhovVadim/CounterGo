@@ -1,13 +1,12 @@
 package uci
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/ChizhovVadim/CounterGo/common"
 )
@@ -19,64 +18,32 @@ type Engine interface {
 }
 
 type Protocol struct {
-	Name         string
-	Author       string
-	Version      string
-	Options      []Option
-	Engine       Engine
-	positions    []common.Position
-	thinking     bool
-	engineOutput chan common.SearchInfo
-	bestMove     common.Move
-	cancel       context.CancelFunc
+	name      string
+	author    string
+	version   string
+	options   []Option
+	engine    Engine
+	positions []common.Position
+	thinking  int32
+	cancel    context.CancelFunc
 }
 
-func (uci *Protocol) Run() {
+func New(name, author, version string, engine Engine, options []Option) *Protocol {
 	var initPosition, err = common.NewPositionFromFEN(common.InitialPositionFen)
 	if err != nil {
 		panic(err)
 	}
-	uci.positions = []common.Position{initPosition}
-
-	var commands = make(chan string)
-
-	go func() {
-		var scanner = bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			var commandLine = scanner.Text()
-			commands <- commandLine
-			if commandLine == "quit" {
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case command := <-commands:
-			if command == "quit" {
-				return
-			}
-			var err = uci.handleCommand(command)
-			if err != nil {
-				fmt.Println("info string " + err.Error())
-			}
-		case searchInfo, ok := <-uci.engineOutput:
-			if ok {
-				fmt.Println(searchInfoToUci(searchInfo))
-				if len(searchInfo.MainLine) != 0 {
-					uci.bestMove = searchInfo.MainLine[0]
-				}
-			} else {
-				uci.thinking = false
-				uci.engineOutput = nil
-				fmt.Printf("bestmove %v\n", uci.bestMove)
-			}
-		}
+	return &Protocol{
+		name:      name,
+		author:    author,
+		version:   version,
+		engine:    engine,
+		options:   options,
+		positions: []common.Position{initPosition},
 	}
 }
 
-func (uci *Protocol) handleCommand(commandLine string) error {
+func (uci *Protocol) Handle(ctx context.Context, commandLine string) error {
 	var fields = strings.Fields(commandLine)
 	if len(fields) == 0 {
 		return nil
@@ -84,7 +51,7 @@ func (uci *Protocol) handleCommand(commandLine string) error {
 	var commandName = fields[0]
 	fields = fields[1:]
 
-	if uci.thinking {
+	if atomic.LoadInt32(&uci.thinking) == 1 {
 		if commandName == "stop" {
 			uci.cancel()
 			return nil
@@ -119,9 +86,9 @@ func (uci *Protocol) handleCommand(commandLine string) error {
 }
 
 func (uci *Protocol) uciCommand(fields []string) error {
-	fmt.Printf("id name %s %s\n", uci.Name, uci.Version)
-	fmt.Printf("id author %s\n", uci.Author)
-	for _, option := range uci.Options {
+	fmt.Printf("id name %s %s\n", uci.name, uci.version)
+	fmt.Printf("id author %s\n", uci.author)
+	for _, option := range uci.options {
 		fmt.Println(option.UciString())
 	}
 	fmt.Println("uciok")
@@ -133,7 +100,7 @@ func (uci *Protocol) setOptionCommand(fields []string) error {
 		return errors.New("invalid setoption arguments")
 	}
 	var name, value = fields[1], fields[3]
-	for _, option := range uci.Options {
+	for _, option := range uci.options {
 		if strings.EqualFold(option.UciName(), name) {
 			return option.Set(value)
 		}
@@ -142,7 +109,7 @@ func (uci *Protocol) setOptionCommand(fields []string) error {
 }
 
 func (uci *Protocol) isReadyCommand(fields []string) error {
-	uci.Engine.Prepare()
+	uci.engine.Prepare()
 	fmt.Println("readyok")
 	return nil
 }
@@ -183,31 +150,30 @@ func (uci *Protocol) positionCommand(fields []string) error {
 
 func (uci *Protocol) goCommand(fields []string) error {
 	var limits = parseLimits(fields)
-	var ctx, cancel = context.WithCancel(context.Background())
-	uci.thinking = true
-	uci.bestMove = common.MoveEmpty
-	uci.engineOutput = make(chan common.SearchInfo)
+	var ctx, cancel = context.WithCancel(context.TODO())
 	uci.cancel = cancel
+	atomic.StoreInt32(&uci.thinking, 1)
 	go func() {
-		uci.engineOutput <- uci.Engine.Search(ctx, common.SearchParams{
+		var searchResult = uci.engine.Search(ctx, common.SearchParams{
 			Positions: uci.positions,
 			Limits:    limits,
 			Progress: func(si common.SearchInfo) {
 				if si.Time >= 500 || si.Depth >= 5 {
-					select {
-					case uci.engineOutput <- si:
-					default:
-					}
+					fmt.Println(searchInfoToUci(si))
 				}
 			},
 		})
-		close(uci.engineOutput)
+		fmt.Println(searchInfoToUci(searchResult))
+		atomic.StoreInt32(&uci.thinking, 0)
+		if len(searchResult.MainLine) != 0 {
+			fmt.Printf("bestmove %v\n", searchResult.MainLine[0])
+		}
 	}()
 	return nil
 }
 
 func (uci *Protocol) uciNewGameCommand(fields []string) error {
-	uci.Engine.Clear()
+	uci.engine.Clear()
 	return nil
 }
 

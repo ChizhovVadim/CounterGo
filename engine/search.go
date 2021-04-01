@@ -217,10 +217,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
 					t.sortTable.Update(position, ttMove, nil, depth, height)
 				}
-				return beta
+				return ttValue
 			}
 			if ttValue <= alpha && (ttBound&boundUpper) != 0 {
-				return alpha
+				return ttValue
 			}
 		}
 	}

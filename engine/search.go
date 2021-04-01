@@ -171,6 +171,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 
 // main search method
 func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
+	var oldAlpha = alpha
 	var newDepth, score int
 	t.stack[height].pv.clear()
 
@@ -180,9 +181,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		return t.evaluator.Evaluate(position)
 	}
 
-	if alpha < valueDraw && t.isRepeat(height) {
-		alpha = valueDraw
-		if alpha >= beta {
+	if repetition, inCurrentSearch := t.isRepeat(height); repetition {
+		alpha = Max(alpha, valueDraw)
+		if alpha >= beta || inCurrentSearch {
 			return alpha
 		}
 	}
@@ -397,7 +398,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	ttBound = 0
-	if bestMove != MoveEmpty {
+	if alpha > oldAlpha {
 		ttBound |= boundLower
 	}
 	if alpha < beta {
@@ -500,27 +501,27 @@ func isDraw(p *Position) bool {
 	return false
 }
 
-func (t *thread) isRepeat(height int) bool {
+func (t *thread) isRepeat(height int) (repetition, inCurrentSearch bool) {
 	var p = &t.stack[height].position
 
 	if p.Rule50 == 0 {
-		return false
+		return false, false
 	}
 	for i := height - 1; i >= 0; i-- {
 		var temp = &t.stack[i].position
 		if temp.Key == p.Key {
-			return true
+			return true, true
 		}
 		if temp.Rule50 == 0 || temp.LastMove == MoveEmpty {
-			return false
+			return false, false
 		}
 	}
 
 	if t.engine.historyKeys[p.Key] >= 2 {
-		return true
+		return true, false
 	}
 
-	return false
+	return false, false
 }
 
 func (t *thread) extend(depth, height int) int {

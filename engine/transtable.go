@@ -95,25 +95,20 @@ func (tt *transTable) Read(key uint64) (depth, score, bound int, move Move, ok b
 func (tt *transTable) Update(key uint64, depth, score, bound int, move Move) {
 	var entry = &tt.entries[uint32(key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
+		var replace bool
 		if entry.key32 == uint32(key>>32) {
-			if move != MoveEmpty {
-				entry.SetMoveAndDate(move, entry.Date())
-			}
-			if bound == boundExact || depth >= int(entry.depth)-3 /*for singular extensions*/ {
-				entry.score = int16(score)
-				entry.depth = int8(depth)
-				entry.bound = uint8(bound)
-				entry.SetMoveAndDate(entry.Move(), tt.date)
-			}
+			replace = depth >= int(entry.depth)-3 ||
+				bound == boundExact
 		} else {
-			if entry.Date() != tt.date ||
-				depth >= int(entry.depth) {
-				entry.key32 = uint32(key >> 32)
-				entry.score = int16(score)
-				entry.depth = int8(depth)
-				entry.bound = uint8(bound)
-				entry.SetMoveAndDate(move, tt.date)
-			}
+			replace = entry.Date() != tt.date ||
+				depth >= int(entry.depth)
+		}
+		if replace {
+			entry.key32 = uint32(key >> 32)
+			entry.score = int16(score)
+			entry.depth = int8(depth)
+			entry.bound = uint8(bound)
+			entry.SetMoveAndDate(move, tt.date)
 		}
 		atomic.StoreInt32(&entry.gate, 0)
 	}

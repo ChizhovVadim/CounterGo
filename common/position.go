@@ -13,8 +13,6 @@ type coloredPiece struct {
 	Side bool
 }
 
-var castleMask [64]int
-
 func createPosition(board [64]coloredPiece, wtm bool,
 	castleRights, ep, fifty int) (Position, bool) {
 	var p = Position{
@@ -27,7 +25,7 @@ func createPosition(board [64]coloredPiece, wtm bool,
 
 	for sq, piece := range board {
 		if piece.Type != Empty {
-			xorPiece(&p, piece.Type, piece.Side, sq)
+			xorPiece(&p, piece.Side, piece.Type, sq)
 		}
 	}
 
@@ -246,13 +244,13 @@ func (src *Position) MakeMove(move Move, result *Position) bool {
 
 	if capturedPiece != Empty {
 		if capturedPiece == Pawn && to == src.EpSquare {
-			xorPiece(result, Pawn, !src.WhiteMove, to+let(src.WhiteMove, -8, 8))
+			xorPiece(result, !src.WhiteMove, Pawn, to+let(src.WhiteMove, -8, 8))
 		} else {
-			xorPiece(result, capturedPiece, !src.WhiteMove, to)
+			xorPiece(result, !src.WhiteMove, capturedPiece, to)
 		}
 	}
 
-	movePiece(result, movingPiece, src.WhiteMove, from, to)
+	movePiece(result, src.WhiteMove, movingPiece, from, to)
 
 	if movingPiece == Pawn {
 		if src.WhiteMove {
@@ -261,8 +259,8 @@ func (src *Position) MakeMove(move Move, result *Position) bool {
 				result.Key ^= enpassantKey[File(from+8)]
 			}
 			if Rank(to) == Rank8 {
-				xorPiece(result, Pawn, true, to)
-				xorPiece(result, move.Promotion(), true, to)
+				xorPiece(result, true, Pawn, to)
+				xorPiece(result, true, move.Promotion(), to)
 			}
 		} else {
 			if to == from-16 {
@@ -270,24 +268,24 @@ func (src *Position) MakeMove(move Move, result *Position) bool {
 				result.Key ^= enpassantKey[File(from-8)]
 			}
 			if Rank(to) == Rank1 {
-				xorPiece(result, Pawn, false, to)
-				xorPiece(result, move.Promotion(), false, to)
+				xorPiece(result, false, Pawn, to)
+				xorPiece(result, false, move.Promotion(), to)
 			}
 		}
 	} else if movingPiece == King {
 		if src.WhiteMove {
 			if from == SquareE1 && to == SquareG1 {
-				movePiece(result, Rook, true, SquareH1, SquareF1)
+				movePiece(result, true, Rook, SquareH1, SquareF1)
 			}
 			if from == SquareE1 && to == SquareC1 {
-				movePiece(result, Rook, true, SquareA1, SquareD1)
+				movePiece(result, true, Rook, SquareA1, SquareD1)
 			}
 		} else {
 			if from == SquareE8 && to == SquareG8 {
-				movePiece(result, Rook, false, SquareH8, SquareF8)
+				movePiece(result, false, Rook, SquareH8, SquareF8)
 			}
 			if from == SquareE8 && to == SquareC8 {
-				movePiece(result, Rook, false, SquareA8, SquareD8)
+				movePiece(result, false, Rook, SquareA8, SquareD8)
 			}
 		}
 	}
@@ -324,6 +322,17 @@ func (src *Position) MakeNullMove(result *Position) {
 	result.LastMove = MoveEmpty
 }
 
+func (p *Position) AllPieces() uint64 {
+	return p.White | p.Black
+}
+
+func (p *Position) KingSq(side bool) int {
+	if side {
+		return FirstOne(p.Kings & p.White)
+	}
+	return FirstOne(p.Kings & p.Black)
+}
+
 func (p *Position) PiecesByColor(side bool) uint64 {
 	if side {
 		return p.White
@@ -331,7 +340,7 @@ func (p *Position) PiecesByColor(side bool) uint64 {
 	return p.Black
 }
 
-func xorPiece(p *Position, piece int, side bool, square int) {
+func xorPiece(p *Position, side bool, piece, square int) {
 	var b = SquareMask[square]
 	if side {
 		p.White ^= b
@@ -352,10 +361,10 @@ func xorPiece(p *Position, piece int, side bool, square int) {
 	case King:
 		p.Kings ^= b
 	}
-	p.Key ^= PieceSquareKey(piece, side, square)
+	p.Key ^= pieceSquareKey(side, piece, square)
 }
 
-func movePiece(p *Position, piece int, side bool, from int, to int) {
+func movePiece(p *Position, side bool, piece, from int, to int) {
 	var b = SquareMask[from] ^ SquareMask[to]
 	if side {
 		p.White ^= b
@@ -376,7 +385,7 @@ func movePiece(p *Position, piece int, side bool, from int, to int) {
 	case King:
 		p.Kings ^= b
 	}
-	p.Key ^= PieceSquareKey(piece, side, from) ^ PieceSquareKey(piece, side, to)
+	p.Key ^= pieceSquareKey(side, piece, from) ^ pieceSquareKey(side, piece, to)
 }
 
 func (p *Position) isAttackedBySide(sq int, side bool) bool {
@@ -402,8 +411,8 @@ func (p *Position) isAttackedBySide(sq int, side bool) bool {
 
 func (p *Position) attackersTo(sq int) uint64 {
 	var occ = p.White | p.Black
-	return (blackPawnAttacks[sq] & p.Pawns & p.White) |
-		(whitePawnAttacks[sq] & p.Pawns & p.Black) |
+	return (pawnAttacks[SideBlack][sq] & p.Pawns & p.White) |
+		(pawnAttacks[SideWhite][sq] & p.Pawns & p.Black) |
 		(KnightAttacks[sq] & p.Knights) |
 		(BishopAttacks(sq, occ) & (p.Bishops | p.Queens)) |
 		(RookAttacks(sq, occ) & (p.Rooks | p.Queens)) |
@@ -426,10 +435,6 @@ func (p *Position) IsCheck() bool {
 	return p.Checkers != 0
 }
 
-func (p *Position) IsDiscoveredCheck() bool {
-	return (p.Checkers & ^SquareMask[p.LastMove.To()]) != 0
-}
-
 func (p *Position) IsRepetition(other *Position) bool {
 	return p.White == other.White &&
 		p.Black == other.Black &&
@@ -445,14 +450,19 @@ func (p *Position) IsRepetition(other *Position) bool {
 }
 
 var (
-	sideKey        uint64
-	enpassantKey   [8]uint64
-	castlingKey    [16]uint64
-	pieceSquareKey [7 * 2 * 64]uint64
+	sideKey      uint64
+	enpassantKey [8]uint64
+	castlingKey  [16]uint64
+	psqKey       [2 * 8 * 64]uint64
+	castleMask   [64]int
 )
 
-func PieceSquareKey(piece int, side bool, square int) uint64 {
-	return pieceSquareKey[MakePiece(piece, side)*64+square]
+func pieceSquareKey(side bool, piece, square int) uint64 {
+	var index = square ^ (piece << 6)
+	if side {
+		index ^= 1 << 9
+	}
+	return psqKey[index]
 }
 
 func (p *Position) computeKey() uint64 {
@@ -468,7 +478,7 @@ func (p *Position) computeKey() uint64 {
 		var piece = p.WhatPiece(i)
 		if piece != Empty {
 			var side = (p.White & SquareMask[i]) != 0
-			result ^= PieceSquareKey(piece, side, i)
+			result ^= pieceSquareKey(side, piece, i)
 		}
 	}
 	return result
@@ -480,8 +490,8 @@ func initKeys() {
 	for i := range enpassantKey {
 		enpassantKey[i] = r.Uint64()
 	}
-	for i := range pieceSquareKey {
-		pieceSquareKey[i] = r.Uint64()
+	for i := range psqKey {
+		psqKey[i] = r.Uint64()
 	}
 
 	var castle [4]uint64
@@ -511,7 +521,10 @@ func MirrorPosition(p *Position) Position {
 	if p.EpSquare != SquareNone {
 		ep = FlipSquare(p.EpSquare)
 	}
-	var pos, _ = createPosition(board, !p.WhiteMove, cr, ep, p.Rule50)
+	var pos, ok = createPosition(board, !p.WhiteMove, cr, ep, p.Rule50)
+	if !ok {
+		panic(fmt.Errorf("MirrorPosition"))
+	}
 	return pos
 }
 

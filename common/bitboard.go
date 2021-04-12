@@ -25,14 +25,14 @@ const (
 )
 
 var (
-	whitePawnAttacks, blackPawnAttacks [64]uint64
-	SquareMask                         [64]uint64
-	KnightAttacks                      [64]uint64
-	KingAttacks                        [64]uint64
-	index64                            [64]int
-	rookAttacks                        [64][1 << 12]uint64
-	bishopAttacks                      [64][1 << 9]uint64
-	betweenMask                        [64][64]uint64
+	pawnAttacks   [2][64]uint64
+	SquareMask    [64]uint64
+	KnightAttacks [64]uint64
+	KingAttacks   [64]uint64
+	index64       [64]int
+	rookAttacks   [64][1 << 12]uint64
+	bishopAttacks [64][1 << 9]uint64
+	betweenMask   [64][64]uint64
 )
 
 var FileMask = [8]uint64{
@@ -128,9 +128,9 @@ func AllBlackPawnAttacks(b uint64) uint64 {
 
 func PawnAttacks(from int, side bool) uint64 {
 	if side {
-		return whitePawnAttacks[from]
+		return pawnAttacks[SideWhite][from]
 	}
-	return blackPawnAttacks[from]
+	return pawnAttacks[SideBlack][from]
 }
 
 // https://www.chessprogramming.org/Magic_Bitboards
@@ -266,8 +266,8 @@ func init() {
 		SquareMask[sq] = b
 		index64[(((b-1)^b)*0x03f79d71b4cb0a89)>>58] = sq
 
-		whitePawnAttacks[sq] = Up(Left(b) | Right(b))
-		blackPawnAttacks[sq] = Down(Left(b) | Right(b))
+		pawnAttacks[SideWhite][sq] = Up(Left(b) | Right(b))
+		pawnAttacks[SideBlack][sq] = Down(Left(b) | Right(b))
 
 		KnightAttacks[sq] = Right(UpRight(b)) | Up(UpRight(b)) |
 			Up(UpLeft(b)) | Left(UpLeft(b)) |

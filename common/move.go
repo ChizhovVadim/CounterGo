@@ -34,6 +34,10 @@ func (m Move) Promotion() int {
 	return int((m >> 18) & 7)
 }
 
+func (m Move) withPromotion(promotion int) Move {
+	return m ^ Move(promotion)<<18
+}
+
 func (m Move) String() string {
 	if m == MoveEmpty {
 		return "0000"

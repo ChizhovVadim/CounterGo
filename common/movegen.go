@@ -316,9 +316,9 @@ func (p *Position) GenerateCaptures(ml []OrderedMove) []OrderedMove {
 }
 
 func addPromotions(ml []OrderedMove, move Move) (count int) {
-	ml[0].Move = move ^ Move(Queen<<18)
-	ml[1].Move = move ^ Move(Rook<<18)
-	ml[2].Move = move ^ Move(Bishop<<18)
-	ml[3].Move = move ^ Move(Knight<<18)
+	ml[0].Move = move.withPromotion(Queen)
+	ml[1].Move = move.withPromotion(Rook)
+	ml[2].Move = move.withPromotion(Bishop)
+	ml[3].Move = move.withPromotion(Knight)
 	return 4
 }

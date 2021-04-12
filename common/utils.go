@@ -35,18 +35,3 @@ func parsePiece(ch rune) coloredPiece {
 	}
 	return coloredPiece{i + Pawn, side}
 }
-
-func MakePiece(pieceType int, side bool) int {
-	if side {
-		return pieceType
-	}
-	return pieceType + 7
-}
-
-func GetPieceTypeAndSide(piece int) (pieceType int, side bool) {
-	if piece < 7 {
-		return piece, true
-	} else {
-		return piece - 7, false
-	}
-}

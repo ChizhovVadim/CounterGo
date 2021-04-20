@@ -419,6 +419,17 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	if height >= maxHeight {
 		return t.evaluator.Evaluate(position)
 	}
+
+	var _, ttValue, ttBound, _, ttHit = t.engine.transTable.Read(position.Key)
+	if ttHit {
+		ttValue = valueFromTT(ttValue, height)
+		if ttBound == boundExact ||
+			ttBound == boundLower && ttValue >= beta ||
+			ttBound == boundUpper && ttValue <= alpha {
+			return ttValue
+		}
+	}
+
 	var isCheck = position.IsCheck()
 	if !isCheck {
 		var eval = t.evaluator.Evaluate(position)

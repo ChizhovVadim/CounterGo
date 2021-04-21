@@ -17,7 +17,10 @@ func TestWeights(t *testing.T) {
 	enc.SetIndent("", "\t")
 	enc.Encode(&w)
 
+	printPst("Pawn", w.PST[0][common.Pawn])
 	printPst("Knight", w.PST[0][common.Knight])
+	printPst("Bishop", w.PST[0][common.Bishop])
+	printPst("Rook", w.PST[0][common.Rook])
 	printPst("Queen", w.PST[0][common.Queen])
 	printPst("King", w.PST[0][common.King])
 }

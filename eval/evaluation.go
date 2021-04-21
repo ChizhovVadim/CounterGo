@@ -107,6 +107,16 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 
 	// eval pieces
 
+	for x = p.Pawns & p.White; x != 0; x &= x - 1 {
+		sq = FirstOne(x)
+		s.add(e.PST[sideWhite][Pawn][sq])
+	}
+
+	for x = p.Pawns & p.Black; x != 0; x &= x - 1 {
+		sq = FirstOne(x)
+		s.add(e.PST[sideBlack][Pawn][sq])
+	}
+
 	for x = p.Knights & p.White; x != 0; x &= x - 1 {
 		white.knightCount++
 		sq = FirstOne(x)
@@ -134,6 +144,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.White; x != 0; x &= x - 1 {
 		white.bishopCount++
 		sq = FirstOne(x)
+		s.add(e.PST[sideWhite][Bishop][sq])
 		b = BishopAttacks(sq, allPieces)
 		s.add(e.BishopMobility[PopCount(b&white.mobilityArea)])
 		white.bishopAttacks |= b
@@ -146,6 +157,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	for x = p.Bishops & p.Black; x != 0; x &= x - 1 {
 		black.bishopCount++
 		sq = FirstOne(x)
+		s.add(e.PST[sideBlack][Bishop][sq])
 		b = BishopAttacks(sq, allPieces)
 		s.sub(e.BishopMobility[PopCount(b&black.mobilityArea)])
 		black.bishopAttacks |= b
@@ -158,6 +170,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	for x = p.Rooks & p.White; x != 0; x &= x - 1 {
 		white.rookCount++
 		sq = FirstOne(x)
+		s.add(e.PST[sideWhite][Rook][sq])
 		if Rank(sq) == Rank7 &&
 			((p.Pawns&p.Black&Rank7Mask) != 0 || Rank(black.king) == Rank8) {
 			s.add(e.Rook7th)
@@ -181,6 +194,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	for x = p.Rooks & p.Black; x != 0; x &= x - 1 {
 		black.rookCount++
 		sq = FirstOne(x)
+		s.add(e.PST[sideBlack][Rook][sq])
 		if Rank(sq) == Rank2 &&
 			((p.Pawns&p.White&Rank2Mask) != 0 || Rank(white.king) == Rank1) {
 			s.sub(e.Rook7th)

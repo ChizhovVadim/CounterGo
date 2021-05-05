@@ -249,7 +249,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + depth/6
+		var skepticStaticEval = Min(staticEval, evalMaterial(position))
+		var reduction = 4 + depth/6 + Max(0, Min(3, (skepticStaticEval-beta)/200))
 		position.MakeNullMove(child)
 		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 		if score >= beta {

@@ -22,6 +22,7 @@ func main() {
 	//runTuner()
 	//testFens("TestSymmetricEval", testSymmetricEval(eval.NewEvaluationService()))
 	//testFens("TestSymmetricEval", testSymmetricEval(evalpesto.NewEvaluationService()))
+	//testFens("TestSEE", testSee())
 	//printErr(runBenchmark(false))
 	//printErr(runSolveTactic())
 }

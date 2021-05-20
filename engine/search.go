@@ -73,6 +73,7 @@ func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO
 	const height = 0
 	t.sortTable.ResetKillers(height)
 	t.sortTable.ResetKillers(height + 1)
+	t.sortTable.ResetKillers(height + 2)
 	for depth := startDepth; depth <= maxHeight; depth += incDepth {
 		t.depth = int32(depth)
 		if isDone(t.engine.done) {
@@ -151,7 +152,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		}
 		var newDepth = depth - 1 + extension
 		var nextFirstline = i == 0
-		if (reduction > 0) &&
+		if (reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0) &&
 			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1, nextFirstline) <= alpha {
 			continue
 		}
@@ -238,7 +239,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 	}
 
-	t.sortTable.ResetKillers(height + 1)
+	t.sortTable.ResetKillers(height + 2)
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
@@ -249,18 +250,25 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var skepticStaticEval = Min(staticEval, evalMaterial(position))
-		var reduction = 4 + depth/6 + Max(0, Min(3, (skepticStaticEval-beta)/200))
-		position.MakeNullMove(child)
-		score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
-		if score >= beta {
-			return beta
+		var reduction = 4 + depth/6
+		if staticEval >= beta+50 {
+			reduction = Min(reduction, depth)
+		} else {
+			reduction = Min(reduction, depth-1)
+		}
+		if reduction >= 2 {
+			position.MakeNullMove(child)
+			score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
+			if score >= beta {
+				return beta
+			}
 		}
 	}
 
 	// Internal iterative deepening
-	if depth >= 8 && ttMove == MoveEmpty && !isCheck {
-		t.alphaBeta(alpha, beta, depth-7, height, firstline)
+	if depth >= 8 && ttMove == MoveEmpty {
+		var iidDepth = depth - depth/4 - 5
+		t.alphaBeta(alpha, beta, iidDepth, height, firstline)
 		if t.stack[height].pv.size != 0 {
 			ttMove = t.stack[height].pv.items[0]
 			t.stack[height].pv.clear()
@@ -279,10 +287,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 		ttMoveIsSingular = true
 		sortMoves(ml)
-		var singularBeta = Max(-valueInfinity, ttValue-2*depth)
+		var singularBeta = Max(-valueInfinity, ttValue-depth)
 		newDepth = depth/2 - 1
+		var quietsPlayed = 0
 		for i := range ml {
 			var move = ml[i].Move
+			if quietsPlayed >= 6 && !isCaptureOrPromotion(move) {
+				continue
+			}
 			if !position.MakeMove(move, child) {
 				continue
 			}
@@ -292,6 +304,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 					break
 				}
 				continue
+			}
+			if !isCaptureOrPromotion(move) {
+				quietsPlayed++
 			}
 			score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
 			if score >= singularBeta {
@@ -329,8 +344,18 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 				continue
 			}
 
+			// futility pruning
+			if !(isCheck ||
+				isCaptureOrPromotion(move) ||
+				ml[i].Key >= sortTableKeyImportant ||
+				position.LastMove == MoveEmpty) &&
+				staticEval+pawnValue*depth <= alpha {
+				continue
+			}
+
 			// SEE pruning
-			if !isCheck && staticEval-pawnValue*depth <= alpha &&
+			if !isCheck &&
+				(!isCaptureOrPromotion(move) || staticEval-pawnValue*depth <= alpha) &&
 				!SeeGE(position, move, -depth) {
 				continue
 			}
@@ -537,11 +562,11 @@ func (t *thread) isRepeat(height int) (repetition, inCurrentSearch bool) {
 }
 
 func (t *thread) extend(depth, height int) int {
-	var p = &t.stack[height].position
+	//var p = &t.stack[height].position
 	var child = &t.stack[height+1].position
 	var givesCheck = child.IsCheck()
 
-	if givesCheck && (depth <= 2 || seeGEZero(p, child.LastMove)) {
+	if givesCheck {
 		return 1
 	}
 

@@ -97,8 +97,7 @@ func (tt *transTable) Update(key uint64, depth, score, bound int, move Move) {
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		var replace bool
 		if entry.key32 == uint32(key>>32) {
-			replace = depth >= int(entry.depth)-3 ||
-				bound == boundExact
+			replace = depth >= int(entry.depth)-3
 		} else {
 			replace = entry.Date() != tt.date ||
 				depth >= int(entry.depth)

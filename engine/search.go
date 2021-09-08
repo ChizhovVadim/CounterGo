@@ -71,9 +71,10 @@ func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO
 	}()
 
 	const height = 0
-	t.sortTable.ResetKillers(height)
-	t.sortTable.ResetKillers(height + 1)
-	t.sortTable.ResetKillers(height + 2)
+	for h := 0; h <= 2; h++ {
+		t.stack[h].killer1 = MoveEmpty
+		t.stack[h].killer2 = MoveEmpty
+	}
 	for depth := startDepth; depth <= maxHeight; depth += incDepth {
 		t.depth = int32(depth)
 		if isDone(t.engine.done) {
@@ -220,7 +221,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		if ttDepth >= depth {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
-					t.sortTable.Update(position, ttMove, nil, depth, height)
+					t.updateKiller(ttMove, height)
 				}
 				return ttValue
 			}
@@ -243,7 +244,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 	}
 
-	t.sortTable.ResetKillers(height + 2)
+	if height+2 <= maxHeight {
+		t.stack[height+2].killer1 = MoveEmpty
+		t.stack[height+2].killer2 = MoveEmpty
+	}
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
@@ -282,8 +286,21 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 	}
 
-	var ml = position.GenerateMoves(t.stack[height].moveList[:])
-	t.sortTable.Note(position, ml, ttMove, height)
+	var followUp Move
+	if height > 0 {
+		followUp = t.stack[height-1].position.LastMove
+	}
+	var historyContext = t.history.getContext(position.WhiteMove, position.LastMove, followUp)
+
+	var mi = moveIterator{
+		position:  position,
+		buffer:    t.stack[height].moveList[:],
+		history:   historyContext,
+		transMove: ttMove,
+		killer1:   t.stack[height].killer1,
+		killer2:   t.stack[height].killer2,
+	}
+	mi.Init()
 
 	// singular extension
 	var ttMoveIsSingular = false
@@ -293,12 +310,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		ttValue > valueLoss && ttValue < valueWin {
 
 		ttMoveIsSingular = true
-		sortMoves(ml)
 		var singularBeta = Max(-valueInfinity, ttValue-depth)
 		newDepth = depth/2 - 1
 		var quietsPlayed = 0
-		for i := range ml {
-			var move = ml[i].Move
+		for mi.Reset(); ; {
+			var move = mi.Next()
+			if move == MoveEmpty {
+				break
+			}
 			if quietsPlayed >= 6 && !isCaptureOrPromotion(move) {
 				continue
 			}
@@ -338,13 +357,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	var best = -valueInfinity
 
-	for i := range ml {
-		if i < SortMovesIndex {
-			moveToTop(ml[i:])
-		} else if i == SortMovesIndex {
-			sortMoves(ml[i:])
+	for mi.Reset(); ; {
+		var move = mi.Next()
+		if move == MoveEmpty {
+			break
 		}
-		var move = ml[i].Move
 		movesSeen++
 
 		if depth <= 8 && best > valueLoss && hasLegalMove {
@@ -356,7 +373,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			// futility pruning
 			if !(isCheck ||
 				isCaptureOrPromotion(move) ||
-				ml[i].Key >= sortTableKeyImportant ||
+				move == mi.killer1 ||
+				move == mi.killer2 ||
 				position.LastMove == MoveEmpty) &&
 				staticEval+pawnValue*depth <= alpha {
 				continue
@@ -388,9 +406,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		if depth >= 3 && movesSearched > 1 &&
 			!(isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, movesSearched)
-			if ml[i].Key >= sortTableKeyImportant {
+			if move == mi.killer1 || move == mi.killer2 {
 				reduction--
 			}
+			var history = historyContext.ReadTotal(position.WhiteMove, move)
+			reduction -= Max(-2, Min(2, history/5000))
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 
@@ -430,7 +450,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	if bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
-		t.sortTable.Update(position, bestMove, quietsSearched, depth, height)
+		historyContext.Update(position.WhiteMove, quietsSearched, bestMove, depth)
+		t.updateKiller(bestMove, height)
 	}
 
 	ttBound = 0
@@ -478,18 +499,18 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 			}
 		}
 	}
-	var ml = t.stack[height].moveList[:]
-	if isCheck {
-		ml = position.GenerateMoves(ml)
-	} else {
-		ml = position.GenerateCaptures(ml)
+	var mi = moveIteratorQS{
+		position: position,
+		buffer:   t.stack[height].moveList[:],
 	}
-	t.sortTable.NoteQS(position, ml)
-	sortMoves(ml)
+	mi.Init()
 	var hasLegalMove = false
 	var child = &t.stack[height+1].position
-	for i := range ml {
-		var move = ml[i].Move
+	for mi.Reset(); ; {
+		var move = mi.Next()
+		if move == MoveEmpty {
+			break
+		}
 		if !isCheck && !seeGEZero(position, move) {
 			continue
 		}
@@ -606,18 +627,6 @@ func moveToBegin(ml []Move, index int) {
 	ml[0] = item
 }
 
-func moveToTop(ml []OrderedMove) {
-	var bestIndex = 0
-	for i := 1; i < len(ml); i++ {
-		if ml[i].Key > ml[bestIndex].Key {
-			bestIndex = i
-		}
-	}
-	if bestIndex != 0 {
-		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
-	}
-}
-
 func cloneMoves(ml []Move) []Move {
 	var result = make([]Move, len(ml))
 	copy(result, ml)
@@ -629,16 +638,33 @@ func (e *Engine) genRootMoves() []Move {
 	const height = 0
 	var p = &t.stack[height].position
 	_, _, _, transMove, _ := e.transTable.Read(p.Key)
-	var ml = p.GenerateMoves(t.stack[height].moveList[:])
-	t.sortTable.Note(p, ml, transMove, height)
-	sortMoves(ml)
+
+	var historyContext = t.history.getContext(p.WhiteMove, p.LastMove, MoveEmpty)
+	var mi = moveIterator{
+		position:  p,
+		buffer:    t.stack[height].moveList[:],
+		history:   historyContext,
+		transMove: transMove,
+	}
+	mi.Init()
+
 	var result []Move
 	var child = &t.stack[height+1].position
-	for i := range ml {
-		var move = ml[i].Move
+	for mi.Reset(); ; {
+		var move = mi.Next()
+		if move == MoveEmpty {
+			break
+		}
 		if p.MakeMove(move, child) {
 			result = append(result, move)
 		}
 	}
 	return result
+}
+
+func (t *thread) updateKiller(move Move, height int) {
+	if t.stack[height].killer1 != move {
+		t.stack[height].killer2 = t.stack[height].killer1
+		t.stack[height].killer1 = move
+	}
 }

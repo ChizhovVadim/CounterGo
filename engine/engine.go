@@ -31,7 +31,7 @@ type Engine struct {
 
 type thread struct {
 	engine    *Engine
-	sortTable SortTable
+	history   historyService
 	evaluator Evaluator
 	nodes     int64
 	depth     int32
@@ -41,6 +41,8 @@ type thread struct {
 		quietsSearched [MaxMoves]Move
 		pv             pv
 		staticEval     int
+		killer1        Move
+		killer2        Move
 	}
 }
 
@@ -63,14 +65,6 @@ type TimeManager interface {
 
 type Evaluator interface {
 	Evaluate(p *Position) int
-}
-
-type SortTable interface {
-	Clear()
-	ResetKillers(h int)
-	Update(p *Position, bestMove Move, searched []Move, depth, height int)
-	Note(p *Position, ml []OrderedMove, trans Move, height int)
-	NoteQS(p *Position, ml []OrderedMove)
 }
 
 type TransTable interface {
@@ -106,7 +100,6 @@ func (e *Engine) Prepare() {
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
-			t.sortTable = &sortTable{}
 			t.evaluator = e.evalBuilder()
 		}
 	}
@@ -149,7 +142,7 @@ func (e *Engine) Clear() {
 	}
 	for i := range e.threads {
 		var t = &e.threads[i]
-		t.sortTable.Clear()
+		t.history.Clear()
 	}
 }
 

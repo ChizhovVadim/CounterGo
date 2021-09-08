@@ -152,11 +152,15 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		}
 		var newDepth = depth - 1 + extension
 		var nextFirstline = i == 0
-		if (reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0) &&
-			-t.alphaBeta(-(alpha+1), -alpha, newDepth-reduction, height+1, nextFirstline) <= alpha {
-			continue
+		var score = alpha + 1
+		// LMR/PVS
+		if reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0 {
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, nextFirstline)
 		}
-		var score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
+		// full search
+		if score > alpha {
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
+		}
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
@@ -173,7 +177,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 // main search method
 func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	var oldAlpha = alpha
-	var newDepth, score int
+	var newDepth int
 	t.stack[height].pv.clear()
 
 	var position = &t.stack[height].position
@@ -235,7 +239,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	if !firstline && depth <= 8 && !isCheck {
 		var score = staticEval - pawnValue*depth
 		if score >= beta {
-			return beta
+			return score
 		}
 	}
 
@@ -258,9 +262,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 		if reduction >= 2 {
 			position.MakeNullMove(child)
-			score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
+			var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
 			if score >= beta {
-				return beta
+				if score >= valueWin {
+					score = beta
+				}
+				return score
 			}
 		}
 	}
@@ -308,7 +315,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			if !isCaptureOrPromotion(move) {
 				quietsPlayed++
 			}
-			score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
+			var score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
 			if score >= singularBeta {
 				ttMoveIsSingular = false
 				break
@@ -329,6 +336,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		lmp /= 2
 	}
 
+	var best = -valueInfinity
+
 	for i := range ml {
 		if i < SortMovesIndex {
 			moveToTop(ml[i:])
@@ -338,7 +347,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		var move = ml[i].Move
 		movesSeen++
 
-		if depth <= 8 && alpha > valueLoss && hasLegalMove {
+		if depth <= 8 && best > valueLoss && hasLegalMove {
 			// late-move pruning
 			if !isCaptureOrPromotion(move) && movesSeen > lmp {
 				continue
@@ -392,16 +401,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		newDepth = depth - 1 + extension
 		var nextFirstline = firstline && movesSearched == 1
 
+		var score = alpha + 1
 		// LMR
 		if reduction > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, nextFirstline)
-			if score <= alpha {
-				continue
-			}
+		}
+		// full search
+		if score > alpha {
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
 		}
 
-		score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
-
+		best = Max(best, score)
 		if score > alpha {
 			alpha = score
 			bestMove = move
@@ -424,15 +434,15 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	}
 
 	ttBound = 0
-	if alpha > oldAlpha {
+	if best > oldAlpha {
 		ttBound |= boundLower
 	}
-	if alpha < beta {
+	if best < beta {
 		ttBound |= boundUpper
 	}
-	t.engine.transTable.Update(position.Key, depth, valueToTT(alpha, height), ttBound, bestMove)
+	t.engine.transTable.Update(position.Key, depth, valueToTT(best, height), ttBound, bestMove)
 
-	return alpha
+	return best
 }
 
 func (t *thread) quiescence(alpha, beta, height int) int {
@@ -457,8 +467,10 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	}
 
 	var isCheck = position.IsCheck()
+	var best = -valueInfinity
 	if !isCheck {
 		var eval = t.evaluator.Evaluate(position)
+		best = Max(best, eval)
 		if eval > alpha {
 			alpha = eval
 			if alpha >= beta {
@@ -486,6 +498,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		}
 		hasLegalMove = true
 		var score = -t.quiescence(-beta, -alpha, height+1)
+		best = Max(best, score)
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
@@ -497,7 +510,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	if isCheck && !hasLegalMove {
 		return lossIn(height)
 	}
-	return alpha
+	return best
 }
 
 func (t *thread) incNodes() {

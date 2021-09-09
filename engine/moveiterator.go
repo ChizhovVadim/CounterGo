@@ -76,6 +76,7 @@ func (mi *moveIterator) Init() {
 		} else if m == mi.killer2 {
 			score = sortTableKeyImportant
 		} else {
+			// ideally should be inlined. copy/paste?
 			score = mi.history.ReadTotal(side, m)
 		}
 		mi.buffer[i].Key = int32(score)

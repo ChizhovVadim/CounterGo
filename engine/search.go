@@ -187,11 +187,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		return t.evaluator.Evaluate(position)
 	}
 
-	if repetition, inCurrentSearch := t.isRepeat(height); repetition {
-		alpha = Max(alpha, valueDraw)
-		if alpha >= beta || inCurrentSearch {
-			return alpha
-		}
+	if t.isRepeat(height) {
+		return Max(alpha, valueDraw)
 	}
 
 	if depth <= 0 {
@@ -572,27 +569,23 @@ func isDraw(p *Position) bool {
 	return false
 }
 
-func (t *thread) isRepeat(height int) (repetition, inCurrentSearch bool) {
+func (t *thread) isRepeat(height int) bool {
 	var p = &t.stack[height].position
 
-	if p.Rule50 == 0 {
-		return false, false
+	if p.Rule50 == 0 || p.LastMove == MoveEmpty {
+		return false
 	}
 	for i := height - 1; i >= 0; i-- {
 		var temp = &t.stack[i].position
 		if temp.Key == p.Key {
-			return true, true
+			return true
 		}
 		if temp.Rule50 == 0 || temp.LastMove == MoveEmpty {
-			return false, false
+			return false
 		}
 	}
 
-	if t.engine.historyKeys[p.Key] >= 2 {
-		return true, false
-	}
-
-	return false, false
+	return t.engine.historyKeys[p.Key] >= 2
 }
 
 func (t *thread) extend(depth, height int) int {

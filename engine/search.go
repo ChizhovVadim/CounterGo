@@ -345,7 +345,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
-	const SortMovesIndex = 4
 
 	var lmp = 5 + depth*depth
 	if !improving {
@@ -360,16 +359,17 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			break
 		}
 		movesSeen++
+		var isNoisy = isCaptureOrPromotion(move)
 
 		if depth <= 8 && best > valueLoss && hasLegalMove {
 			// late-move pruning
-			if !isCaptureOrPromotion(move) && movesSeen > lmp {
+			if !isNoisy && movesSeen > lmp {
 				continue
 			}
 
 			// futility pruning
 			if !(isCheck ||
-				isCaptureOrPromotion(move) ||
+				isNoisy ||
 				move == mi.killer1 ||
 				move == mi.killer2 ||
 				position.LastMove == MoveEmpty) &&
@@ -379,7 +379,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 			// SEE pruning
 			if !isCheck &&
-				(!isCaptureOrPromotion(move) || staticEval-pawnValue*depth <= alpha) &&
+				(!isNoisy || staticEval-pawnValue*depth <= alpha) &&
 				!SeeGE(position, move, -depth) {
 				continue
 			}
@@ -401,7 +401,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 
 		if depth >= 3 && movesSearched > 1 &&
-			!(isCaptureOrPromotion(move)) {
+			!(isNoisy) {
 			reduction = t.engine.lateMoveReduction(depth, movesSearched)
 			if move == mi.killer1 || move == mi.killer2 {
 				reduction--
@@ -411,7 +411,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 
-		if !isCaptureOrPromotion(move) {
+		if !isNoisy {
 			quietsSearched = append(quietsSearched, move)
 		}
 

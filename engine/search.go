@@ -361,7 +361,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		movesSeen++
 		var isNoisy = isCaptureOrPromotion(move)
 
-		if depth <= 8 && best > valueLoss && hasLegalMove {
+		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck {
 			// late-move pruning
 			if !isNoisy && movesSeen > lmp {
 				continue

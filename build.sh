@@ -13,5 +13,6 @@ function make {
 }
 
 make  darwin amd64 ""
+make  darwin arm64 ""
 make   linux amd64 ""
 make windows amd64 ".exe"

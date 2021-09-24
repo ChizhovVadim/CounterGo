@@ -23,6 +23,7 @@ func TestWeights(t *testing.T) {
 	printPst("Rook", w.PST[0][common.Rook])
 	printPst("Queen", w.PST[0][common.Queen])
 	printPst("King", w.PST[0][common.King])
+	printPst("PawnConnected", w.PawnConnected)
 }
 
 func printPst(name string, source [64]Score) {

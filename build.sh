@@ -1,6 +1,6 @@
 #!/bin/bash
 
-versionName="3.9"
+versionName="4.0dev"
 gitRevision=$(git rev-list -1 HEAD)
 buildDate=$(date +"%Y-%m-%d")
 

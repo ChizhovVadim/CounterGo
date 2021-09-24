@@ -29,6 +29,11 @@ func (s *Score) addN(v Score, n int) {
 	s.Eg += v.Eg * n
 }
 
+func (s *Score) addRatio(v Score, n, d int) {
+	s.Mg += v.Mg * n / d
+	s.Eg += v.Eg * n / d
+}
+
 func negScore(s Score) Score {
 	return Score{-s.Mg, -s.Eg}
 }

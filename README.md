@@ -1,7 +1,11 @@
 ![logo](https://raw.githubusercontent.com/ChizhovVadim/CounterGo/master/logo.png)
 # Counter
-Counter is a free, open-source chess engine, implemented in [Go](https://golang.org/).
-Counter supports standard UCI (universal chess interface) protocol.
+Counter is a chess engine.
++ free
++ open source
++ support for different OS (Linux, macOS, Windows)
++ multi threading support
++ [UCI]((http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html)) protocol support. You can use any [chess GUI interface](https://www.chessprogramming.org/UCI#GUIs) that supports UCI protocol
 
 ## Strength
 
@@ -24,34 +28,47 @@ Chess Rating lists:
 |3.3    |     |2847      |2647         |2700     |
 |3.2    |     |2834      |2624         |2692     |
 
-## Commands
-Counter supports [UCI protocol](http://www.shredderchess.com/chess-info/features/uci-universal-chess-interface.html) commands.
+## TCEC
+Counter is participating in [TCEC](https://wiki.chessdom.org/Main_Page) tournament.
++ [Season 20](https://wiki.chessdom.org/TCEC_Season_20_Engines)
++ [Season 19](https://wiki.chessdom.org/TCEC_Season_19_Engines)
++ [Season 18](https://wiki.chessdom.org/TCEC_Season_18_Engines)
++ [Season 17](https://wiki.chessdom.org/TCEC_Season_17_Engines)
 
-## Features
-### Board
-+ Magic bitboards
-### Evaluation
-+ Texel's Tuning Method
-### Search
-+ Parallel search (Lazy SMP)
-+ Iterative Deepening
-+ Aspiration Windows
-+ Transposition Table
-+ Null Move Pruning
-+ Late Move Reductions
-+ Futility Pruning
-+ Move Count Based Pruning
-+ SEE Pruning
-+ Singular extensions
+## Technical description
+Currently Counter is an alpha beta engine with Hand Crafted Eval. Multithreading implemented with LazySMP method. Counter written in the [go](https://golang.org/) programming language. I think programming should be fun. And C/C++ is not funny at all.
 
-## Information about chess programming
-+ [Chess Programming Wiki](https://www.chessprogramming.org)
-+ [Bruce Moreland's Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
-
-## Thanks
-+ Vladimir Medvedev, GreKo
-+ Fabien Letouzey, Fruit and Senpai
-+ Robert Hyatt, Crafty
+## How to write chess engine
+### Level0
+- able to generate legal moves and select random move
+- implement uci protocol
+- unit test for move generator
+### Level1 (only exact search methods)
+- PESTO eval
+- Iterative deepening
+- alphabeta, QS(good captures and check escapes)
+- Transposition table
+- Internal iterative deepening
+- move order: trans move, good captures, killers, bad captures and history
+- repeat detect
+- Aspiration window
+- PVS in root
+- simple time manager
+### Level2 (simple methods with maximum ELO increase)
+- NMP R=4+d/6, null move case in repeat detect
+- LMR R~log(d)log(m). In ideal case without lmr research, search tree will growth linear
+- Leaf prunings (reverse futility, Late move pruning, SEE pruning)
+- Singular extension, check extension
+- eval (Material, King safety, passed pawns, threats, PSQT, mobility). Texel tuning
+- LazySMP
+### Level3 (complex methods or methods with low ELO increase)
+- complicated time manager
+- NNUE eval
+- endgame TB
+- PVS
+- performance (increment staged move generator, store static eval in TT or cache static eval, pawn hash table in eval, other optimizations)
+- Probcut
+- ...
 
 ---------------------------------------------------------------
 

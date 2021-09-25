@@ -154,9 +154,13 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		var newDepth = depth - 1 + extension
 		var nextFirstline = i == 0
 		var score = alpha + 1
-		// LMR/PVS
-		if reduction > 0 || beta != alpha+1 && i > 0 && newDepth > 0 {
+		// LMR
+		if reduction > 0 {
 			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, nextFirstline)
+		}
+		// PVS
+		if score > alpha && beta != alpha+1 && i > 0 && newDepth > 0 {
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1, nextFirstline)
 		}
 		// full search
 		if score > alpha {

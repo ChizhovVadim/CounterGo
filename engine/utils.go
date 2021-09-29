@@ -96,6 +96,10 @@ func isPawnAdvance(move Move, side bool) bool {
 	}
 }
 
+func isRecapture(prev, move Move) bool {
+	return prev != MoveEmpty && isCaptureOrPromotion(prev) && move.To() == prev.To()
+}
+
 func getAttacks(p *Position, to int, side bool, occ uint64) uint64 {
 	var att = (PawnAttacks(to, !side) & p.Pawns) |
 		(KnightAttacks[to] & p.Knights) |
@@ -219,6 +223,10 @@ func initLmr(f func(d, m float64) float64) func(d, m int) int {
 	return func(d, m int) int {
 		return reductions[Min(d, 63)][Min(m, 63)]
 	}
+}
+
+func lmrSum(d, m float64) float64 {
+	return 3 + math.Log(d) - math.Log(5) + math.Log(m) - math.Log(22)
 }
 
 func lmrMult(d, m float64) float64 {

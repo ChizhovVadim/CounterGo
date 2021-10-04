@@ -91,12 +91,13 @@ func calcLimits(main, inc time.Duration, moves int) (soft, hard time.Duration) {
 	}
 
 	if moves == 0 {
-		hard = main/13 + inc
-		soft = hard / 4
+		var ideal = main/35 + inc/2
+		soft = ideal * 7 / 10
+		hard = ideal * 21 / 10
 	} else {
 		moves = Min(moves, DefaultMovesToGo)
-		hard = main/time.Duration(moves) + inc
-		soft = hard / 2
+		soft = (main/time.Duration(moves+1) + inc) * 7 / 10
+		hard = (main/time.Duration(moves+1) + inc) * 21 / 10
 	}
 
 	hard = limitDuration(hard, MinTimeLimit, main)

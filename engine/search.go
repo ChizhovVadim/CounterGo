@@ -115,21 +115,22 @@ func aspirationWindow(t *thread, ml []Move, depth, prevScore int) (int, bool) {
 	}()
 
 	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
-		var alphaMargin = 25
-		var betaMargin = 25
-		for i := 0; i < 2; i++ {
-			var alpha = Max(-valueInfinity, prevScore-alphaMargin)
-			var beta = Min(valueInfinity, prevScore+betaMargin)
-			var score = searchRoot(t, ml, alpha, beta, depth)
-			if score >= valueWin || score <= valueLoss {
-				break
-			} else if score >= beta {
-				betaMargin *= 2
-			} else if score <= alpha {
-				alphaMargin *= 2
-			} else {
-				return score, true
-			}
+		const Window = 25
+		var alpha = Max(-valueInfinity, prevScore-Window)
+		var beta = Min(valueInfinity, prevScore+Window)
+		var score = searchRoot(t, ml, alpha, beta, depth)
+		if score > alpha && score < beta {
+			return score, true
+		}
+		if score >= beta {
+			beta = valueInfinity
+		}
+		if score <= alpha {
+			alpha = -valueInfinity
+		}
+		score = searchRoot(t, ml, alpha, beta, depth)
+		if score > alpha && score < beta {
+			return score, true
 		}
 	}
 	return searchRoot(t, ml, -valueInfinity, valueInfinity, depth), true
@@ -149,22 +150,25 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		if depth >= 3 && i > 0 &&
 			!(isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
+			reduction--
+			if p.IsCheck() || child.IsCheck() {
+				reduction--
+			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 		var newDepth = depth - 1 + extension
-		var nextFirstline = i == 0
 		var score = alpha + 1
 		// LMR
 		if reduction > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, nextFirstline)
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
 		}
 		// PVS
 		if score > alpha && beta != alpha+1 && i > 0 && newDepth > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1, nextFirstline)
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
 		}
 		// full search
 		if score > alpha {
-			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		}
 		if score > alpha {
 			alpha = score
@@ -180,8 +184,9 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 }
 
 // main search method
-func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
+func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var oldAlpha = alpha
+	var pvNode = beta != oldAlpha+1
 	var newDepth int
 	t.stack[height].pv.clear()
 
@@ -219,7 +224,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
-		if ttDepth >= depth {
+		if ttDepth >= depth && !pvNode {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
 					t.updateKiller(ttMove, height)
@@ -238,7 +243,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		height >= 2 && staticEval > t.stack[height-2].staticEval
 
 	// reverse futility pruning
-	if !firstline && depth <= 8 && !isCheck {
+	if !pvNode && depth <= 8 && !isCheck {
 		var score = staticEval - pawnValue*depth
 		if score >= beta {
 			return score
@@ -252,35 +257,28 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if !firstline && depth >= 2 && !isCheck &&
+	if !pvNode && depth >= 2 && !isCheck &&
 		position.LastMove != MoveEmpty &&
 		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
 		beta < valueWin &&
 		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
 		!isLateEndgame(position, position.WhiteMove) &&
 		staticEval >= beta {
-		var reduction = 4 + depth/6
-		if staticEval >= beta+50 {
-			reduction = Min(reduction, depth)
-		} else {
-			reduction = Min(reduction, depth-1)
-		}
-		if reduction >= 2 {
-			position.MakeNullMove(child)
-			var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, false)
-			if score >= beta {
-				if score >= valueWin {
-					score = beta
-				}
-				return score
+		var reduction = 4 + depth/6 + Min(2, (staticEval-beta)/200)
+		position.MakeNullMove(child)
+		var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1)
+		if score >= beta {
+			if score >= valueWin {
+				score = beta
 			}
+			return score
 		}
 	}
 
 	// Internal iterative deepening
 	if depth >= 8 && ttMove == MoveEmpty {
 		var iidDepth = depth - depth/4 - 5
-		t.alphaBeta(alpha, beta, iidDepth, height, firstline)
+		t.alphaBeta(alpha, beta, iidDepth, height)
 		if t.stack[height].pv.size != 0 {
 			ttMove = t.stack[height].pv.items[0]
 			t.stack[height].pv.clear()
@@ -335,7 +333,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			if !isCaptureOrPromotion(move) {
 				quietsPlayed++
 			}
-			var score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1, false)
+			var score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1)
 			if score >= singularBeta {
 				ttMoveIsSingular = false
 				break
@@ -412,6 +410,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 			}
 			var history = historyContext.ReadTotal(position.WhiteMove, move)
 			reduction -= Max(-2, Min(2, history/5000))
+			if pvNode {
+				reduction--
+				if isCheck || child.IsCheck() {
+					reduction--
+				}
+			}
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 
@@ -420,16 +424,19 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, firstline bool) int {
 		}
 
 		newDepth = depth - 1 + extension
-		var nextFirstline = firstline && movesSearched == 1
 
 		var score = alpha + 1
 		// LMR
 		if reduction > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, nextFirstline)
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
+		}
+		// PVS
+		if score > alpha && beta != alpha+1 && movesSearched > 1 && newDepth > 0 {
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
 		}
 		// full search
 		if score > alpha {
-			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, nextFirstline)
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		}
 
 		best = Max(best, score)

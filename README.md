@@ -54,7 +54,7 @@ Currently Counter is an alpha beta engine with Hand Crafted Eval. Counter uses b
 - Aspiration window
 - PVS in root
 - simple time manager
-- mate distnace pruning
+- mate distance pruning
 ### Level2 (simple methods with maximum ELO increase)
 - NMP R=4+d/6, null move case in repeat detect
 - LMR R~log(d)log(m). In ideal case without lmr research, search tree will growth linear

@@ -2,14 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/engine"
-	"github.com/ChizhovVadim/CounterGo/eval"
-	evalpesto "github.com/ChizhovVadim/CounterGo/evalpesto"
+	counter "github.com/ChizhovVadim/CounterGo/eval/counter"
 	"github.com/ChizhovVadim/CounterGo/uci"
+	//pesto "github.com/ChizhovVadim/CounterGo/eval/pesto"
+	//weiss "github.com/ChizhovVadim/CounterGo/eval/weiss"
 )
 
 /*
@@ -28,10 +30,11 @@ var (
 	versionName = "dev"
 	buildDate   = "(null)"
 	gitRevision = "(null)"
-	flagPesto   = flag.Bool("pesto", false, "evaluation Piece Square Tables only")
+	flgEval     string
 )
 
 func main() {
+	flag.StringVar(&flgEval, "eval", "counter", "specifies evaluation function")
 	flag.Parse()
 
 	var logger = log.New(os.Stderr, "", log.LstdFlags)
@@ -42,17 +45,7 @@ func main() {
 		"GitRevision", gitRevision,
 		"RuntimeVersion", runtime.Version())
 
-	var evalBuilder func() engine.Evaluator
-	if *flagPesto {
-		evalBuilder = func() engine.Evaluator {
-			return evalpesto.NewEvaluationService()
-		}
-	} else {
-		evalBuilder = func() engine.Evaluator {
-			return eval.NewEvaluationService()
-		}
-	}
-
+	var evalBuilder = evalBuilder(flgEval)
 	var engine = engine.NewEngine(evalBuilder)
 
 	var protocol = uci.New(name, author, versionName, engine,
@@ -64,4 +57,19 @@ func main() {
 	)
 
 	uci.RunCli(logger, protocol)
+}
+
+func evalBuilder(name string) func() engine.Evaluator {
+	return func() engine.Evaluator {
+		if name == "counter" {
+			return counter.NewEvaluationService()
+		}
+		/*if name == "pesto" {
+			return pesto.NewEvaluationService()
+		}
+		if name == "weiss" {
+			return weiss.NewEvaluationService()
+		}*/
+		panic(fmt.Errorf("bad eval %v", name))
+	}
 }

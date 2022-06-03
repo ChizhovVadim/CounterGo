@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/engine"
-	"github.com/ChizhovVadim/CounterGo/eval"
-	evalpesto "github.com/ChizhovVadim/CounterGo/evalpesto"
+	"github.com/ChizhovVadim/CounterGo/eval/counter"
 )
 
 //TODO use user folder
@@ -51,7 +50,7 @@ func runBenchmark(profile bool) error {
 		}
 		defer pprof.StopCPUProfile()
 	}
-	var eng = newEngine(false)
+	var eng = newEngine()
 	var tests, err = loadEpd(wacFilePath)
 	if err != nil {
 		return err
@@ -61,7 +60,7 @@ func runBenchmark(profile bool) error {
 }
 
 func runSolveTactic() error {
-	var eng = newEngine(false)
+	var eng = newEngine()
 	var tests, err = loadEpd(wacFilePath)
 	if err != nil {
 		return err
@@ -70,16 +69,10 @@ func runSolveTactic() error {
 	return nil
 }
 
-func newEngine(pesto bool) *engine.Engine {
+func newEngine() *engine.Engine {
 	var evalBuilder func() engine.Evaluator
-	if pesto {
-		evalBuilder = func() engine.Evaluator {
-			return evalpesto.NewEvaluationService()
-		}
-	} else {
-		evalBuilder = func() engine.Evaluator {
-			return eval.NewEvaluationService()
-		}
+	evalBuilder = func() engine.Evaluator {
+		return eval.NewEvaluationService()
 	}
 	var e = engine.NewEngine(evalBuilder)
 	e.Hash = 128

@@ -19,7 +19,8 @@ Chess Rating lists:
 
 |Version|GRL  |CCRL 40/15|FastGM 60+0.6|CEGT 40/4|
 |-------|-----|----------|-------------|---------|
-|3.9    |3065 |          |             |2959     |
+|4.0    |3115 |3101      |2935         |2997     |
+|3.9    |3065 |3075      |             |2959     |
 |3.8    |2994 |3012      |2817         |2887     |
 |3.7    |2972 |2970      |2784         |2854     |
 |3.6    |     |          |2757         |2820     |
@@ -27,6 +28,7 @@ Chess Rating lists:
 |3.4    |     |2881      |2679         |2742     |
 |3.3    |     |2847      |2647         |2700     |
 |3.2    |     |2834      |2624         |2692     |
+|3.1    |     |2784      |             |         |
 
 ## TCEC
 Counter is participating in [TCEC](https://wiki.chessdom.org/Main_Page) tournament.
@@ -54,7 +56,7 @@ Currently Counter is an alpha beta engine with Hand Crafted Eval. Counter uses b
 - Aspiration window
 - PVS in root
 - simple time manager
-- mate distnace pruning
+- mate distance pruning
 ### Level2 (simple methods with maximum ELO increase)
 - NMP R=4+d/6, null move case in repeat detect
 - LMR R~log(d)log(m). In ideal case without lmr research, search tree will growth linear
@@ -70,6 +72,16 @@ Currently Counter is an alpha beta engine with Hand Crafted Eval. Counter uses b
 - performance (increment staged move generator, store static eval in TT or cache static eval, pawn hash table in eval, other optimizations)
 - Probcut
 - ...
+
+## References
+- [cutechess](https://github.com/cutechess/cutechess)
+- [Stockfish](https://github.com/official-stockfish/Stockfish)
+- [Ethereal](https://github.com/AndyGrant/Ethereal)
+- [Самообучение шахматной программы](https://habr.com/ru/post/305604/?mobile=yes)
+- [Neural Networks For Chess](https://github.com/asdfjkl/neural_network_chess)
+- [talkchess](http://talkchess.com/forum3/viewforum.php?f=12)
+- [Chess Programming Wiki](https://www.chessprogramming.org)
+- [Bruce Moreland's Programming Topics](https://web.archive.org/web/20071026090003/http://www.brucemo.com/compchess/programming/index.htm)
 
 ---------------------------------------------------------------
 

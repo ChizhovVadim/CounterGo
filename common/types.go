@@ -3,6 +3,14 @@ package common
 import "time"
 
 const (
+	SQUARE_NB = 64
+	RANK_NB   = 8
+	FILE_NB   = 8
+	COLOUR_NB = 2
+	PIECE_NB  = 8
+)
+
+const (
 	SideWhite = 0
 	SideBlack = 1
 )

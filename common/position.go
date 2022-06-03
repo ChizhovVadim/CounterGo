@@ -340,6 +340,13 @@ func (p *Position) PiecesByColor(side bool) uint64 {
 	return p.Black
 }
 
+func (p *Position) Colours(side int) uint64 {
+	if side == SideWhite {
+		return p.White
+	}
+	return p.Black
+}
+
 func xorPiece(p *Position, side bool, piece, square int) {
 	var b = SquareMask[square]
 	if side {

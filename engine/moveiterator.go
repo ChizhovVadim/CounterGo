@@ -142,3 +142,16 @@ func moveToTop(ml []OrderedMove) {
 		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
 	}
 }
+
+func skipQuiets(ml []OrderedMove, startIndex, endIndex int) int {
+	var i = startIndex
+	for j := startIndex; j < endIndex; j++ {
+		if !isCaptureOrPromotion(ml[j].Move) {
+			if i != j {
+				ml[i], ml[j] = ml[j], ml[i]
+			}
+			i++
+		}
+	}
+	return i
+}

@@ -215,18 +215,14 @@ func lmrOff(d, m int) int {
 
 func initLmr(f func(d, m float64) float64) func(d, m int) int {
 	var reductions [64][64]int
-	for d := 3; d < 64; d++ {
-		for m := 2; m < 64; m++ {
+	for d := 1; d < 64; d++ {
+		for m := 1; m < 64; m++ {
 			reductions[d][m] = int(f(float64(d), float64(m)))
 		}
 	}
 	return func(d, m int) int {
 		return reductions[Min(d, 63)][Min(m, 63)]
 	}
-}
-
-func lmrSum(d, m float64) float64 {
-	return 3 + math.Log(d) - math.Log(5) + math.Log(m) - math.Log(22)
 }
 
 func lmrMult(d, m float64) float64 {

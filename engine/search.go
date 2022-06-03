@@ -150,10 +150,11 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		if depth >= 3 && i > 0 &&
 			!(isCaptureOrPromotion(move)) {
 			reduction = t.engine.lateMoveReduction(depth, i+1)
-			reduction--
+			reduction -= 2
 			if p.IsCheck() || child.IsCheck() {
 				reduction--
 			}
+			reduction = Max(reduction, 0) + extension
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 		var newDepth = depth - 1 + extension
@@ -224,7 +225,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
-		if ttDepth >= depth && !pvNode {
+		if ttDepth >= depth && !pvNode && !(position.LastMove == MoveEmpty) {
 			if ttValue >= beta && (ttBound&boundLower) != 0 {
 				if ttMove != MoveEmpty && !isCaptureOrPromotion(ttMove) {
 					t.updateKiller(ttMove, height)
@@ -239,14 +240,13 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var staticEval = t.evaluator.Evaluate(position)
 	t.stack[height].staticEval = staticEval
-	var improving = position.LastMove == MoveEmpty ||
-		height >= 2 && staticEval > t.stack[height-2].staticEval
+	var improving = height < 2 || staticEval > t.stack[height-2].staticEval
 
 	// reverse futility pruning
 	if !pvNode && depth <= 8 && !isCheck {
 		var score = staticEval - pawnValue*depth
 		if score >= beta {
-			return score
+			return staticEval
 		}
 	}
 
@@ -275,8 +275,41 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
+	if !pvNode && depth >= 5 && !isCheck &&
+		beta > valueLoss && beta < valueWin &&
+		!(ttHit && ttDepth >= depth-4 && ttValue < beta && (ttBound&boundUpper) != 0) {
+
+		var probcutBeta = Min(valueWin-1, beta+150)
+
+		var mi = moveIteratorQS{
+			position: position,
+			buffer:   t.stack[height].moveList[:],
+		}
+		mi.Init()
+
+		for mi.Reset(); ; {
+			var move = mi.Next()
+			if move == MoveEmpty {
+				break
+			}
+			if !seeGEZero(position, move) {
+				continue
+			}
+			if !position.MakeMove(move, child) {
+				continue
+			}
+			var score = -t.quiescence(-probcutBeta, -probcutBeta+1, height+1)
+			if score >= probcutBeta {
+				score = -t.alphaBeta(-probcutBeta, -probcutBeta+1, depth-4, height+1)
+			}
+			if score >= probcutBeta {
+				return score
+			}
+		}
+	}
+
 	// Internal iterative deepening
-	if depth >= 8 && ttMove == MoveEmpty {
+	if pvNode && depth >= 8 && ttMove == MoveEmpty {
 		var iidDepth = depth - depth/4 - 5
 		t.alphaBeta(alpha, beta, iidDepth, height)
 		if t.stack[height].pv.size != 0 {
@@ -343,12 +376,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	var movesSearched = 0
 	var hasLegalMove = false
-	var movesSeen = 0
+	var quietsSeen = 0
 
 	var quietsSearched = t.stack[height].quietsSearched[:0]
 	var bestMove Move
 
-	var lmp = 5 + depth*depth
+	var lmp = 5 + (depth-1)*depth
 	if !improving {
 		lmp /= 2
 	}
@@ -360,35 +393,41 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		if move == MoveEmpty {
 			break
 		}
-		movesSeen++
 		var isNoisy = isCaptureOrPromotion(move)
+		if !isNoisy {
+			quietsSeen++
+		}
 
 		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck {
 			// late-move pruning
-			if !isNoisy && movesSeen > lmp {
+			if !(isNoisy ||
+				move == mi.killer1 ||
+				move == mi.killer2) &&
+				quietsSeen > lmp {
 				continue
 			}
 
 			// futility pruning
-			if !(isCheck ||
-				isNoisy ||
+			if !(isNoisy ||
 				move == mi.killer1 ||
-				move == mi.killer2 ||
-				position.LastMove == MoveEmpty) &&
-				staticEval+pawnValue*depth <= alpha {
+				move == mi.killer2) &&
+				staticEval+100+pawnValue*depth <= alpha {
 				continue
 			}
 
 			// SEE pruning
-			if !isCheck &&
-				(!isNoisy || staticEval-pawnValue*depth <= alpha) &&
-				!SeeGE(position, move, -depth) {
+			var seeMargin int
+			if isNoisy {
+				seeMargin = Max(depth, (staticEval+pawnValue-alpha)/pawnValue)
+			} else {
+				seeMargin = depth / 2
+			}
+			if !SeeGE(position, move, -seeMargin) {
 				continue
 			}
 		}
 
 		if !position.MakeMove(move, child) {
-			movesSeen--
 			continue
 		}
 		hasLegalMove = true
@@ -408,14 +447,21 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			if move == mi.killer1 || move == mi.killer2 {
 				reduction--
 			}
-			var history = historyContext.ReadTotal(position.WhiteMove, move)
-			reduction -= Max(-2, Min(2, history/5000))
-			if pvNode {
-				reduction--
-				if isCheck || child.IsCheck() {
-					reduction--
+			if !isCheck {
+				var history = historyContext.ReadTotal(position.WhiteMove, move)
+				reduction -= Max(-2, Min(2, history/5000))
+
+				if !improving {
+					reduction++
 				}
 			}
+			if pvNode {
+				reduction -= 2
+			}
+			if isCheck || child.IsCheck() {
+				reduction--
+			}
+			reduction = Max(reduction, 0) + extension
 			reduction = Max(0, Min(depth-2, reduction))
 		}
 
@@ -439,10 +485,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		}
 
-		best = Max(best, score)
+		if score > best {
+			best = score
+			bestMove = move
+		}
 		if score > alpha {
 			alpha = score
-			bestMove = move
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
 			if alpha >= beta {
 				break
@@ -457,7 +505,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		return valueDraw
 	}
 
-	if bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
+	if alpha > oldAlpha && bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
 		historyContext.Update(position.WhiteMove, quietsSearched, bestMove, depth)
 		t.updateKiller(bestMove, height)
 	}
@@ -604,7 +652,7 @@ func (t *thread) extend(depth, height int) int {
 	var child = &t.stack[height+1].position
 	var givesCheck = child.IsCheck()
 
-	if givesCheck {
+	if givesCheck && depth >= 3 {
 		return 1
 	}
 

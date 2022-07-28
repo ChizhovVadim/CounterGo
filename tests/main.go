@@ -4,67 +4,56 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime/pprof"
+	"os/user"
+	"path/filepath"
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/engine"
-	"github.com/ChizhovVadim/CounterGo/eval/counter"
+	eval "github.com/ChizhovVadim/CounterGo/eval/counter"
 )
 
-//TODO use user folder
-const TuneFile = "/home/vadim/chess/tuner/quiet-labeled.epd"
-const wacFilePath = "/home/vadim/chess/tests/tests.epd"
-
-var logger = log.New(os.Stderr, "", log.LstdFlags)
+var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
 
 func main() {
-	//runTuner()
-	//testFens("TestSymmetricEval", testSymmetricEval(eval.NewEvaluationService()))
-	//testFens("TestSymmetricEval", testSymmetricEval(evalpesto.NewEvaluationService()))
-	//testFens("TestSEE", testSee())
-	//printErr(runBenchmark(false))
-	//printErr(runSolveTactic())
+	var err = run()
+	if err != nil {
+		log.Println(err)
+	}
 }
 
-func runTuner() {
-	var t = &Tuner{
-		Logger: logger,
-		EvalBuilder: func() TunableEvaluator {
-			return eval.NewEvaluationService()
-		},
-		FilePath: TuneFile,
-	}
-	printErr(t.Run())
-}
-
-//go tool pprof counterwork ~/counter.prof
-func runBenchmark(profile bool) error {
-	if profile {
-		f, err := os.Create("/home/vadim/counter.prof")
-		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
-		}
-		defer f.Close() // error handling omitted for example
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
-		}
-		defer pprof.StopCPUProfile()
-	}
-	var eng = newEngine()
-	var tests, err = loadEpd(wacFilePath)
+func run() error {
+	curUser, err := user.Current()
 	if err != nil {
 		return err
 	}
+	homeDir := curUser.HomeDir
+	if homeDir == "" {
+		return fmt.Errorf("current user home dir empty")
+	}
+
+	var chessDir = filepath.Join(homeDir, "chess")
+	var wacFilePath = filepath.Join(chessDir, "tests/tests.epd")
+
+	//return runBenchmark(wacFilePath)
+	return runSolveTactic(wacFilePath)
+}
+
+func runBenchmark(filepath string) error {
+	var tests, err = loadEpd(filepath)
+	if err != nil {
+		return err
+	}
+	var eng = newEngine()
 	benchmark(tests, eng)
 	return nil
 }
 
-func runSolveTactic() error {
-	var eng = newEngine()
-	var tests, err = loadEpd(wacFilePath)
+func runSolveTactic(filepath string) error {
+	var tests, err = loadEpd(filepath)
 	if err != nil {
 		return err
 	}
+	var eng = newEngine()
 	solveTactic(tests, eng, 3*time.Second)
 	return nil
 }
@@ -74,14 +63,8 @@ func newEngine() *engine.Engine {
 	evalBuilder = func() engine.Evaluator {
 		return eval.NewEvaluationService()
 	}
-	var e = engine.NewEngine(evalBuilder)
-	e.Hash = 128
-	e.ExperimentSettings = false
-	return e
-}
-
-func printErr(e error) {
-	if e != nil {
-		fmt.Println(e)
-	}
+	var eng = engine.NewEngine(evalBuilder)
+	eng.Hash = 128
+	eng.ExperimentSettings = false
+	return eng
 }

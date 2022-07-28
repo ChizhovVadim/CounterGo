@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/ChizhovVadim/CounterGo/common"
 )
@@ -158,7 +159,7 @@ func (uci *Protocol) goCommand(fields []string) error {
 			Positions: uci.positions,
 			Limits:    limits,
 			Progress: func(si common.SearchInfo) {
-				if si.Time >= 500 || si.Depth >= 5 {
+				if si.Time >= 300*time.Millisecond {
 					fmt.Println(searchInfoToUci(si))
 				}
 			},

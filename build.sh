@@ -9,7 +9,7 @@ function make {
         GOOS=$1 GOARCH=$2 go build \
                 -ldflags "-X 'main.gitRevision=$gitRevision' -X 'main.buildDate=$buildDate' -X 'main.versionName=$versionName'" \
                 -o counter-$versionName-$1-$2$3 \
-                github.com/ChizhovVadim/CounterGo/counter
+                github.com/ChizhovVadim/CounterGo/cmd/counter
 }
 
 make  darwin amd64 ""

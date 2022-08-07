@@ -12,7 +12,6 @@ import (
 	"github.com/ChizhovVadim/CounterGo/internal/quiet"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
-	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 	eval "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
 )
 
@@ -22,22 +21,6 @@ type IQuietService interface {
 
 func quietServiceBuilder() IQuietService {
 	return quiet.NewQuietService(eval.NewEvaluationService(), 30)
-}
-
-type IEngine interface {
-	Prepare()
-	Clear()
-	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
-}
-
-func engineBuilder() IEngine {
-	var eng = engine.NewEngine(func() engine.Evaluator {
-		return eval.NewEvaluationService()
-	})
-	eng.Hash = 32
-	eng.Threads = 1
-	eng.Prepare()
-	return eng
 }
 
 func main() {

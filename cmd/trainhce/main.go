@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"math"
@@ -18,30 +19,47 @@ type ITunableEvaluator interface {
 	ComputeFeatures(pos *common.Position) domain.TuneEntry
 }
 
+type Config struct {
+	trainingPath   string
+	validationPath string
+	threads        int
+	epochs         int
+	searchWeight   float64
+	datasetMaxSize int
+}
+
+var config Config
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	var e = eval.NewEvaluationService()
-	var trainingPath = "/Users/vadimchizhov/chess/fengen.txt"
-	var validationPath = "/Users/vadimchizhov/chess/tuner/quiet-labeled.epd"
-	var threads = 4
-	var epochs = 100
+	flag.StringVar(&config.trainingPath, "td", "", "Path to training dataset")
+	flag.StringVar(&config.validationPath, "vd", "", "Path to validation dataset")
+	flag.IntVar(&config.threads, "threads", 1, "Number of threads")
+	flag.IntVar(&config.epochs, "epochs", 5, "Number of epochs")
+	flag.Float64Var(&config.searchWeight, "sw", 0.5, "Weight of search result in training dataset")
+	flag.IntVar(&config.datasetMaxSize, "dms", 1000000, "Max size of dataset")
+	flag.Parse()
 
-	var err = run(e, trainingPath, validationPath, threads, epochs)
+	log.Printf("%+v", config)
+
+	var e = eval.NewEvaluationService()
+
+	var err = run(e)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func run(evaluator ITunableEvaluator, trainingPath, validationPath string, threads, epochs int) error {
-	td, err := LoadDataset(trainingPath, evaluator, parseTrainingSample)
+func run(evaluator ITunableEvaluator) error {
+	td, err := LoadDataset(config.trainingPath, evaluator, parseTrainingSample)
 	if err != nil {
 		return err
 	}
 	log.Println("Loaded dataset", len(td))
 	runtime.GC()
 
-	vd, err := LoadDataset(validationPath, evaluator, parseValidationSample)
+	vd, err := LoadDataset(config.validationPath, evaluator, parseValidationSample)
 	if err != nil {
 		return err
 	}
@@ -51,7 +69,7 @@ func run(evaluator ITunableEvaluator, trainingPath, validationPath string, threa
 	log.Println("Num of weights", len(weights))
 
 	var trainer = &Trainer{
-		threads:    threads,
+		threads:    config.threads,
 		weigths:    weights,
 		gradients:  make([]Gradient, len(weights)),
 		training:   td,
@@ -59,7 +77,7 @@ func run(evaluator ITunableEvaluator, trainingPath, validationPath string, threa
 		rnd:        rand.New(rand.NewSource(0)),
 	}
 
-	err = trainer.Train(epochs)
+	err = trainer.Train(config.epochs)
 	if err != nil {
 		return err
 	}

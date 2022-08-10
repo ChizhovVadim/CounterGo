@@ -35,6 +35,11 @@ func LoadDataset(filepath string, e ITunableEvaluator,
 			return nil, fmt.Errorf("parse fail %v %w", s, err)
 		}
 		result = append(result, sample)
+
+		//  prevent swap RAM
+		if config.datasetMaxSize != 0 && len(result) >= config.datasetMaxSize {
+			break
+		}
 	}
 
 	err = scanner.Err()
@@ -103,8 +108,8 @@ func parseTrainingSample(line string, e ITunableEvaluator) (Sample, error) {
 		return Sample{}, err
 	}
 
-	const W = 0.75
-	var prob = W*Sigmoid(float64(score)) + (1-W)*gameResult
+	var prob = config.searchWeight*Sigmoid(float64(score)) +
+		(1-config.searchWeight)*gameResult
 	sample.Target = float32(prob)
 
 	return sample, nil

@@ -10,8 +10,6 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 	counter "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
 	"github.com/ChizhovVadim/CounterGo/pkg/uci"
-	//pesto "github.com/ChizhovVadim/CounterGo/pkg/eval/pesto"
-	//weiss "github.com/ChizhovVadim/CounterGo/pkg/eval/weiss"
 )
 
 /*
@@ -64,12 +62,6 @@ func evalBuilder(name string) func() engine.Evaluator {
 		if name == "counter" {
 			return counter.NewEvaluationService()
 		}
-		/*if name == "pesto" {
-			return pesto.NewEvaluationService()
-		}
-		if name == "weiss" {
-			return weiss.NewEvaluationService()
-		}*/
 		panic(fmt.Errorf("bad eval %v", name))
 	}
 }

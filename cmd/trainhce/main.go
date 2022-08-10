@@ -9,8 +9,7 @@ import (
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/internal/domain"
-	eval "github.com/ChizhovVadim/CounterGo/pkg/eval/linear"
-
+	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
@@ -20,6 +19,7 @@ type ITunableEvaluator interface {
 }
 
 type Config struct {
+	eval           string
 	trainingPath   string
 	validationPath string
 	threads        int
@@ -33,6 +33,7 @@ var config Config
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
+	flag.StringVar(&config.eval, "eval", "", "Eval function to train")
 	flag.StringVar(&config.trainingPath, "td", "", "Path to training dataset")
 	flag.StringVar(&config.validationPath, "vd", "", "Path to validation dataset")
 	flag.IntVar(&config.threads, "threads", 1, "Number of threads")
@@ -43,7 +44,7 @@ func main() {
 
 	log.Printf("%+v", config)
 
-	var e = eval.NewEvaluationService()
+	var e = evalbuilder.NewEvalBuilder(config.eval)().(ITunableEvaluator)
 
 	var err = run(e)
 	if err != nil {

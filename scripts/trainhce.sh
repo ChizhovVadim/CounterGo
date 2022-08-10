@@ -1,6 +1,7 @@
 #!/bin/bash
 
-go run ./cmd/trainhce -td ~/chess/fengen.txt \
+go run ./cmd/trainhce -eval linear \
+    -td ~/chess/fengen.txt \
     -vd ~/chess/tuner/quiet-labeled.epd \
     -threads 4 \
     -epochs 100 \

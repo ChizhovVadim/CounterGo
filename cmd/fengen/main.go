@@ -5,9 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os/user"
-	"path/filepath"
-	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/internal/quiet"
 
@@ -38,25 +35,12 @@ type Settings struct {
 }
 
 func run() error {
-	curUser, err := user.Current()
-	if err != nil {
-		return err
-	}
-	homeDir := curUser.HomeDir
-	if homeDir == "" {
-		return fmt.Errorf("current user home dir empty")
-	}
-
-	var chessDir = filepath.Join(homeDir, "chess")
-
 	var settings = Settings{
-		GamesFolder: filepath.Join(chessDir, "pgn"),
-		ResultPath:  filepath.Join(chessDir, "fengen.txt"),
-		Threads:     max(1, runtime.NumCPU()/2),
+		Threads: 1,
 	}
 
-	flag.StringVar(&settings.GamesFolder, "input", settings.GamesFolder, "Path to folder with PGN files")
-	flag.StringVar(&settings.ResultPath, "output", settings.ResultPath, "Path to output fen file")
+	flag.StringVar(&settings.GamesFolder, "input", "", "Path to folder with PGN files")
+	flag.StringVar(&settings.ResultPath, "output", "", "Path to output fen file")
 	flag.IntVar(&settings.Threads, "threads", settings.Threads, "Number of threads")
 	flag.Parse()
 

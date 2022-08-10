@@ -2,24 +2,19 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	var err = generateOpenings()
+
+	var outputPath string
+	flag.StringVar(&outputPath, "output", "", "Path to output epd file")
+	flag.Parse()
+
+	var err = generateOpeningsRandomPipeline(context.Background(), outputPath, 8)
 	if err != nil {
 		log.Println(err)
 	}
-}
-
-func generateOpenings() error {
-	/*return generateOpeningsPipeline(context.Background(),
-	4,
-	"/Users/vadimchizhov/chess/millionbase-2.5.pgn",
-	"/Users/vadimchizhov/chess/openings.epd",
-	14)*/
-	return generateOpeningsRandomPipeline(context.Background(),
-		"/Users/vadimchizhov/chess/openings_random.epd",
-		8)
 }

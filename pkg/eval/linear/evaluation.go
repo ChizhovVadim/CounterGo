@@ -12,17 +12,15 @@ const totalPhase = 24
 
 var errAddComplexFeature = errors.New("errAddComplexFeature")
 
-type Score struct {
-	Mg int
-	Eg int
-}
-
 type EvaluationService struct {
+	tuning             bool
 	score              Score
+	kingpawnTable      []kingPawnEntry
 	features           []int
 	weights            []Score
 	pieceCount         [COLOUR_NB][PIECE_NB]int
 	phase              int
+	passedPawns        uint64
 	mobilityArea       [COLOUR_NB]uint64
 	attacked           [COLOUR_NB]uint64
 	attackedBy2        [COLOUR_NB]uint64
@@ -34,13 +32,25 @@ type EvaluationService struct {
 	kingAreas          [COLOUR_NB]uint64
 }
 
+type kingPawnEntry struct {
+	wpawns, bpawns uint64
+	wking, bking   int
+	score          Score
+	passed         uint64
+}
+
 func NewEvaluationService() *EvaluationService {
 	var e = &EvaluationService{
-		features: make([]int, totalFeatureSize),
-		weights:  make([]Score, totalFeatureSize),
+		kingpawnTable: make([]kingPawnEntry, 1<<16),
+		features:      make([]int, totalFeatureSize),
+		weights:       make([]Score, totalFeatureSize),
 	}
 	e.initWeights()
 	return e
+}
+
+func (e *EvaluationService) EnableTuning() {
+	e.tuning = true
 }
 
 func (e *EvaluationService) initWeights() {
@@ -48,14 +58,36 @@ func (e *EvaluationService) initWeights() {
 		return
 	}
 	for i := range e.weights {
-		e.weights[i] = Score{Mg: w[2*i], Eg: w[2*i+1]}
+		e.weights[i] = S(w[2*i], w[2*i+1])
 	}
 }
 
-var kingAttackWeight = [...]int{2, 4, 8, 12, 13, 14, 15, 16}
-
 func (e *EvaluationService) Evaluate(p *Position) int {
 	e.init(p)
+
+	var pawnKingKey = murmurMix(p.Pawns&p.White,
+		murmurMix(p.Pawns&p.Black,
+			murmurMix(p.Kings&p.White,
+				p.Kings&p.Black)))
+	var pke = &e.kingpawnTable[pawnKingKey%uint64(len(e.kingpawnTable))]
+	if e.tuning ||
+		!(pke.wpawns == p.Pawns&p.White &&
+			pke.bpawns == p.Pawns&p.Black &&
+			pke.wking == e.kingSq[SideWhite] &&
+			pke.bking == e.kingSq[SideBlack]) {
+		pke.wpawns = p.Pawns & p.White
+		pke.bpawns = p.Pawns & p.Black
+		pke.wking = e.kingSq[SideWhite]
+		pke.bking = e.kingSq[SideBlack]
+
+		e.evalKingAndPawns(p)
+		pke.score = e.score
+		pke.passed = e.passedPawns
+	} else {
+		e.score = pke.score
+		e.passedPawns = pke.passed
+	}
+
 	e.evalFirstPass(p)
 	e.evalSecondPass(p)
 
@@ -80,7 +112,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	}
 	e.phase = phase
 
-	var result = (e.score.Mg*phase + e.score.Eg*(totalPhase-phase)) / (totalPhase * 100)
+	var result = (e.score.Mg()*phase + e.score.Eg()*(totalPhase-phase)) / (totalPhase * 100)
 	var strongSide int
 	if result > 0 {
 		strongSide = SideWhite
@@ -97,7 +129,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 }
 
 func (e *EvaluationService) init(p *Position) {
-	e.score = Score{}
+	e.score = S(0, 0)
 
 	for pt := Pawn; pt <= King; pt++ {
 		e.pieceCount[SideWhite][pt] = 0
@@ -106,6 +138,11 @@ func (e *EvaluationService) init(p *Position) {
 		e.attackedBy[SideWhite][pt] = 0
 		e.attackedBy[SideBlack][pt] = 0
 	}
+
+	e.pieceCount[SideWhite][Pawn] = PopCount(p.Pawns & p.White)
+	e.pieceCount[SideBlack][Pawn] = PopCount(p.Pawns & p.Black)
+
+	e.passedPawns = 0
 
 	e.attacked[SideWhite] = 0
 	e.attacked[SideBlack] = 0
@@ -135,11 +172,9 @@ func (e *EvaluationService) init(p *Position) {
 	e.mobilityArea[SideBlack] = ^(p.Pawns&p.Black | e.attackedBy[SideWhite][Pawn])
 }
 
-func (e *EvaluationService) evalFirstPass(p *Position) {
-	var x, attacks uint64
+func (e *EvaluationService) evalKingAndPawns(p *Position) {
+	var x uint64
 	var sq int
-
-	var occ = p.AllPieces()
 
 	for side := SideWhite; side <= SideBlack; side++ {
 		var sign int
@@ -153,41 +188,83 @@ func (e *EvaluationService) evalFirstPass(p *Position) {
 		}
 		var US = side
 		var THEM = side ^ 1
-		var friendly = p.Colours(US)
-		var enemy = p.Colours(THEM)
+		var friendlyPawns = p.Colours(US) & p.Pawns
+		var enemyPawns = p.Colours(THEM) & p.Pawns
 
-		for x = p.Pawns & friendly; x != 0; x &= x - 1 {
+		for x = friendlyPawns; x != 0; x &= x - 1 {
 			sq = FirstOne(x)
-			e.pieceCount[US][Pawn]++
 			e.addComplexFeature(fPawnPST, relativeSq32(side, sq), sign)
 
-			if PawnAttacksNew(THEM, sq)&friendly&p.Pawns != 0 {
+			if PawnAttacksNew(THEM, sq)&friendlyPawns != 0 {
 				e.addComplexFeature(fPawnProtected, relativeSq32(side, sq), sign)
 			}
-			if adjacentFilesMask[File(sq)]&ranks[Rank(sq)]&friendly&p.Pawns != 0 {
+			if adjacentFilesMask[File(sq)]&ranks[Rank(sq)]&friendlyPawns != 0 {
 				e.addComplexFeature(fPawnDuo, relativeSq32(side, sq), sign)
 			}
 
-			if adjacentFilesMask[File(sq)]&friendly&p.Pawns == 0 {
+			if adjacentFilesMask[File(sq)]&friendlyPawns == 0 {
 				e.addFeature(fPawnIsolated, sign)
 			}
-			if FileMask[File(sq)]&^SquareMask[sq]&friendly&p.Pawns != 0 {
+			if FileMask[File(sq)]&^SquareMask[sq]&friendlyPawns != 0 {
 				e.addFeature(fPawnDoubled, sign)
 			}
 
-			var stoppers = enemy & p.Pawns & passedPawnMasks[side][sq]
+			var stoppers = enemyPawns & passedPawnMasks[side][sq]
 			// passed pawn
 			if stoppers == 0 && upperRankMasks[US][Rank(sq)]&FileMask[File(sq)]&p.Pawns == 0 {
+				e.passedPawns |= SquareMask[sq]
 				var r = Max(0, relativeRankOf(side, sq)-Rank3)
 				e.addComplexFeature(fPassedPawn, r, sign)
 				var keySq = sq + forward
-				if enemy&SquareMask[keySq] == 0 {
-					e.addComplexFeature(fPassedCanMove, r, sign)
-				}
 				e.addComplexFeature(fPassedEnemyKing, 8*r+distanceBetween[keySq][e.kingSq[THEM]], sign)
 				e.addComplexFeature(fPassedOwnKing, 8*r+distanceBetween[keySq][e.kingSq[US]], sign)
 			}
 		}
+
+		{
+			// KING
+			sq = e.kingSq[US]
+			e.addComplexFeature(fKingPST, relativeSq32(side, sq), sign)
+
+			for x = kingShieldMasks[US][sq] & friendlyPawns; x != 0; x &= x - 1 {
+				var sq = FirstOne(x)
+				e.addPst12(fKingShield, side, sq, sign)
+			}
+
+			/*for file := Max(FileA, File(sq)-1); file <= Min(FileH, File(sq)+1); file++ {
+				var ours = friendly & p.Pawns & FileMask[file] & forwardRanksMasks[US][Rank(sq)]
+				var ourDist int
+				if ours == 0 {
+					ourDist = 7
+				} else {
+					ourDist = Rank(sq) - Rank(Backmost(US, ours))
+					if ourDist < 0 {
+						ourDist = -ourDist
+					}
+				}
+				e.addComplexFeature(fKingShield, 8*file+ourDist, sign)
+			}*/
+		}
+	}
+}
+
+func (e *EvaluationService) evalFirstPass(p *Position) {
+	var x, attacks uint64
+	var sq int
+
+	var occ = p.AllPieces()
+
+	for side := SideWhite; side <= SideBlack; side++ {
+		var sign int
+		if side == SideWhite {
+			sign = 1
+		} else {
+			sign = -1
+		}
+		var US = side
+		var THEM = side ^ 1
+		var friendly = p.Colours(US)
+		var enemy = p.Colours(THEM)
 
 		for x = p.Knights & friendly; x != 0; x &= x - 1 {
 			sq = FirstOne(x)
@@ -285,36 +362,18 @@ func (e *EvaluationService) evalFirstPass(p *Position) {
 				e.kingAttackersCount[THEM]++
 				e.kingAttacksCount[THEM] += PopCount(attacks)
 			}
+
+			e.addFeature(fKingQueenTropism, sign*distanceBetween[sq][e.kingSq[THEM]])
 		}
 
 		{
 			// KING
 			sq = e.kingSq[US]
-			e.addComplexFeature(fKingPST, relativeSq32(side, sq), sign)
 
 			attacks = KingAttacks[sq]
 			e.attackedBy2[US] |= e.attacked[US] & attacks
 			e.attacked[US] |= attacks
 			e.attackedBy[US][King] |= attacks
-
-			for x = kingShieldMasks[US][sq] & friendly & p.Pawns; x != 0; x &= x - 1 {
-				var sq = FirstOne(x)
-				e.addPst12(fKingShield, side, sq, sign)
-			}
-
-			/*for file := Max(FileA, File(sq)-1); file <= Min(FileH, File(sq)+1); file++ {
-				var ours = friendly & p.Pawns & FileMask[file] & forwardRanksMasks[US][Rank(sq)]
-				var ourDist int
-				if ours == 0 {
-					ourDist = 7
-				} else {
-					ourDist = Rank(sq) - Rank(Backmost(US, ours))
-					if ourDist < 0 {
-						ourDist = -ourDist
-					}
-				}
-				e.addComplexFeature(fKingShield, 8*file+ourDist, sign)
-			}*/
 		}
 
 		if e.pieceCount[US][Bishop] >= 2 {
@@ -325,7 +384,13 @@ func (e *EvaluationService) evalFirstPass(p *Position) {
 	e.addFeature(fMinorBehindPawn,
 		PopCount((p.Knights|p.Bishops)&p.White&Down(p.Pawns))-
 			PopCount((p.Knights|p.Bishops)&p.Black&Up(p.Pawns)))
+
+	e.addFeature(fMinorProtected,
+		PopCount((p.Knights|p.Bishops)&p.White&e.attackedBy[SideWhite][Pawn])-
+			PopCount((p.Knights|p.Bishops)&p.Black&e.attackedBy[SideBlack][Pawn]))
 }
+
+var kingAttackWeight = [...]int{2, 4, 8, 12, 13, 14, 15, 16}
 
 func (e *EvaluationService) evalSecondPass(p *Position) {
 	var occ = p.AllPieces()
@@ -340,12 +405,14 @@ func (e *EvaluationService) evalSecondPass(p *Position) {
 		var US = side
 		var THEM = side ^ 1
 		var friendly = p.Colours(US)
-		//var enemy = p.Colours(THEM)
+		var enemy = p.Colours(THEM)
 
+		//if e.kingAttackersCount[THEM] > 1-e.pieceCount[US][Queen]
 		{
 			// king safety
 
 			var val = sign * kingAttackWeight[Min(len(kingAttackWeight)-1, e.kingAttackersCount[THEM])]
+			//var val = sign
 
 			weak := e.attacked[US] & ^e.attackedBy2[THEM] & (^e.attacked[THEM] | e.attackedBy[THEM][Queen] | e.attackedBy[THEM][King])
 			safe := ^friendly & (^e.attacked[THEM] | (weak & e.attackedBy2[US]))
@@ -360,6 +427,19 @@ func (e *EvaluationService) evalSecondPass(p *Position) {
 			e.addFeature(fSafetyRookCheck, val*PopCount(rookThreats&safe&e.attackedBy[US][Rook]))
 			e.addFeature(fSafetyQueenCheck, val*PopCount(queenThreats&safe&e.attackedBy[US][Queen]))
 			e.addFeature(fSafetyWeakSquares, val*PopCount(e.kingAreas[THEM]&weak))
+
+			/*var safety = 0
+			if e.pieceCount[US][Queen] == 0 {
+				safety += -2
+			}
+			safety += 4*PopCount(knightThreats&safe&e.attackedBy[US][Knight]) +
+				1*PopCount(bishopThreats&safe&e.attackedBy[US][Bishop]) +
+				4*PopCount(rookThreats&safe&e.attackedBy[US][Rook]) +
+				2*PopCount(queenThreats&safe&e.attackedBy[US][Queen]) +
+				1*PopCount(e.kingAreas[THEM]&weak)
+			if safety > 0 {
+				e.addFeature(fSafetyMain, sign*safety*safety)
+			}*/
 		}
 
 		{
@@ -388,11 +468,31 @@ func (e *EvaluationService) evalSecondPass(p *Position) {
 			e.addFeature(fThreatRookAttackedByKing, sign*PopCount(rooks&poorlyDefended&e.attackedBy[THEM][King]))
 			e.addFeature(fThreatQueenAttackedByOne, sign*PopCount(queens&e.attacked[THEM]))
 		}
+
+		for temp := e.passedPawns & friendly; temp != 0; temp &= temp - 1 {
+			var sq = FirstOne(temp)
+			var keySq = sq + 8*sign
+
+			var r = Max(0, relativeRankOf(side, sq)-Rank3)
+
+			if enemy&SquareMask[keySq] == 0 {
+				e.addComplexFeature(fPassedCanMove, r, sign)
+			}
+
+			if (SquareMask[keySq] & e.attacked[THEM]) == 0 {
+				e.addComplexFeature(fPassedSafeMove, r, sign)
+			}
+		}
 	}
 }
 
 const (
-	scaleNormal = 16
+	scaleNormal = 128
+)
+
+const (
+	QueenSideBB = FileAMask | FileBMask | FileCMask | FileDMask
+	KingSideBB  = FileEMask | FileFMask | FileGMask | FileHMask
 )
 
 func (e *EvaluationService) computeFactor(own int, p *Position) int {
@@ -418,7 +518,28 @@ func (e *EvaluationService) computeFactor(own int, p *Position) int {
 			}
 		}
 	}
-	return scaleNormal
+	var strong = p.Colours(own)
+
+	var strongPawnCount = e.pieceCount[own][Pawn]
+	var x = 8 - strongPawnCount
+	var pawnScale = 128 - x*x
+
+	if strong&p.Pawns&QueenSideBB == 0 ||
+		strong&p.Pawns&KingSideBB == 0 {
+		pawnScale -= 20
+	}
+
+	//var pawnScale = scaleNormal
+
+	if e.pieceCount[SideWhite][Bishop] == 1 &&
+		e.pieceCount[SideBlack][Bishop] == 1 &&
+		onlyOne(p.Bishops&darkSquares) {
+		if p.Knights|p.Rooks|p.Queens == 0 {
+			pawnScale = Min(pawnScale, scaleNormal*1/2)
+		}
+	}
+
+	return pawnScale
 }
 
 func computeForce(e *EvaluationService, side int) int {
@@ -478,11 +599,15 @@ func (e *EvaluationService) addFeature(feature, value int) {
 
 func (e *EvaluationService) addComplexFeature(feature, featureIndex, value int) {
 	var info = &infos[feature]
-	if featureIndex >= info.Size {
-		return
-	}
 	var index = info.StartIndex + featureIndex
-	e.score.Mg += value * e.weights[index].Mg
-	e.score.Eg += value * e.weights[index].Eg
-	e.features[index] += value
+	var w = e.weights[index]
+	//e.score.mg += value * w.mg
+	//e.score.eg += value * w.eg
+	e.score += Score(value) * w
+	if e.tuning {
+		if featureIndex >= info.Size {
+			panic(errAddComplexFeature)
+		}
+		e.features[index] += value
+	}
 }

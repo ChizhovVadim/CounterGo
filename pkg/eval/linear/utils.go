@@ -68,6 +68,16 @@ func backmost(colour int, bb uint64) int {
 	return 63 - bits.LeadingZeros64(bb)
 }
 
+func onlyOne(bb uint64) bool {
+	return bb != 0 && !MoreThanOne(bb)
+}
+
+func murmurMix(k, h uint64) uint64 {
+	h ^= k
+	h *= uint64(0xc6a4a7935bd1e995)
+	return h ^ (h >> uint(51))
+}
+
 var outpostSquares = [COLOUR_NB]uint64{
 	(Rank4Mask | Rank5Mask | Rank6Mask),
 	(Rank5Mask | Rank4Mask | Rank3Mask),

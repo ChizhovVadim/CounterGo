@@ -14,6 +14,7 @@ import (
 )
 
 type ITunableEvaluator interface {
+	EnableTuning()
 	StartingWeights() []float64
 	ComputeFeatures(pos *common.Position) domain.TuneEntry
 }
@@ -45,6 +46,7 @@ func main() {
 	log.Printf("%+v", config)
 
 	var e = evalbuilder.NewEvalBuilder(config.eval)().(ITunableEvaluator)
+	e.EnableTuning()
 
 	var err = run(e)
 	if err != nil {

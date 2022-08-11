@@ -19,6 +19,7 @@ const (
 	fQueenMobility
 	fPassedPawn
 	fPassedCanMove
+	fPassedSafeMove
 	fPassedEnemyKing
 	fPassedOwnKing
 	fPawnDuo
@@ -31,6 +32,7 @@ const (
 	fSafetyBishopCheck
 	fSafetyRookCheck
 	fSafetyQueenCheck
+	fKingQueenTropism
 	fThreatMinorAttackedByPawn
 	fThreatMinorAttackedByMinor
 	fThreatMinorAttackedByMajor
@@ -40,6 +42,7 @@ const (
 	fThreatQueenAttackedByOne
 	fThreatWeakPawn
 	fKnightOutpost
+	fMinorProtected
 	fMinorBehindPawn
 	fBishopRammedPawns
 	fRookOpen
@@ -73,6 +76,7 @@ var infos = [fSize]FeatureInfo{
 	fQueenMobility:              {Name: "QueenMobility", Size: 28},
 	fPassedPawn:                 {Name: "PassedPawn", Size: 5},
 	fPassedCanMove:              {Name: "PassedCanMove", Size: 5},
+	fPassedSafeMove:             {Name: "PassedSafeMove", Size: 5},
 	fPassedEnemyKing:            {Name: "PassedEnemyKing", Size: 5 * 8},
 	fPassedOwnKing:              {Name: "PassedOwnKing", Size: 5 * 8},
 	fPawnDuo:                    {Name: "PawnDuo", Size: 32},
@@ -85,8 +89,9 @@ var infos = [fSize]FeatureInfo{
 	fSafetyBishopCheck:          {Name: "SafetyBishopCheck"},
 	fSafetyRookCheck:            {Name: "SafetyRookCheck"},
 	fSafetyQueenCheck:           {Name: "SafetyQueenCheck"},
-	fThreatMinorAttackedByPawn:  {Name: "fThreatMinorAttackedByPawn"},
-	fThreatMinorAttackedByMinor: {Name: "fThreatMinorAttackedByMinor"},
+	fKingQueenTropism:           {Name: "KingQueenTropism"},
+	fThreatMinorAttackedByPawn:  {Name: "ThreatMinorAttackedByPawn"},
+	fThreatMinorAttackedByMinor: {Name: "ThreatMinorAttackedByMinor"},
 	fThreatMinorAttackedByMajor: {Name: "ThreatMinorAttackedByMajor"},
 	fThreatRookAttackedByLesser: {Name: "ThreatRookAttackedByLesser"},
 	fThreatMinorAttackedByKing:  {Name: "ThreatMinorAttackedByKing"},
@@ -94,6 +99,7 @@ var infos = [fSize]FeatureInfo{
 	fThreatQueenAttackedByOne:   {Name: "ThreatQueenAttackedByOne"},
 	fThreatWeakPawn:             {Name: "ThreatWeakPawn"},
 	fKnightOutpost:              {Name: "KnightOutpost"},
+	fMinorProtected:             {Name: "MinorProtected"},
 	fMinorBehindPawn:            {Name: "MinorBehindPawn"},
 	fBishopRammedPawns:          {Name: "BishopRammedPawns"},
 	fRookOpen:                   {Name: "RookOpen"},

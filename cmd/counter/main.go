@@ -8,7 +8,7 @@ import (
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
-	counter "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
+	counter "github.com/ChizhovVadim/CounterGo/pkg/eval/linear"
 	"github.com/ChizhovVadim/CounterGo/pkg/uci"
 )
 

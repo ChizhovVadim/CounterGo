@@ -1,20 +1,35 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
 	"os"
-	"os/user"
-	"path/filepath"
 	"time"
 
+	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
-	eval "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
 )
 
 var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
 
+type Config struct {
+	name                string
+	moveTime            time.Duration
+	eval                string
+	tacticTestsFilepath string
+	validationPath      string
+}
+
+var config Config
+
 func main() {
+	flag.StringVar(&config.name, "name", "quality", "quality|benchmark|tactic")
+	flag.StringVar(&config.eval, "eval", "", "Eval function")
+	flag.StringVar(&config.tacticTestsFilepath, "testpath", "", "File path to tactic tests")
+	flag.DurationVar(&config.moveTime, "movetime", 3*time.Second, "Time per one tactic test")
+	flag.StringVar(&config.validationPath, "vd", "", "Path to validation dataset")
+	flag.Parse()
+
 	var err = run()
 	if err != nil {
 		log.Println(err)
@@ -22,20 +37,18 @@ func main() {
 }
 
 func run() error {
-	curUser, err := user.Current()
-	if err != nil {
-		return err
-	}
-	homeDir := curUser.HomeDir
-	if homeDir == "" {
-		return fmt.Errorf("current user home dir empty")
+	log.Printf("%+v", config)
+
+	if config.name == "benchmark" {
+		return runBenchmark(config.tacticTestsFilepath)
+	} else if config.name == "tactic" {
+		return runSolveTactic(config.tacticTestsFilepath)
+	} else if config.name == "quality" {
+		var eb = evalbuilder.NewEvalBuilder(config.eval)
+		return checkEvalQuality(eb().(Evaluator), config.validationPath)
 	}
 
-	var chessDir = filepath.Join(homeDir, "chess")
-	var wacFilePath = filepath.Join(chessDir, "tests/tests.epd")
-
-	//return runBenchmark(wacFilePath)
-	return runSolveTactic(wacFilePath)
+	return nil
 }
 
 func runBenchmark(filepath string) error {
@@ -54,16 +67,15 @@ func runSolveTactic(filepath string) error {
 		return err
 	}
 	var eng = newEngine()
-	solveTactic(tests, eng, 3*time.Second)
+	solveTactic(tests, eng, config.moveTime)
 	return nil
 }
 
 func newEngine() *engine.Engine {
-	var evalBuilder func() engine.Evaluator
-	evalBuilder = func() engine.Evaluator {
-		return eval.NewEvaluationService()
-	}
-	var eng = engine.NewEngine(evalBuilder)
+	var eb = evalbuilder.NewEvalBuilder(config.eval)
+	var eng = engine.NewEngine(func() engine.Evaluator {
+		return eb().(engine.Evaluator)
+	})
 	eng.Hash = 128
 	eng.ExperimentSettings = false
 	return eng

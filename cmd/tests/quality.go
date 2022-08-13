@@ -11,6 +11,10 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
+type Evaluator interface {
+	Evaluate(p *common.Position) int
+}
+
 func checkEvalQuality(e Evaluator, datasetPath string) error {
 	file, err := os.Open(datasetPath)
 	if err != nil {
@@ -20,6 +24,7 @@ func checkEvalQuality(e Evaluator, datasetPath string) error {
 
 	var totalCost float64
 	var count int
+	var checkSymmetricEval = true
 
 	var scanner = bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -49,12 +54,22 @@ func checkEvalQuality(e Evaluator, datasetPath string) error {
 		}
 
 		var score = e.Evaluate(&pos)
+
+		var whitePointOfViewScore = score
 		if !pos.WhiteMove {
-			score = -score
+			whitePointOfViewScore = -whitePointOfViewScore
 		}
-		var x = Sigmoid(float64(score)) - prob
+		var x = Sigmoid(float64(whitePointOfViewScore)) - prob
 		totalCost += x * x
 		count++
+
+		if checkSymmetricEval {
+			var mirrorPos = common.MirrorPosition(&pos)
+			if e.Evaluate(&mirrorPos) != score {
+				checkSymmetricEval = false
+				log.Println("Eval not symmetric", pos.String())
+			}
+		}
 	}
 	var averageCost = totalCost / float64(count)
 	log.Printf("Average cost: %f", averageCost)

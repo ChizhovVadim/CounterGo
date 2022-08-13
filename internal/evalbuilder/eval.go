@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	counter "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
+	fast "github.com/ChizhovVadim/CounterGo/pkg/eval/fast"
 	linear "github.com/ChizhovVadim/CounterGo/pkg/eval/linear"
 	material "github.com/ChizhovVadim/CounterGo/pkg/eval/material"
 	pesto "github.com/ChizhovVadim/CounterGo/pkg/eval/pesto"
@@ -23,6 +24,8 @@ func NewEvalBuilder(key string) func() interface{} {
 			return pesto.NewEvaluationService()
 		case "material":
 			return material.NewEvaluationService()
+		case "fast":
+			return fast.NewEvaluationService()
 		}
 		panic(fmt.Errorf("bad eval %v", key))
 	}

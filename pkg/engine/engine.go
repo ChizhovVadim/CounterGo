@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,6 +13,7 @@ type Engine struct {
 	Hash               int
 	Threads            int
 	ExperimentSettings bool
+	ProgressMinNodes   int
 	evalBuilder        func() Evaluator
 	timeManager        TimeManager
 	transTable         TransTable
@@ -25,8 +25,6 @@ type Engine struct {
 	mainLine           mainLine
 	start              time.Time
 	nodes              int64
-	depth              int32 // duplication mainLine.depth
-	mu                 sync.Mutex
 }
 
 type thread struct {
@@ -34,7 +32,6 @@ type thread struct {
 	history   historyService
 	evaluator Evaluator
 	nodes     int64
-	depth     int32
 	stack     [stackSize]struct {
 		position       Position
 		moveList       [MaxMoves]OrderedMove
@@ -80,6 +77,7 @@ func NewEngine(evalBuilder func() Evaluator) *Engine {
 		Hash:               16,
 		Threads:            1,
 		ExperimentSettings: false,
+		ProgressMinNodes:   200000,
 		evalBuilder:        evalBuilder,
 	}
 }
@@ -121,6 +119,11 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	}
 	e.progress = searchParams.Progress
 	lazySmp(ctx, e)
+	for i := range e.threads {
+		var t = &e.threads[i]
+		e.nodes += t.nodes
+		t.nodes = 0
+	}
 	return e.currentSearchResult()
 }
 
@@ -156,17 +159,22 @@ func (e *Engine) currentSearchResult() SearchInfo {
 	}
 }
 
-func (e *Engine) updateMainLine(line mainLine) {
-	e.mu.Lock()
-	if line.depth > e.mainLine.depth {
-		atomic.StoreInt32(&e.depth, int32(line.depth))
-		e.mainLine = line
+func (e *Engine) onIterationComplete(t *thread, depth, score int) {
+	var totalNodes = atomic.AddInt64(&e.nodes, t.nodes)
+	t.nodes = 0
+	//main thread
+	if &e.threads[0] == t {
+		const height = 0
+		e.mainLine = mainLine{
+			depth: depth,
+			score: score,
+			moves: t.stack[height].pv.toSlice(),
+		}
 		e.timeManager.OnIterationComplete(e.mainLine)
-		if e.progress != nil {
+		if e.progress != nil && totalNodes >= int64(e.ProgressMinNodes) {
 			e.progress(e.currentSearchResult())
 		}
 	}
-	e.mu.Unlock()
 }
 
 func (pv *pv) clear() {

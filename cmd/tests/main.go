@@ -67,6 +67,7 @@ func runSolveTactic(filepath string) error {
 		return err
 	}
 	var eng = newEngine()
+	eng.ProgressMinNodes = 0
 	solveTactic(tests, eng, config.moveTime)
 	return nil
 }

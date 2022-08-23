@@ -101,10 +101,6 @@ func LoadPgns(ctx context.Context, filepath string, pgns chan<- string) error {
 func ParseGame(pgn string) (Game, error) {
 	var tags = parseTags(pgn)
 
-	if len(tags) == 0 {
-		return Game{}, fmt.Errorf("empty tags")
-	}
-
 	var curPosition = startPosition
 	if fen, fenFound := tagValue(tags, "FEN"); fenFound {
 		var err error
@@ -116,8 +112,11 @@ func ParseGame(pgn string) (Game, error) {
 
 	var tokens = parsePgnTokens(pgn)
 	var items = make([]Item, 0, len(tokens))
+	var addLastPos = false
 
 	for i := range tokens {
+		addLastPos = false
+
 		var san = tokens[i].Value
 		var move = common.ParseMoveSAN(&curPosition, san)
 		if move == common.MoveEmpty {
@@ -146,6 +145,11 @@ func ParseGame(pgn string) (Game, error) {
 		})
 
 		curPosition = child
+		addLastPos = true
+	}
+
+	if addLastPos {
+		items = append(items, Item{Position: curPosition})
 	}
 
 	return Game{
@@ -194,18 +198,16 @@ func parsePgnTokens(pgn string) []Token {
 			} else {
 				body = body + string(rune)
 			}
+		} else if rune == '.' {
+			body = ""
 		} else if unicode.IsSpace(rune) {
 			if body != "" {
-				if !strings.HasSuffix(body, ".") {
-					result = append(result, Token{Value: body})
-				}
+				result = append(result, Token{Value: body})
 				body = ""
 			}
 		} else if rune == '{' {
 			if body != "" {
-				if !strings.HasSuffix(body, ".") {
-					result = append(result, Token{Value: body})
-				}
+				result = append(result, Token{Value: body})
 				body = ""
 			}
 			inComment = true
@@ -213,6 +215,9 @@ func parsePgnTokens(pgn string) []Token {
 		} else {
 			body = body + string(rune)
 		}
+	}
+	if body != "" {
+		result = append(result, Token{Value: body})
 	}
 	return result
 }

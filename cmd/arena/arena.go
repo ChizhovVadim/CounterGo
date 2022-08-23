@@ -7,6 +7,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/ChizhovVadim/CounterGo/internal/pgn"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 	"golang.org/x/sync/errgroup"
 )
@@ -79,15 +80,20 @@ func (a *arena) Run(ctx context.Context) error {
 func (a *arena) fillGameInfos(ctx context.Context,
 	gameInfos chan<- gameInfo) error {
 	for _, opening := range a.openings {
+		var g, err = pgn.ParseGame(opening)
+		if err != nil {
+			return err
+		}
+		var fen = g.Items[len(g.Items)-1].Position.String()
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case gameInfos <- gameInfo{opening: opening, engineAIsWhite: true}:
+		case gameInfos <- gameInfo{opening: fen, engineAIsWhite: true}:
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case gameInfos <- gameInfo{opening: opening, engineAIsWhite: false}:
+		case gameInfos <- gameInfo{opening: fen, engineAIsWhite: false}:
 		}
 	}
 	return nil

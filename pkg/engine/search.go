@@ -38,7 +38,7 @@ func lazySmp(ctx context.Context, e *Engine) {
 	e.done = ctx.Done()
 
 	if e.Threads == 1 {
-		iterativeDeepening(&e.threads[0], ml, 1, 1)
+		iterativeDeepening(&e.threads[0], ml, 1)
 	} else {
 
 		var wg = &sync.WaitGroup{}
@@ -48,7 +48,7 @@ func lazySmp(ctx context.Context, e *Engine) {
 			wg.Add(1)
 			go func(i int) {
 				var t = &e.threads[i]
-				iterativeDeepening(t, ml, 1, 1)
+				iterativeDeepening(t, ml, 1+i%2)
 				wg.Done()
 			}(i)
 		}
@@ -57,7 +57,7 @@ func lazySmp(ctx context.Context, e *Engine) {
 	}
 }
 
-func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO, aspirationMargin
+func iterativeDeepening(t *thread, ml []Move, incDepth int) {
 	defer func() {
 		if r := recover(); r != nil {
 			if r == errSearchTimeout {
@@ -72,14 +72,25 @@ func iterativeDeepening(t *thread, ml []Move, startDepth, incDepth int) { //TODO
 		t.stack[h].killer1 = MoveEmpty
 		t.stack[h].killer2 = MoveEmpty
 	}
+	var lastDepth int
 	var lastScore int
-	for depth := startDepth; depth <= maxHeight; depth += incDepth {
+	var lastMove Move
+	for {
 		if isDone(t.engine.done) {
 			break
 		}
+		var depth = lastDepth + incDepth
+		if depth > maxHeight {
+			break
+		}
+		if lastMove != MoveEmpty {
+			var index = findMoveIndex(ml, lastMove)
+			if index >= 0 {
+				moveToBegin(ml, index)
+			}
+		}
 		var score = aspirationWindow(t, ml, depth, lastScore)
-		t.engine.onIterationComplete(t, depth, score)
-		lastScore = score
+		lastDepth, lastScore, lastMove = t.engine.onIterationComplete(t, depth, score)
 	}
 }
 

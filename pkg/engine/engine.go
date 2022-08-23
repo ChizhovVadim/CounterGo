@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"runtime"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
@@ -25,6 +25,7 @@ type Engine struct {
 	mainLine           mainLine
 	start              time.Time
 	nodes              int64
+	mu                 sync.Mutex
 }
 
 type thread struct {
@@ -154,16 +155,19 @@ func (e *Engine) currentSearchResult() SearchInfo {
 		Depth:    e.mainLine.depth,
 		MainLine: e.mainLine.moves,
 		Score:    newUciScore(e.mainLine.score),
-		Nodes:    atomic.LoadInt64(&e.nodes),
+		Nodes:    e.nodes,
 		Time:     time.Since(e.start),
 	}
 }
 
-func (e *Engine) onIterationComplete(t *thread, depth, score int) {
-	var totalNodes = atomic.AddInt64(&e.nodes, t.nodes)
+func (e *Engine) onIterationComplete(t *thread, depth, score int) (globalDepth, globalScore int, globalBestmove Move) {
+	if e.Threads > 1 {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+	}
+	e.nodes += t.nodes
 	t.nodes = 0
-	//main thread
-	if &e.threads[0] == t {
+	if depth > e.mainLine.depth {
 		const height = 0
 		e.mainLine = mainLine{
 			depth: depth,
@@ -171,10 +175,14 @@ func (e *Engine) onIterationComplete(t *thread, depth, score int) {
 			moves: t.stack[height].pv.toSlice(),
 		}
 		e.timeManager.OnIterationComplete(e.mainLine)
-		if e.progress != nil && totalNodes >= int64(e.ProgressMinNodes) {
+		if e.progress != nil && e.nodes >= int64(e.ProgressMinNodes) {
 			e.progress(e.currentSearchResult())
 		}
 	}
+	globalDepth = e.mainLine.depth
+	globalScore = e.mainLine.score
+	globalBestmove = e.mainLine.moves[0]
+	return
 }
 
 func (pv *pv) clear() {

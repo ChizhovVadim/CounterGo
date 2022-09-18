@@ -31,7 +31,7 @@ type Engine struct {
 type thread struct {
 	engine    *Engine
 	history   historyService
-	evaluator Evaluator
+	evaluator IUpdatableEvaluator
 	nodes     int64
 	stack     [stackSize]struct {
 		position       Position
@@ -63,6 +63,13 @@ type TimeManager interface {
 
 type Evaluator interface {
 	Evaluate(p *Position) int
+}
+
+type IUpdatableEvaluator interface {
+	Init(p *Position)
+	MakeMove(p *Position, m Move)
+	UnmakeMove()
+	EvaluateQuick(p *Position) int
 }
 
 type TransTable interface {
@@ -99,7 +106,7 @@ func (e *Engine) Prepare() {
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
-			t.evaluator = e.evalBuilder()
+			t.evaluator = WithAdapter(e.evalBuilder())
 		}
 	}
 }
@@ -202,4 +209,32 @@ func (pv *pv) toSlice() []Move {
 	var result = make([]Move, pv.size)
 	copy(result, pv.items[:pv.size])
 	return result
+}
+
+type EvaluatorAdapter struct {
+	evaluator Evaluator
+}
+
+func WithAdapter(evaluator Evaluator) IUpdatableEvaluator {
+	var ue, ok = evaluator.(IUpdatableEvaluator)
+	if ok {
+		return ue
+	}
+	return &EvaluatorAdapter{evaluator: evaluator}
+}
+
+func (e *EvaluatorAdapter) Init(p *Position) {
+
+}
+
+func (e *EvaluatorAdapter) MakeMove(p *Position, m Move) {
+
+}
+
+func (e *EvaluatorAdapter) UnmakeMove() {
+
+}
+
+func (e *EvaluatorAdapter) EvaluateQuick(p *Position) int {
+	return e.evaluator.Evaluate(p)
 }

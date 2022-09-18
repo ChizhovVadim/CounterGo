@@ -121,11 +121,13 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 	const height = 0
 	t.stack[height].pv.clear()
 	var p = &t.stack[height].position
-	t.stack[height].staticEval = t.evaluator.Evaluate(p)
+	t.evaluator.Init(p)
+	t.stack[height].staticEval = t.evaluator.EvaluateQuick(p)
 	var child = &t.stack[height+1].position
 	var bestMoveIndex = 0
 	for i, move := range ml {
 		p.MakeMove(move, child)
+		t.evaluator.MakeMove(p, move)
 		var extension, reduction int
 		extension = t.extend(depth, height)
 		if depth >= 3 && i > 0 &&
@@ -152,6 +154,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		if score > alpha {
 			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		}
+		t.evaluator.UnmakeMove()
 		if score > alpha {
 			alpha = score
 			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
@@ -175,7 +178,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var position = &t.stack[height].position
 
 	if height >= maxHeight {
-		return t.evaluator.Evaluate(position)
+		return t.evaluator.EvaluateQuick(position)
 	}
 
 	if t.isRepeat(height) {
@@ -219,7 +222,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	var staticEval = t.evaluator.Evaluate(position)
+	var staticEval = t.evaluator.EvaluateQuick(position)
 	t.stack[height].staticEval = staticEval
 	var improving = height < 2 || staticEval > t.stack[height-2].staticEval
 
@@ -247,7 +250,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		staticEval >= beta {
 		var reduction = 4 + depth/6 + Min(2, (staticEval-beta)/200)
 		position.MakeNullMove(child)
+		t.evaluator.MakeMove(position, MoveEmpty)
 		var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1)
+		t.evaluator.UnmakeMove()
 		if score >= beta {
 			if score >= valueWin {
 				score = beta
@@ -279,10 +284,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			if !position.MakeMove(move, child) {
 				continue
 			}
+			t.evaluator.MakeMove(position, move)
 			var score = -t.quiescence(-probcutBeta, -probcutBeta+1, height+1)
 			if score >= probcutBeta {
 				score = -t.alphaBeta(-probcutBeta, -probcutBeta+1, depth-4, height+1)
 			}
+			t.evaluator.UnmakeMove()
 			if score >= probcutBeta {
 				return score
 			}
@@ -344,10 +351,12 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 				}
 				continue
 			}
+			t.evaluator.MakeMove(position, move)
 			if !isCaptureOrPromotion(move) {
 				quietsPlayed++
 			}
 			var score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1)
+			t.evaluator.UnmakeMove()
 			if score >= singularBeta {
 				ttMoveIsSingular = false
 				break
@@ -411,6 +420,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		if !position.MakeMove(move, child) {
 			continue
 		}
+		t.evaluator.MakeMove(position, move)
 		hasLegalMove = true
 
 		movesSearched++
@@ -466,6 +476,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
 		}
 
+		t.evaluator.UnmakeMove()
+
 		if score > best {
 			best = score
 			bestMove = move
@@ -511,7 +523,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		return valueDraw
 	}
 	if height >= maxHeight {
-		return t.evaluator.Evaluate(position)
+		return t.evaluator.EvaluateQuick(position)
 	}
 
 	var _, ttValue, ttBound, _, ttHit = t.engine.transTable.Read(position.Key)
@@ -527,7 +539,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	var isCheck = position.IsCheck()
 	var best = -valueInfinity
 	if !isCheck {
-		var eval = t.evaluator.Evaluate(position)
+		var eval = t.evaluator.EvaluateQuick(position)
 		best = Max(best, eval)
 		if eval > alpha {
 			alpha = eval
@@ -554,8 +566,10 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		if !position.MakeMove(move, child) {
 			continue
 		}
+		t.evaluator.MakeMove(position, move)
 		hasLegalMove = true
 		var score = -t.quiescence(-beta, -alpha, height+1)
+		t.evaluator.UnmakeMove()
 		best = Max(best, score)
 		if score > alpha {
 			alpha = score

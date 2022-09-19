@@ -1,5 +1,7 @@
 ![logo](https://raw.githubusercontent.com/ChizhovVadim/CounterGo/master/logo.png)
 # Counter
+[русский](./docs/readme_ru.md)
+
 Counter is a chess engine.
 + free
 + open source

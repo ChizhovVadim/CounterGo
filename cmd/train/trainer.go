@@ -17,7 +17,7 @@ var (
 )
 
 type Neuron struct {
-	O, A, E, Prime float64
+	A, E, Prime float64
 }
 
 type ThreadData struct {
@@ -234,23 +234,23 @@ func forward(t *Trainer, td *ThreadData, sample *Sample) {
 		if layerIndex == 0 {
 			for outputIndex := range neurons {
 				var n = &neurons[outputIndex]
-				n.O = 1 * biases.Data[outputIndex]
+				var x = 1 * biases.Data[outputIndex]
 				for _, inputIndex := range sample.Input {
-					n.O += 1 * weights.Get(outputIndex, int(inputIndex))
+					x += 1 * weights.Get(outputIndex, int(inputIndex))
 				}
-				n.A = activation.Sigma(n.O)
-				n.Prime = activation.SigmaPrime(n.O)
+				n.A = activation.Sigma(x)
+				n.Prime = activation.SigmaPrime(x)
 			}
 		} else {
 			var prevNeurons = td.neurons[layerIndex-1]
 			for outputIndex := range neurons {
 				var n = &neurons[outputIndex]
-				n.O = 1 * biases.Data[outputIndex]
+				var x = 1 * biases.Data[outputIndex]
 				for inputIndex := range prevNeurons {
-					n.O += prevNeurons[inputIndex].A * weights.Get(outputIndex, inputIndex)
+					x += prevNeurons[inputIndex].A * weights.Get(outputIndex, inputIndex)
 				}
-				n.A = activation.Sigma(n.O)
-				n.Prime = activation.SigmaPrime(n.O)
+				n.A = activation.Sigma(x)
+				n.Prime = activation.SigmaPrime(x)
 			}
 		}
 	}

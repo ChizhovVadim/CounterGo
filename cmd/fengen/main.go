@@ -51,7 +51,7 @@ func run() error {
 		return err
 	}
 	if len(pgnFiles) == 0 {
-		return fmt.Errorf("At least one PGN file is expected")
+		return fmt.Errorf("at least one PGN file is expected")
 	}
 
 	var datasetService = &DatasetService1{

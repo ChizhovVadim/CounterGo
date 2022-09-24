@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/ChizhovVadim/CounterGo/internal/pgn"
-
-	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 func pgnFiles(folderPath string) ([]string, error) {
@@ -22,20 +20,6 @@ func pgnFiles(folderPath string) ([]string, error) {
 		}
 	}
 	return result, nil
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 var errGameResultFail = errors.New("game result fail")
@@ -62,17 +46,4 @@ func calcGameResult(game *pgn.Game) (float32, error) {
 	}
 
 	return result, nil
-}
-
-func hasLegalMove(p *common.Position) bool {
-	var buf [common.MaxMoves]common.OrderedMove
-	var ml = p.GenerateMoves(buf[:])
-	var child common.Position
-	for i := range ml {
-		if !p.MakeMove(ml[i].Move, &child) {
-			continue
-		}
-		return true
-	}
-	return false
 }

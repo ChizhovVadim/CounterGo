@@ -38,6 +38,8 @@ func saveFens(
 		log.Printf("Total %v games, %v positions\n", gameCount, positionCount)
 	}
 
+	var repeats = make(map[uint64]struct{})
+
 LOOP:
 	for {
 		select {
@@ -49,12 +51,12 @@ LOOP:
 			if !gameOk {
 				break LOOP
 			}
-			err = writeGame(file, game)
+			n, err := writeGame(file, game, repeats)
 			if err != nil {
 				return err
 			}
 			gameCount++
-			positionCount += len(game)
+			positionCount += n
 		}
 	}
 
@@ -62,9 +64,15 @@ LOOP:
 	return nil
 }
 
-func writeGame(w io.Writer, game []PositionInfo) error {
+func writeGame(w io.Writer, game []PositionInfo, repeats map[uint64]struct{}) (int, error) {
+	var n = 0
 	for i := range game {
 		var item = &game[i]
+		if _, found := repeats[item.position.Key]; found {
+			continue
+		}
+		repeats[item.position.Key] = struct{}{}
+
 		var fen = item.position.String()
 		var score = item.score
 		// score from white point of view
@@ -76,8 +84,9 @@ func writeGame(w io.Writer, game []PositionInfo) error {
 			score,
 			item.gameResult)
 		if err != nil {
-			return err
+			return n, err
 		}
+		n++
 	}
-	return nil
+	return n, nil
 }

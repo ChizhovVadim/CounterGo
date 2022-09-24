@@ -1,3 +1,3 @@
-go run ./cmd/fengen -input ~/chess/pgn/counter41/random \
-    -output ~/chess/fengen.txt \
-    -threads 4
+go run ./cmd/fengen -input ~/chess/pgn/counter41 \
+    -output ~/chess/fengen-counter41.txt \
+    -threads 6

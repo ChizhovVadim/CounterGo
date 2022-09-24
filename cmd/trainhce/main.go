@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/internal/domain"
@@ -71,23 +70,15 @@ func run(evaluator ITunableEvaluator) error {
 	var weights = evaluator.StartingWeights()
 	log.Println("Num of weights", len(weights))
 
-	var trainer = &Trainer{
-		threads:    config.threads,
-		weigths:    weights,
-		gradients:  make([]Gradient, len(weights)),
-		training:   td,
-		validation: vd,
-		rnd:        rand.New(rand.NewSource(0)),
-	}
-
+	var trainer = NewTrainer(td, vd, weights, config.threads)
 	err = trainer.Train(config.epochs)
 	if err != nil {
 		return err
 	}
 
-	var wInt = make([]int, len(trainer.weigths))
+	var wInt = make([]int, len(trainer.weights))
 	for i := range wInt {
-		wInt[i] = int(math.Round(100 * trainer.weigths[i]))
+		wInt[i] = int(math.Round(100 * trainer.weights[i]))
 	}
 	fmt.Printf("var w = %#v\n", wInt)
 

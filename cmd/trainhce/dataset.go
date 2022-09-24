@@ -86,7 +86,7 @@ func parseTrainingSample(line string, e ITunableEvaluator) (Sample, error) {
 
 	var fileds = strings.SplitN(line, ";", 3)
 	if len(fileds) < 3 {
-		return Sample{}, fmt.Errorf("Bad line")
+		return Sample{}, fmt.Errorf("bad line")
 	}
 
 	var fen = fileds[0]

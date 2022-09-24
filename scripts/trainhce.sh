@@ -1,9 +1,9 @@
 #!/bin/bash
 
 go run ./cmd/trainhce -eval linear \
-    -td ~/chess/fengen.txt \
+    -td ~/chess/fengen-counter41.txt \
     -vd ~/chess/tuner/quiet-labeled.epd \
-    -threads 4 \
-    -epochs 100 \
-    -sw 0.5 \
+    -threads 6 \
+    -epochs 200 \
+    -sw 0.75 \
     -dms 8000000

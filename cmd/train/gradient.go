@@ -29,7 +29,8 @@ func (g *Gradient) Calculate() float64 {
 	g.M1 = g.M1*Beta1 + g.Value*(1-Beta1)
 	g.M2 = g.M2*Beta2 + (g.Value*g.Value)*(1-Beta2)
 
-	return LearningRate * g.M1 / (math.Sqrt(g.M2) + 1e-8)
+	//return LearningRate * g.M1 / (math.Sqrt(g.M2) + 1e-8)
+	return LearningRate * g.M1 / math.Max(1e-6, math.Sqrt(g.M2))
 }
 
 func (g *Gradient) Reset() {

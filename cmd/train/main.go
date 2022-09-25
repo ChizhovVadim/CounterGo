@@ -39,20 +39,26 @@ func main() {
 }
 
 func run() error {
-	var training, validation []Sample
-
-	training, err := LoadDataset2(config.trainingPath)
+	dataset, err := LoadDataset2(config.trainingPath)
 	if err != nil {
 		return err
 	}
-	log.Println("Loaded dataset", len(training))
+	log.Println("Loaded dataset", len(dataset))
 	runtime.GC()
 
-	validation, err = LoadDataset(config.validationPath, zurichessParser)
-	if err != nil {
-		return err
+	var training, validation []Sample
+	if config.validationPath == "" {
+		var validationSize = min(1_000_000, len(dataset)/5)
+		validation = dataset[:validationSize]
+		training = dataset[validationSize:]
+	} else {
+		validation, err = LoadDataset(config.validationPath, zurichessParser)
+		if err != nil {
+			return err
+		}
+		log.Println("Loaded validation", len(validation))
+		training = dataset
 	}
-	log.Println("Loaded validation", len(validation))
 
 	var trainer = NewTrainer(training, validation, []int{769, 512, 1}, config.threads)
 	//var trainer = NewTrainer(training, validation, []int{769, 256, 16, 1})

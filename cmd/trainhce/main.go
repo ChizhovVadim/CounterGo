@@ -54,23 +54,31 @@ func main() {
 }
 
 func run(evaluator ITunableEvaluator) error {
-	td, err := LoadDataset(config.trainingPath, evaluator, parseTrainingSample)
+	dataset, err := LoadDataset(config.trainingPath, evaluator, parseTrainingSample)
 	if err != nil {
 		return err
 	}
-	log.Println("Loaded dataset", len(td))
+	log.Println("Loaded dataset", len(dataset))
 	runtime.GC()
 
-	vd, err := LoadDataset(config.validationPath, evaluator, parseValidationSample)
-	if err != nil {
-		return err
+	var training, validation []Sample
+	if config.validationPath == "" {
+		var validationSize = min(1_000_000, len(dataset)/5)
+		validation = dataset[:validationSize]
+		training = dataset[validationSize:]
+	} else {
+		validation, err = LoadDataset(config.validationPath, evaluator, parseValidationSample)
+		if err != nil {
+			return err
+		}
+		log.Println("Loaded validation", len(validation))
+		training = dataset
 	}
-	log.Println("Loaded validation", len(vd))
 
 	var weights = evaluator.StartingWeights()
 	log.Println("Num of weights", len(weights))
 
-	var trainer = NewTrainer(td, vd, weights, config.threads)
+	var trainer = NewTrainer(training, validation, weights, config.threads)
 	err = trainer.Train(config.epochs)
 	if err != nil {
 		return err

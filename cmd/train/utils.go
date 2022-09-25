@@ -14,3 +14,10 @@ func ValidationCost(output, target float64) float64 {
 	var x = output - target
 	return x * x
 }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

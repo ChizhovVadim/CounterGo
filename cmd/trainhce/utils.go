@@ -23,3 +23,10 @@ func ValidationCost(output, target float64) float64 {
 func CalculateCostGradient(output, target float64) float64 {
 	return 2.0 * (output - target)
 }
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

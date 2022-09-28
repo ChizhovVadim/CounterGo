@@ -39,12 +39,12 @@ type Trainer struct {
 	threadData  []ThreadData
 }
 
-func NewTrainer(training, validation []Sample, topology []int, threads int) *Trainer {
+func NewTrainer(training, validation []Sample, topology []int, threads int, seed int64) *Trainer {
 	var t = &Trainer{}
 	t.topology = topology
 	t.training = training
 	t.validation = validation
-	t.rnd = rand.New(rand.NewSource(0))
+	t.rnd = rand.New(rand.NewSource(seed))
 	var layerSize = len(topology) - 1
 	t.activations = make([]ActivationFn, layerSize)
 	t.weights = make([]Matrix, layerSize)
@@ -90,45 +90,41 @@ func (t *Trainer) Train(epochs int, binFolderPath string) error {
 
 	t.initWeights()
 
-	/*{
-		validationCost := t.calcCost(t.validation)
-		log.Printf("Random weights validation cost is: %f\n", validationCost)
-	}*/
-
 	var bestValidationCost float64
 	var bestEpoch int
 
 	for epoch := 1; epoch <= epochs; epoch++ {
-		t.StartEpoch()
+		t.startEpoch()
 		log.Printf("Finished Epoch %v\n", epoch)
 
 		validationCost := t.calcCost(t.validation)
 		log.Printf("Current validation cost is: %f\n", validationCost)
+
 		if bestEpoch == 0 ||
 			validationCost < bestValidationCost {
 			bestEpoch = epoch
 			bestValidationCost = validationCost
-		} else {
-			log.Printf("Best validation cost: %f Best epoch: %v\n", bestValidationCost, bestEpoch)
-		}
 
-		//if epoch >= 5
-		{
-			var valCostInt = int(100000 * validationCost)
-			var filepath = filepath.Join(binFolderPath, fmt.Sprintf("n-%2d-%v.nn", epoch, valCostInt))
-			var err = t.makeNetwork().Save(filepath)
+			var err = t.saveNetwork(binFolderPath, epoch, validationCost)
 			if err != nil {
 				return err
 			}
-			log.Println("Stored network", filepath)
+		} else {
+			log.Printf("Best validation cost: %f Best epoch: %v\n", bestValidationCost, bestEpoch)
 		}
-
-		/*if epoch%10 == 0 {
-			trainingCost := t.calcCost(t.training)
-			log.Printf("Current training cost is: %f\n", trainingCost)
-		}*/
 	}
 
+	return nil
+}
+
+func (t *Trainer) saveNetwork(binFolderPath string, epoch int, validationCost float64) error {
+	var valCostInt = int(100000 * validationCost)
+	var filepath = filepath.Join(binFolderPath, fmt.Sprintf("n-%2d-%v.nn", epoch, valCostInt))
+	var err = t.makeNetwork().Save(filepath)
+	if err != nil {
+		return err
+	}
+	log.Println("Stored network", filepath)
 	return nil
 }
 
@@ -164,8 +160,8 @@ func (t *Trainer) calcCost(samples []Sample) float64 {
 }
 
 func (t *Trainer) initWeights() {
-	for layerIndex := range t.weights {
-		var inputSize = t.weights[layerIndex].Cols
+	for layerIndex := range t.activations {
+		var inputSize = t.topology[layerIndex]
 		var max = 1 / math.Sqrt(float64(inputSize))
 		initUniform(t.rnd, t.weights[layerIndex].Data, max)
 	}
@@ -177,7 +173,7 @@ func (t *Trainer) shuffle() {
 	})
 }
 
-func (t *Trainer) StartEpoch() {
+func (t *Trainer) startEpoch() {
 	t.shuffle()
 	for i := 0; i+BatchSize <= len(t.training); i += BatchSize {
 		t.trainBatch(t.training[i : i+BatchSize])
@@ -226,29 +222,29 @@ func trainSample(t *Trainer, td *ThreadData, sample *Sample) {
 }
 
 func forward(t *Trainer, td *ThreadData, sample *Sample) {
-	for layerIndex := range t.weights {
+	for layerIndex := range t.activations {
 		var activation = t.activations[layerIndex]
 		var weights = t.weights[layerIndex]
 		var biases = t.biases[layerIndex]
 		var neurons = td.neurons[layerIndex]
 		if layerIndex == 0 {
 			for outputIndex := range neurons {
-				var n = &neurons[outputIndex]
 				var x = 1 * biases.Data[outputIndex]
 				for _, inputIndex := range sample.Input {
 					x += 1 * weights.Get(outputIndex, int(inputIndex))
 				}
+				var n = &neurons[outputIndex]
 				n.A = activation.Sigma(x)
 				n.Prime = activation.SigmaPrime(x)
 			}
 		} else {
 			var prevNeurons = td.neurons[layerIndex-1]
 			for outputIndex := range neurons {
-				var n = &neurons[outputIndex]
 				var x = 1 * biases.Data[outputIndex]
 				for inputIndex := range prevNeurons {
 					x += prevNeurons[inputIndex].A * weights.Get(outputIndex, inputIndex)
 				}
+				var n = &neurons[outputIndex]
 				n.A = activation.Sigma(x)
 				n.Prime = activation.SigmaPrime(x)
 			}
@@ -258,10 +254,10 @@ func forward(t *Trainer, td *ThreadData, sample *Sample) {
 
 func backward(t *Trainer, td *ThreadData, sample *Sample) {
 	// back propagation
-	for layerIndex := len(t.weights) - 1; layerIndex >= 0; layerIndex-- {
+	for layerIndex := len(t.activations) - 1; layerIndex >= 0; layerIndex-- {
 		var neurons = td.neurons[layerIndex]
 		var weights = t.weights[layerIndex]
-		if layerIndex == len(t.weights)-1 {
+		if layerIndex == len(t.activations)-1 {
 			neurons[0].E = neurons[0].A - float64(sample.Target)
 		} else {
 			var nextNeurons = td.neurons[layerIndex+1]

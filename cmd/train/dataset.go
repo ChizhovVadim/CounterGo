@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -137,8 +138,8 @@ func LoadDataset2(filepath string) ([]Sample, error) {
 		}
 		result = append(result, sample, sample2)
 
-		//  prevent swap RAM
 		if config.datasetMaxSize != 0 && len(result) >= config.datasetMaxSize {
+			log.Println("Limit dataset to prevent swap RAM")
 			break
 		}
 	}

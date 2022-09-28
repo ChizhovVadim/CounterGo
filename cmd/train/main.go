@@ -60,7 +60,6 @@ func run() error {
 		training = dataset
 	}
 
-	var trainer = NewTrainer(training, validation, []int{769, 512, 1}, config.threads)
-	//var trainer = NewTrainer(training, validation, []int{769, 256, 16, 1})
+	var trainer = NewTrainer(training, validation, []int{769, 512, 1}, config.threads, 0)
 	return trainer.Train(config.epochs, config.netFolderPath)
 }

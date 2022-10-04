@@ -7,4 +7,4 @@ go run ./cmd/train \
     -threads 6 \
     -epochs 30 \
     -sw 0.75 \
-    -dms 15000000
+    -dms 50000000

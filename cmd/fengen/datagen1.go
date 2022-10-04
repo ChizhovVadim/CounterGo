@@ -108,7 +108,7 @@ func (ds *DatasetService1) analyzeGame(
 		var score int
 
 		var comment = item.Comment
-		if comment.Depth < 10 ||
+		if comment.Depth < 8 ||
 			comment.Score.Mate != 0 {
 			continue
 		}

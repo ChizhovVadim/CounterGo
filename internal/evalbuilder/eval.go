@@ -1,10 +1,8 @@
 package evalbuilder
 
 import (
+	"embed"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
 	"sync"
 
 	counter "github.com/ChizhovVadim/CounterGo/pkg/eval/counter"
@@ -15,6 +13,9 @@ import (
 	pesto "github.com/ChizhovVadim/CounterGo/pkg/eval/pesto"
 	weiss "github.com/ChizhovVadim/CounterGo/pkg/eval/weiss"
 )
+
+//go:embed n-28-5177.nn
+var content embed.FS
 
 var once sync.Once
 var weights *nnue.Weights
@@ -47,15 +48,14 @@ func Build(key string) interface{} {
 }
 
 func loadWeights() (*nnue.Weights, error) {
-	var exePath, err = os.Executable()
+	var f, err = content.Open("n-28-5177.nn")
 	if err != nil {
 		return nil, err
 	}
-	var filePath = filepath.Join(filepath.Dir(exePath), "default.nn")
-	weights, err = nnue.LoadWeights(filePath)
+	defer f.Close()
+	weights, err = nnue.LoadWeights(f)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Loaded nnue file %v", filePath)
 	return weights, nil
 }

@@ -4,20 +4,13 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
-	"os"
 )
 
-func LoadWeights(path string) (*Weights, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func LoadWeights(f io.Reader) (*Weights, error) {
 	// Read headers
 	buf := make([]byte, 4)
 
-	_, err = io.ReadFull(f, buf)
+	_, err := io.ReadFull(f, buf)
 	if err != nil {
 		return nil, err
 	}

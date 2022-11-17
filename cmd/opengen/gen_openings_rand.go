@@ -39,10 +39,15 @@ func generateOpeningsRandomPipeline(
 		defer close(positions)
 		const height = 0
 		var ss = &searchStack{}
-		ss.rand = rand.New(rand.NewSource(0))
+		ss.rand = rand.New(rand.NewSource(int64(config.seed)))
 		ss.evaluator = eval.NewEvaluationService()
 		ss.stack[height].positon = startPosition
-		return search(ctx, ss, ply, height, positions)
+		for {
+			var err = search(ctx, ss, ply, height, positions)
+			if err != nil {
+				return err
+			}
+		}
 	})
 
 	g.Go(func() error {
@@ -71,7 +76,7 @@ func search(ctx context.Context, searchStack *searchStack, depth, height int, po
 		return nil
 	}
 	var child = &searchStack.stack[height+1].positon
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 3; i++ {
 		var move = ml[searchStack.rand.Intn(len(ml))].Move
 		if !position.MakeMove(move, child) {
 			continue

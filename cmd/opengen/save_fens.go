@@ -47,16 +47,21 @@ LOOP:
 			}
 			repeats[pos.Key] = struct{}{}
 
-			uniqueCount++
-
-			var fen = pos.String()
-			_, err = fmt.Fprintln(file, fen)
-			if err != nil {
-				return err
+			if uniqueCount >= config.skip {
+				if uniqueCount >= config.skip+config.take {
+					break LOOP
+				}
+				var fen = pos.String()
+				_, err = fmt.Fprintln(file, fen)
+				if err != nil {
+					return err
+				}
 			}
+
+			uniqueCount++
 		}
 	}
 
 	showProgress()
-	return nil
+	return fmt.Errorf("job done")
 }

@@ -31,7 +31,7 @@ func run() error {
 
 	var arena = &arena{
 		threads:  config.Concurrency,
-		openings: openings,
+		openings: getOpenings(),
 	}
 	return arena.Run(context.Background())
 }

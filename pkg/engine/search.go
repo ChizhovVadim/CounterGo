@@ -182,7 +182,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	if t.isRepeat(height) {
-		return Max(alpha, valueDraw)
+		return valueDraw
 	}
 
 	if depth <= 0 {

@@ -31,7 +31,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&flgEval, "eval", "counter", "specifies evaluation function")
+	flag.StringVar(&flgEval, "eval", "nnue", "specifies evaluation function")
 	flag.Parse()
 
 	var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)

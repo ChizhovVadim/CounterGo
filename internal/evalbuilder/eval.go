@@ -14,7 +14,7 @@ import (
 	weiss "github.com/ChizhovVadim/CounterGo/pkg/eval/weiss"
 )
 
-//go:embed n-28-5177.nn
+//go:embed n-30-5094.nn
 var content embed.FS
 
 var once sync.Once
@@ -36,7 +36,7 @@ func Build(key string) interface{} {
 		return fast.NewEvaluationService()
 	case "nnue":
 		once.Do(func() {
-			var w, err = loadWeights()
+			var w, err = loadWeights("n-30-5094.nn")
 			if err != nil {
 				panic(err)
 			}
@@ -47,8 +47,8 @@ func Build(key string) interface{} {
 	panic(fmt.Errorf("bad eval %v", key))
 }
 
-func loadWeights() (*nnue.Weights, error) {
-	var f, err = content.Open("n-28-5177.nn")
+func loadWeights(name string) (*nnue.Weights, error) {
+	var f, err = content.Open(name)
 	if err != nil {
 		return nil, err
 	}

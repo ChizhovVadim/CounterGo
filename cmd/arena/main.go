@@ -2,43 +2,37 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
+	"runtime"
+	"time"
 
 	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-type Config struct {
-	Concurrency int
-}
-
-var config Config
-
+// program for playing games between chess engines
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	var err = run()
+	var gameConcurrency = 4
+	var tc = timeControl{
+		FixedTime:  1 * time.Second,
+		FixedNodes: 0,
+	}
+
+	var numCPU = runtime.NumCPU()
+	if gameConcurrency > numCPU {
+		gameConcurrency = numCPU
+	}
+	runtime.GOMAXPROCS(gameConcurrency)
+
+	var err = run(context.Background(), gameConcurrency, tc)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func run() error {
-	flag.IntVar(&config.Concurrency, "concurrency", 4, "Number of threads")
-	flag.Parse()
-
-	log.Printf("%+v", config)
-
-	var arena = &arena{
-		threads:  config.Concurrency,
-		openings: getOpenings(),
-	}
-	return arena.Run(context.Background())
-}
-
 func newEngineA() IEngine {
 	var eng = engine.NewEngine(func() engine.Evaluator {
-		return evalbuilder.Build("counter").(engine.Evaluator)
+		return evalbuilder.Build("weiss").(engine.Evaluator)
 	})
 	eng.Hash = 128
 	eng.Threads = 1
@@ -53,7 +47,7 @@ func newEngineB() IEngine {
 	})
 	eng.Hash = 128
 	eng.Threads = 1
-	eng.ExperimentSettings = false
+	eng.ExperimentSettings = true
 	eng.Prepare()
 	return eng
 }

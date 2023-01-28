@@ -232,14 +232,3 @@ func lmrMult(d, m float64) float64 {
 func lirp(x, x1, x2, y1, y2 float64) float64 {
 	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }
-
-func evalMaterial(p *Position) int {
-	var score = 100*(PopCount(p.Pawns&p.White)-PopCount(p.Pawns&p.Black)) +
-		400*(PopCount((p.Knights|p.Bishops)&p.White)-PopCount((p.Knights|p.Bishops)&p.Black)) +
-		600*(PopCount(p.Rooks&p.White)-PopCount(p.Rooks&p.Black)) +
-		1200*(PopCount(p.Queens&p.White)-PopCount(p.Queens&p.Black))
-	if !p.WhiteMove {
-		score = -score
-	}
-	return score
-}

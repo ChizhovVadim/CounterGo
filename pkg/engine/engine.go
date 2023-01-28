@@ -20,7 +20,6 @@ type Engine struct {
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
 	historyKeys        map[uint64]int
-	done               <-chan struct{}
 	threads            []thread
 	progress           func(SearchInfo)
 	mainLine           mainLine
@@ -57,6 +56,7 @@ type mainLine struct {
 }
 
 type TimeManager interface {
+	IsDone() bool
 	OnNodesChanged(nodes int)
 	OnIterationComplete(line mainLine)
 	Close()
@@ -116,7 +116,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	e.start = time.Now()
 	e.Prepare()
 	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	ctx, e.timeManager = withTimeManager(ctx, e.start, searchParams.Limits, p)
+	e.timeManager = newTimeManager(ctx, e.start, searchParams.Limits, p)
 	defer e.timeManager.Close()
 	e.transTable.IncDate()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
@@ -127,7 +127,7 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 		t.stack[0].position = *p
 	}
 	e.progress = searchParams.Progress
-	lazySmp(ctx, e)
+	lazySmp(e)
 	for i := range e.threads {
 		var t = &e.threads[i]
 		e.nodes += t.nodes

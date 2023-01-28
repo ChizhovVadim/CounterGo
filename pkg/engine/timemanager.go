@@ -21,11 +21,12 @@ type timeManager struct {
 	difficulty   float64
 	lastScore    int
 	lastBestMove Move
+	done         <-chan struct{}
 	cancel       context.CancelFunc
 }
 
-func withTimeManager(ctx context.Context, start time.Time,
-	limits LimitsType, p *Position) (context.Context, *timeManager) {
+func newTimeManager(ctx context.Context, start time.Time,
+	limits LimitsType, p *Position) *timeManager {
 
 	var tm = &timeManager{
 		start:      start,
@@ -47,8 +48,18 @@ func withTimeManager(ctx context.Context, start time.Time,
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
+	tm.done = ctx.Done()
 	tm.cancel = cancel
-	return ctx, tm
+	return tm
+}
+
+func (tm *timeManager) IsDone() bool {
+	select {
+	case <-tm.done:
+		return true
+	default:
+		return false
+	}
 }
 
 func (tm *timeManager) OnNodesChanged(nodes int) {

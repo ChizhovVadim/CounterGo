@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"sync"
 
@@ -22,7 +21,7 @@ var errSearchTimeout = errors.New("search timeout")
 	}
 }*/
 
-func lazySmp(ctx context.Context, e *Engine) {
+func lazySmp(e *Engine) {
 	var ml = e.genRootMoves()
 	if len(ml) != 0 {
 		e.mainLine = mainLine{
@@ -34,8 +33,6 @@ func lazySmp(ctx context.Context, e *Engine) {
 	if len(ml) <= 1 {
 		return
 	}
-
-	e.done = ctx.Done()
 
 	if e.Threads == 1 {
 		iterativeDeepening(&e.threads[0], ml, 1)
@@ -67,7 +64,6 @@ func iterativeDeepening(t *thread, ml []Move, incDepth int) {
 		}
 	}()
 
-	const height = 0
 	for h := 0; h <= 2; h++ {
 		t.stack[h].killer1 = MoveEmpty
 		t.stack[h].killer2 = MoveEmpty
@@ -76,7 +72,7 @@ func iterativeDeepening(t *thread, ml []Move, incDepth int) {
 	var lastScore int
 	var lastMove Move
 	for {
-		if isDone(t.engine.done) {
+		if t.engine.timeManager.IsDone() {
 			break
 		}
 		var depth = lastDepth + incDepth
@@ -592,18 +588,9 @@ func (t *thread) incNodes() {
 		if t.engine.Threads == 1 {
 			t.engine.timeManager.OnNodesChanged(int(t.engine.nodes + t.nodes))
 		}
-		if isDone(t.engine.done) {
+		if t.engine.timeManager.IsDone() {
 			panic(errSearchTimeout)
 		}
-	}
-}
-
-func isDone(done <-chan struct{}) bool {
-	select {
-	case <-done:
-		return true
-	default:
-		return false
 	}
 }
 

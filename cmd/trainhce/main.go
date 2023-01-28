@@ -44,7 +44,7 @@ func main() {
 
 	log.Printf("%+v", config)
 
-	var e = evalbuilder.Build(config.eval).(ITunableEvaluator)
+	var e = evalbuilder.Get(config.eval)().(ITunableEvaluator)
 	e.EnableTuning()
 
 	var err = run(e)

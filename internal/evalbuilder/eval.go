@@ -20,31 +20,33 @@ var content embed.FS
 var once sync.Once
 var weights *nnue.Weights
 
-func Build(key string) interface{} {
-	switch key {
-	case "counter":
-		return counter.NewEvaluationService()
-	case "weiss":
-		return weiss.NewEvaluationService()
-	case "linear":
-		return linear.NewEvaluationService()
-	case "pesto":
-		return pesto.NewEvaluationService()
-	case "material":
-		return material.NewEvaluationService()
-	case "fast":
-		return fast.NewEvaluationService()
-	case "nnue":
-		once.Do(func() {
-			var w, err = loadWeights("n-30-5094.nn")
-			if err != nil {
-				panic(err)
-			}
-			weights = w
-		})
-		return nnue.NewEvaluationService(weights)
+func Get(key string) func() interface{} {
+	return func() interface{} {
+		switch key {
+		case "counter":
+			return counter.NewEvaluationService()
+		case "weiss":
+			return weiss.NewEvaluationService()
+		case "linear":
+			return linear.NewEvaluationService()
+		case "pesto":
+			return pesto.NewEvaluationService()
+		case "material":
+			return material.NewEvaluationService()
+		case "fast":
+			return fast.NewEvaluationService()
+		case "nnue":
+			once.Do(func() {
+				var w, err = loadWeights("n-30-5094.nn")
+				if err != nil {
+					panic(err)
+				}
+				weights = w
+			})
+			return nnue.NewEvaluationService(weights)
+		}
+		panic(fmt.Errorf("bad eval %v", key))
 	}
-	panic(fmt.Errorf("bad eval %v", key))
 }
 
 func loadWeights(name string) (*nnue.Weights, error) {

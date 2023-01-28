@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"sync"
 	"time"
@@ -14,7 +15,7 @@ type Engine struct {
 	Threads            int
 	ExperimentSettings bool
 	ProgressMinNodes   int
-	evalBuilder        func() Evaluator
+	evalBuilder        func() interface{}
 	timeManager        TimeManager
 	transTable         TransTable
 	lateMoveReduction  func(d, m int) int
@@ -61,7 +62,7 @@ type TimeManager interface {
 	Close()
 }
 
-type Evaluator interface {
+type IEvaluator interface {
 	Evaluate(p *Position) int
 }
 
@@ -80,7 +81,7 @@ type TransTable interface {
 	Update(key uint64, depth, score, bound int, move Move)
 }
 
-func NewEngine(evalBuilder func() Evaluator) *Engine {
+func NewEngine(evalBuilder func() interface{}) *Engine {
 	return &Engine{
 		Hash:               16,
 		Threads:            1,
@@ -106,7 +107,7 @@ func (e *Engine) Prepare() {
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e
-			t.evaluator = WithAdapter(e.evalBuilder())
+			t.evaluator = e.buildEvaluator()
 		}
 	}
 }
@@ -212,15 +213,7 @@ func (pv *pv) toSlice() []Move {
 }
 
 type EvaluatorAdapter struct {
-	evaluator Evaluator
-}
-
-func WithAdapter(evaluator Evaluator) IUpdatableEvaluator {
-	var ue, ok = evaluator.(IUpdatableEvaluator)
-	if ok {
-		return ue
-	}
-	return &EvaluatorAdapter{evaluator: evaluator}
+	evaluator IEvaluator
 }
 
 func (e *EvaluatorAdapter) Init(p *Position) {
@@ -237,4 +230,15 @@ func (e *EvaluatorAdapter) UnmakeMove() {
 
 func (e *EvaluatorAdapter) EvaluateQuick(p *Position) int {
 	return e.evaluator.Evaluate(p)
+}
+
+func (e *Engine) buildEvaluator() IUpdatableEvaluator {
+	var evaluationService = e.evalBuilder()
+	if ue, ok := evaluationService.(IUpdatableEvaluator); ok {
+		return ue
+	}
+	if e, ok := evaluationService.(IEvaluator); ok {
+		return &EvaluatorAdapter{evaluator: e}
+	}
+	panic(errors.New("bad eval builder"))
 }

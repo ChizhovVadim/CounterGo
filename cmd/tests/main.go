@@ -44,7 +44,7 @@ func run() error {
 	} else if config.name == "tactic" {
 		return runSolveTactic(config.tacticTestsFilepath)
 	} else if config.name == "quality" {
-		var evaluator = evalbuilder.Build(config.eval).(Evaluator)
+		var evaluator = evalbuilder.Get(config.eval)().(Evaluator)
 		return checkEvalQuality(evaluator, config.validationPath)
 	}
 
@@ -73,9 +73,7 @@ func runSolveTactic(filepath string) error {
 }
 
 func newEngine() *engine.Engine {
-	var eng = engine.NewEngine(func() engine.Evaluator {
-		return evalbuilder.Build(config.eval).(engine.Evaluator)
-	})
+	var eng = engine.NewEngine(evalbuilder.Get(config.eval))
 	eng.Hash = 128
 	eng.ExperimentSettings = false
 	return eng

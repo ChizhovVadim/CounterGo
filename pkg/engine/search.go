@@ -1,94 +1,10 @@
 package engine
 
 import (
-	"errors"
-	"sync"
-
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 const pawnValue = 100
-
-var errSearchTimeout = errors.New("search timeout")
-
-/*func savePV(transTable TransTable, p *Position, pv []Move) {
-	var parent = *p
-	var child Position
-	for _, m := range pv {
-		transTable.Update(&parent, 0, 0, 0, m)
-		parent.MakeMove(m, &child)
-		parent = child
-	}
-}*/
-
-func lazySmp(e *Engine) {
-	var ml = e.genRootMoves()
-	if len(ml) != 0 {
-		e.mainLine = mainLine{
-			depth: 0,
-			score: 0,
-			moves: []Move{ml[0]},
-		}
-	}
-	if len(ml) <= 1 {
-		return
-	}
-
-	if e.Threads == 1 {
-		iterativeDeepening(&e.threads[0], ml, 1)
-	} else {
-
-		var wg = &sync.WaitGroup{}
-
-		for i := 0; i < e.Threads; i++ {
-			var ml = cloneMoves(ml)
-			wg.Add(1)
-			go func(i int) {
-				var t = &e.threads[i]
-				iterativeDeepening(t, ml, 1+i%2)
-				wg.Done()
-			}(i)
-		}
-
-		wg.Wait()
-	}
-}
-
-func iterativeDeepening(t *thread, ml []Move, incDepth int) {
-	defer func() {
-		if r := recover(); r != nil {
-			if r == errSearchTimeout {
-				return
-			}
-			panic(r)
-		}
-	}()
-
-	for h := 0; h <= 2; h++ {
-		t.stack[h].killer1 = MoveEmpty
-		t.stack[h].killer2 = MoveEmpty
-	}
-	var lastDepth int
-	var lastScore int
-	var lastMove Move
-	for {
-		if t.engine.timeManager.IsDone() {
-			break
-		}
-		var depth = lastDepth + incDepth
-		if depth > maxHeight {
-			break
-		}
-		if lastMove != MoveEmpty {
-			var index = findMoveIndex(ml, lastMove)
-			if index >= 0 {
-				moveToBegin(ml, index)
-			}
-		}
-		var score = aspirationWindow(t, ml, depth, lastScore)
-		lastDepth, lastScore, lastMove = t.engine.onIterationComplete(t, depth, score)
-	}
-}
 
 func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
 	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
@@ -586,7 +502,7 @@ func (t *thread) incNodes() {
 	if t.nodes&255 == 0 {
 		//fixed nodes search only in single threaded mode
 		if t.engine.Threads == 1 {
-			t.engine.timeManager.OnNodesChanged(int(t.engine.nodes + t.nodes))
+			t.engine.timeManager.OnNodesChanged(int(t.engine.mainLine.nodes + t.nodes))
 		}
 		if t.engine.timeManager.IsDone() {
 			panic(errSearchTimeout)

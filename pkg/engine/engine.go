@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"runtime"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
@@ -92,8 +91,8 @@ func NewEngine(evalBuilder func() interface{}) *Engine {
 func (e *Engine) Prepare() {
 	if e.transTable == nil || e.transTable.Size() != e.Hash {
 		if e.transTable != nil {
+			// GC can collect TT
 			e.transTable = nil
-			runtime.GC()
 		}
 		e.transTable = newTransTable(e.Hash)
 	}

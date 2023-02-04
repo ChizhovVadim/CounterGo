@@ -51,6 +51,5 @@ func main() {
 			&uci.BoolOption{Name: "ExperimentSettings", Value: &eng.ExperimentSettings},
 		},
 	)
-
-	uci.RunCli(logger, protocol)
+	protocol.Run(logger)
 }

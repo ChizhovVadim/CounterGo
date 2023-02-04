@@ -83,7 +83,7 @@ func NewEngine(evalBuilder func() interface{}) *Engine {
 		Hash:               16,
 		Threads:            1,
 		ExperimentSettings: false,
-		ProgressMinNodes:   200000,
+		ProgressMinNodes:   1_000_000,
 		evalBuilder:        evalBuilder,
 	}
 }

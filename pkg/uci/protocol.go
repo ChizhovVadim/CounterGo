@@ -1,13 +1,14 @@
 package uci
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 	"strings"
-	"sync/atomic"
-	"time"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
@@ -19,14 +20,15 @@ type Engine interface {
 }
 
 type Protocol struct {
-	name      string
-	author    string
-	version   string
-	options   []Option
-	engine    Engine
-	positions []common.Position
-	thinking  int32
-	cancel    context.CancelFunc
+	name         string
+	author       string
+	version      string
+	options      []Option
+	engine       Engine
+	positions    []common.Position
+	thinking     bool
+	engineOutput chan common.SearchInfo
+	cancel       context.CancelFunc
 }
 
 func New(name, author, version string, engine Engine, options []Option) *Protocol {
@@ -44,7 +46,57 @@ func New(name, author, version string, engine Engine, options []Option) *Protoco
 	}
 }
 
-func (uci *Protocol) Handle(ctx context.Context, commandLine string) error {
+func (uci *Protocol) Run(logger *log.Logger) {
+	var commands = make(chan string)
+
+	go func() {
+		defer close(commands)
+		readCommands(commands)
+	}()
+
+	var searchResult common.SearchInfo
+	for {
+		select {
+		case si, ok := <-uci.engineOutput:
+			if ok {
+				fmt.Println(searchInfoToUci(si))
+				searchResult = si
+			} else {
+				if len(searchResult.MainLine) != 0 {
+					fmt.Printf("bestmove %v\n", searchResult.MainLine[0])
+				}
+				uci.thinking = false
+				uci.cancel = nil
+				uci.engineOutput = nil
+				searchResult = common.SearchInfo{}
+			}
+		case commandLine, ok := <-commands:
+			if !ok {
+				//uci quit
+				return
+			}
+			var err = uci.handle(commandLine)
+			if err != nil {
+				logger.Println(err)
+			}
+		}
+	}
+}
+
+func readCommands(commands chan<- string) {
+	var scanner = bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		var commandLine = scanner.Text()
+		if commandLine == "quit" {
+			return
+		}
+		if commandLine != "" {
+			commands <- commandLine
+		}
+	}
+}
+
+func (uci *Protocol) handle(commandLine string) error {
 	var fields = strings.Fields(commandLine)
 	if len(fields) == 0 {
 		return nil
@@ -52,7 +104,7 @@ func (uci *Protocol) Handle(ctx context.Context, commandLine string) error {
 	var commandName = fields[0]
 	fields = fields[1:]
 
-	if atomic.LoadInt32(&uci.thinking) == 1 {
+	if uci.thinking {
 		if commandName == "stop" {
 			uci.cancel()
 			return nil
@@ -153,22 +205,22 @@ func (uci *Protocol) goCommand(fields []string) error {
 	var limits = parseLimits(fields)
 	var ctx, cancel = context.WithCancel(context.TODO())
 	uci.cancel = cancel
-	atomic.StoreInt32(&uci.thinking, 1)
+	uci.thinking = true
+	uci.engineOutput = make(chan common.SearchInfo, 3)
 	go func() {
+		//defer cancel()
 		var searchResult = uci.engine.Search(ctx, common.SearchParams{
 			Positions: uci.positions,
 			Limits:    limits,
 			Progress: func(si common.SearchInfo) {
-				if si.Time >= 300*time.Millisecond {
-					fmt.Println(searchInfoToUci(si))
+				select {
+				case uci.engineOutput <- si:
+				default:
 				}
 			},
 		})
-		fmt.Println(searchInfoToUci(searchResult))
-		atomic.StoreInt32(&uci.thinking, 0)
-		if len(searchResult.MainLine) != 0 {
-			fmt.Printf("bestmove %v\n", searchResult.MainLine[0])
-		}
+		uci.engineOutput <- searchResult
+		close(uci.engineOutput)
 	}()
 	return nil
 }

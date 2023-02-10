@@ -8,13 +8,23 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-type UciEngine interface {
-	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
+func runBenchmark(filepath string, evalName string) error {
+	logger.Println("benchmark started",
+		"filepath", filepath,
+		"evalName", evalName)
+	defer logger.Println("benchmark finished")
+
+	var tests, err = loadEpd(filepath)
+	if err != nil {
+		return err
+	}
+	var eng = newEngine(evalName)
+	eng.Prepare()
+	benchmark(tests, eng)
+	return nil
 }
 
 func benchmark(tests []epdItem, eng UciEngine) {
-	logger.Println("benchmark started")
-	defer logger.Println("benchmark finished")
 	var ctx = context.Background()
 	var start = time.Now()
 	var nodes int64

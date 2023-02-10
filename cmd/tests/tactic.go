@@ -8,8 +8,25 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
+func runSolveTactic(filepath string, evalName string, moveTime time.Duration) error {
+	logger.Println("solveTactic started",
+		"filepath", filepath,
+		"evalName", evalName,
+		"moveTime", moveTime)
+	defer logger.Println("solveTactic finished")
+
+	var tests, err = loadEpd(filepath)
+	if err != nil {
+		return err
+	}
+	var eng = newEngine(evalName)
+	eng.ProgressMinNodes = 0
+	eng.Prepare()
+	solveTactic(tests, eng, moveTime)
+	return nil
+}
+
 func solveTactic(tests []epdItem, eng UciEngine, moveTime time.Duration) error {
-	logger.Println("Test started...")
 	var start = time.Now()
 	var total, solved int
 	for _, test := range tests {

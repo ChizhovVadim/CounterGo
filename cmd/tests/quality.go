@@ -8,11 +8,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-type Evaluator interface {
-	Evaluate(p *common.Position) int
+func runCheckEvalQuality(evalName string, datasetPath string) error {
+	logger.Println("checkEvalQuality started",
+		"evalName", evalName,
+		"datasetPath", datasetPath)
+	defer logger.Println("checkEvalQuality finished")
+
+	var evaluator = evalbuilder.Get(evalName)().(Evaluator)
+	return checkEvalQuality(evaluator, datasetPath)
 }
 
 func checkEvalQuality(e Evaluator, datasetPath string) error {

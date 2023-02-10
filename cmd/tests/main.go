@@ -48,6 +48,13 @@ func run() error {
 		var validationPath = cli.Params().GetString("vd", validationPath)
 		return runTestSee(validationPath)
 	})
+	cli.AddCommand("perft", func() error {
+		return runPerft()
+	})
+	cli.AddCommand("profile", func() error {
+		var evalName = cli.Params().GetString("eval", evalName)
+		return runProfile(mapPath("~/cpu.prof"), evalName)
+	})
 	return cli.Execute()
 }
 

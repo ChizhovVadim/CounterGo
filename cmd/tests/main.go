@@ -44,6 +44,10 @@ func run() error {
 		var validationPath = cli.Params().GetString("vd", validationPath)
 		return runCheckEvalQuality(evalName, validationPath)
 	})
+	cli.AddCommand("see", func() error {
+		var validationPath = cli.Params().GetString("vd", validationPath)
+		return runTestSee(validationPath)
+	})
 	return cli.Execute()
 }
 

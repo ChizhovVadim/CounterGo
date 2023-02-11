@@ -1,45 +1,23 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-func runTestSee(filepath string) error {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+func runTestSee(datasetPath string) error {
 
 	var errorCount int
 
-	var scanner = bufio.NewScanner(file)
-	for scanner.Scan() {
-		var s = scanner.Text()
-
-		var index = strings.Index(s, "\"")
-		if index < 0 {
-			return fmt.Errorf("zurichessParser failed %v", s)
-		}
-
-		var fen = s[:index]
-		pos, err := common.NewPositionFromFEN(fen)
-		if err != nil {
-			return err
-		}
-
+	return walkDataset(datasetPath, func(pos *common.Position, gameResult float64) error {
 		var ml = pos.GenerateLegalMoves()
 		for _, move := range ml {
-			var see = computeSeeSlow(&pos, move)
+			var see = computeSeeSlow(pos, move)
 
-			if !(engine.SeeGE(&pos, move, see) &&
-				!engine.SeeGE(&pos, move, see+1)) {
+			if !(engine.SeeGE(pos, move, see) &&
+				!engine.SeeGE(pos, move, see+1)) {
 
 				fmt.Println("SEE failed",
 					"Fen:", pos.String(),
@@ -48,13 +26,13 @@ func runTestSee(filepath string) error {
 
 				errorCount++
 				if errorCount >= 15 {
-					return nil
+					return fmt.Errorf("errors limit %v", errorCount)
 				}
 			}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 var pieceValuesSEE = [common.PIECE_NB]int{

@@ -11,17 +11,17 @@ import (
 
 // program for playing games between chess engines
 func main() {
-	var gameConcurrency = 4
 	var tc = timeControl{
 		//FixedTime:  1 * time.Second,
-		FixedNodes: 1_000_000,
+		FixedNodes: 1_500_000,
 	}
 
-	var numCPU = runtime.NumCPU()
-	if gameConcurrency > numCPU {
-		gameConcurrency = numCPU
+	var gameConcurrency int
+	if tc.FixedNodes != 0 {
+		gameConcurrency = runtime.NumCPU()
+	} else {
+		gameConcurrency = runtime.NumCPU() / 2
 	}
-	runtime.GOMAXPROCS(gameConcurrency)
 
 	var err = run(context.Background(), gameConcurrency, tc)
 	if err != nil {
@@ -30,19 +30,18 @@ func main() {
 }
 
 func newEngineA() IEngine {
-	var eng = engine.NewEngine(evalbuilder.Get("weiss"))
-	eng.Hash = 128
-	eng.Threads = 1
-	eng.ExperimentSettings = false
-	eng.Prepare()
-	return eng
+	return newEngine(false)
 }
 
 func newEngineB() IEngine {
+	return newEngine(true)
+}
+
+func newEngine(experiment bool) IEngine {
 	var eng = engine.NewEngine(evalbuilder.Get("weiss"))
-	eng.Hash = 128
-	eng.Threads = 1
-	eng.ExperimentSettings = true
+	eng.Options.ExperimentSettings = experiment
+	eng.Options.Hash = 128
+	eng.Options.Threads = 1
 	eng.Prepare()
 	return eng
 }

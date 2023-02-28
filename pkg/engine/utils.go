@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"math"
-
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
@@ -96,28 +94,4 @@ func isPawnAdvance(move Move, side bool) bool {
 
 func isRecapture(prev, move Move) bool {
 	return prev != MoveEmpty && isCaptureOrPromotion(prev) && move.To() == prev.To()
-}
-
-func lmrOff(d, m int) int {
-	return 0
-}
-
-func initLmr(f func(d, m float64) float64) func(d, m int) int {
-	var reductions [64][64]int
-	for d := 1; d < 64; d++ {
-		for m := 1; m < 64; m++ {
-			reductions[d][m] = int(f(float64(d), float64(m)))
-		}
-	}
-	return func(d, m int) int {
-		return reductions[Min(d, 63)][Min(m, 63)]
-	}
-}
-
-func lmrMult(d, m float64) float64 {
-	return lirp(math.Log(d)*math.Log(m), math.Log(5)*math.Log(22), math.Log(63)*math.Log(63), 3, 8)
-}
-
-func lirp(x, x1, x2, y1, y2 float64) float64 {
-	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }

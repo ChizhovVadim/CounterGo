@@ -68,7 +68,7 @@ type UciEngine interface {
 
 func newEngine(evalName string) *engine.Engine {
 	var eng = engine.NewEngine(evalbuilder.Get(evalName))
-	eng.Hash = 128
-	eng.ExperimentSettings = false
+	eng.Options.Hash = 128
+	eng.Options.ExperimentSettings = false
 	return eng
 }

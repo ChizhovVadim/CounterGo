@@ -9,19 +9,15 @@ import (
 )
 
 type Engine struct {
-	Hash               int
-	Threads            int
-	ExperimentSettings bool
-	ProgressMinNodes   int
-	evalBuilder        func() interface{}
-	timeManager        TimeManager
-	transTable         TransTable
-	lateMoveReduction  func(d, m int) int
-	historyKeys        map[uint64]int
-	threads            []thread
-	progress           func(SearchInfo)
-	mainLine           mainLine
-	start              time.Time
+	Options     Options
+	evalBuilder func() interface{}
+	timeManager TimeManager
+	transTable  TransTable
+	historyKeys map[uint64]int
+	threads     []thread
+	progress    func(SearchInfo)
+	mainLine    mainLine
+	start       time.Time
 }
 
 type thread struct {
@@ -80,27 +76,21 @@ type TransTable interface {
 
 func NewEngine(evalBuilder func() interface{}) *Engine {
 	return &Engine{
-		Hash:               16,
-		Threads:            1,
-		ExperimentSettings: false,
-		ProgressMinNodes:   1_000_000,
-		evalBuilder:        evalBuilder,
+		Options:     NewOptions(),
+		evalBuilder: evalBuilder,
 	}
 }
 
 func (e *Engine) Prepare() {
-	if e.transTable == nil || e.transTable.Size() != e.Hash {
+	if e.transTable == nil || e.transTable.Size() != e.Options.Hash {
 		if e.transTable != nil {
 			// GC can collect TT
 			e.transTable = nil
 		}
-		e.transTable = newTransTable(e.Hash)
+		e.transTable = newTransTable(e.Options.Hash)
 	}
-	if e.lateMoveReduction == nil {
-		e.lateMoveReduction = initLmr(lmrMult)
-	}
-	if len(e.threads) != e.Threads {
-		e.threads = make([]thread, e.Threads)
+	if len(e.threads) != e.Options.Threads {
+		e.threads = make([]thread, e.Options.Threads)
 		for i := range e.threads {
 			var t = &e.threads[i]
 			t.engine = e

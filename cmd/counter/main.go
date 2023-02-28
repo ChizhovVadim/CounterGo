@@ -46,9 +46,9 @@ func main() {
 
 	var protocol = uci.New(name, author, versionName, eng,
 		[]uci.Option{
-			&uci.IntOption{Name: "Hash", Min: 4, Max: 1 << 16, Value: &eng.Hash},
-			&uci.IntOption{Name: "Threads", Min: 1, Max: runtime.NumCPU(), Value: &eng.Threads},
-			&uci.BoolOption{Name: "ExperimentSettings", Value: &eng.ExperimentSettings},
+			&uci.IntOption{Name: "Hash", Min: 4, Max: 1 << 16, Value: &eng.Options.Hash},
+			&uci.IntOption{Name: "Threads", Min: 1, Max: runtime.NumCPU(), Value: &eng.Options.Threads},
+			&uci.BoolOption{Name: "ExperimentSettings", Value: &eng.Options.ExperimentSettings},
 		},
 	)
 	protocol.Run(logger)

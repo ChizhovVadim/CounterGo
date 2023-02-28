@@ -37,6 +37,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 	t.stack[height].staticEval = t.evaluator.EvaluateQuick(p)
 	var child = &t.stack[height+1].position
 	var bestMoveIndex = 0
+	var options = &t.engine.Options
 	for i, move := range ml {
 		p.MakeMove(move, child)
 		t.evaluator.MakeMove(p, move)
@@ -44,7 +45,7 @@ func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 		extension = t.extend(depth, height)
 		if depth >= 3 && i > 0 &&
 			!(isCaptureOrPromotion(move)) {
-			reduction = t.engine.lateMoveReduction(depth, i+1)
+			reduction = options.Lmr(depth, i+1)
 			reduction -= 2
 			if p.IsCheck() || child.IsCheck() {
 				reduction--
@@ -137,6 +138,8 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var staticEval = t.evaluator.EvaluateQuick(position)
 	t.stack[height].staticEval = staticEval
 	var improving = height < 2 || staticEval > t.stack[height-2].staticEval
+
+	var options = &t.engine.Options
 
 	// reverse futility pruning
 	if !pvNode && depth <= 8 && !isCheck {
@@ -346,7 +349,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 		if depth >= 3 && movesSearched > 1 &&
 			!(isNoisy) {
-			reduction = t.engine.lateMoveReduction(depth, movesSearched)
+			reduction = options.Lmr(depth, movesSearched)
 			if move == mi.killer1 || move == mi.killer2 {
 				reduction--
 			}
@@ -501,7 +504,7 @@ func (t *thread) incNodes() {
 	t.nodes++
 	if t.nodes&255 == 0 {
 		//fixed nodes search only in single threaded mode
-		if t.engine.Threads == 1 {
+		if t.engine.Options.Threads == 1 {
 			t.engine.timeManager.OnNodesChanged(int(t.engine.mainLine.nodes + t.nodes))
 		}
 		if t.engine.timeManager.IsDone() {

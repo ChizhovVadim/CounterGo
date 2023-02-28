@@ -34,7 +34,7 @@ func lazySmp(e *Engine) {
 
 	var wg = &sync.WaitGroup{}
 
-	for i := 0; i < e.Threads; i++ {
+	for i := 0; i < e.Options.Threads; i++ {
 		wg.Add(1)
 		go func(t *thread, ml []common.Move) {
 			defer wg.Done()
@@ -63,7 +63,7 @@ func iterativeDeepening(
 			startingScore: e.mainLine.score,
 		}
 		if task.depth < len(searchCountByDepth) &&
-			searchCountByDepth[task.depth] >= (e.Threads+1)/2 {
+			searchCountByDepth[task.depth] >= (e.Options.Threads+1)/2 {
 			// some threads search deeper
 			task.depth = e.mainLine.depth + 2
 		}
@@ -89,7 +89,7 @@ func iterativeDeepening(
 				e.mainLine.score = taskResult.score
 				e.mainLine.moves = taskResult.moves
 				e.timeManager.OnIterationComplete(e.mainLine)
-				if e.progress != nil && e.mainLine.nodes >= int64(e.ProgressMinNodes) {
+				if e.progress != nil && e.mainLine.nodes >= int64(e.Options.ProgressMinNodes) {
 					e.progress(e.currentSearchResult())
 				}
 			}

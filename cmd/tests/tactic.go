@@ -20,7 +20,7 @@ func runSolveTactic(filepath string, evalName string, moveTime time.Duration) er
 		return err
 	}
 	var eng = newEngine(evalName)
-	eng.ProgressMinNodes = 0
+	eng.Options.ProgressMinNodes = 0
 	eng.Prepare()
 	solveTactic(tests, eng, moveTime)
 	return nil

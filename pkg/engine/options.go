@@ -7,19 +7,35 @@ import (
 )
 
 type Options struct {
+	EvalBuilder        func() interface{}
 	Hash               int
 	Threads            int
 	ExperimentSettings bool
 	ProgressMinNodes   int
+	ReverseFutility    bool
+	NullMovePruning    bool
+	Probcut            bool
+	SingularExt        bool
+	Lmp                bool
+	Futility           bool
+	See                bool
 	reductions         [64][64]int
 }
 
-func NewOptions() Options {
+func NewMainOptions(evalBuilder func() interface{}) Options {
 	var result = Options{
+		EvalBuilder:        evalBuilder,
 		Hash:               16,
 		Threads:            1,
 		ExperimentSettings: false,
 		ProgressMinNodes:   1_000_000,
+		ReverseFutility:    true,
+		NullMovePruning:    true,
+		Probcut:            true,
+		SingularExt:        true,
+		Lmp:                true,
+		Futility:           true,
+		See:                true,
 	}
 	result.InitLmr(LmrMult)
 	return result

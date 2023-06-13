@@ -38,10 +38,18 @@ func newEngineB() IEngine {
 }
 
 func newEngine(experiment bool) IEngine {
-	var eng = engine.NewEngine(evalbuilder.Get("weiss"))
-	eng.Options.ExperimentSettings = experiment
-	eng.Options.Hash = 128
-	eng.Options.Threads = 1
+	var options = engine.Options{
+		EvalBuilder:        evalbuilder.Get("weiss"),
+		Hash:               128,
+		Threads:            1,
+		ReverseFutility:    true,
+		Lmp:                true,
+		See:                true,
+		ExperimentSettings: experiment,
+	}
+	options.InitLmr(engine.LmrMult)
+
+	var eng = engine.NewEngine(options)
 	eng.Prepare()
 	return eng
 }

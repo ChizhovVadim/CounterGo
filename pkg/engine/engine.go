@@ -10,7 +10,6 @@ import (
 
 type Engine struct {
 	Options     Options
-	evalBuilder func() interface{}
 	timeManager TimeManager
 	transTable  TransTable
 	historyKeys map[uint64]int
@@ -74,10 +73,9 @@ type TransTable interface {
 	Update(key uint64, depth, score, bound int, move Move)
 }
 
-func NewEngine(evalBuilder func() interface{}) *Engine {
+func NewEngine(options Options) *Engine {
 	return &Engine{
-		Options:     NewOptions(),
-		evalBuilder: evalBuilder,
+		Options: options,
 	}
 }
 
@@ -195,7 +193,7 @@ func (e *EvaluatorAdapter) EvaluateQuick(p *Position) int {
 }
 
 func (e *Engine) buildEvaluator() IUpdatableEvaluator {
-	var evaluationService = e.evalBuilder()
+	var evaluationService = e.Options.EvalBuilder()
 	if ue, ok := evaluationService.(IUpdatableEvaluator); ok {
 		return ue
 	}

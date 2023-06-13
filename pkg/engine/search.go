@@ -142,7 +142,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var options = &t.engine.Options
 
 	// reverse futility pruning
-	if !pvNode && depth <= 8 && !isCheck {
+	if options.ReverseFutility && !pvNode && depth <= 8 && !isCheck {
 		var score = staticEval - pawnValue*depth
 		if score >= beta {
 			return staticEval
@@ -156,7 +156,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	// null-move pruning
 	var child = &t.stack[height+1].position
-	if !pvNode && depth >= 2 && !isCheck &&
+	if options.NullMovePruning && !pvNode && depth >= 2 && !isCheck &&
 		position.LastMove != MoveEmpty &&
 		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
 		beta < valueWin &&
@@ -176,7 +176,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	if !pvNode && depth >= 5 && !isCheck &&
+	if options.Probcut && !pvNode && depth >= 5 && !isCheck &&
 		beta > valueLoss && beta < valueWin &&
 		!(ttHit && ttDepth >= depth-4 && ttValue < beta && (ttBound&boundUpper) != 0) {
 
@@ -239,7 +239,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 	// singular extension
 	var ttMoveIsSingular = false
-	if depth >= 8 &&
+	if options.SingularExt && depth >= 8 &&
 		ttHit && ttMove != MoveEmpty &&
 		(ttBound&boundLower) != 0 && ttDepth >= depth-3 &&
 		ttValue > valueLoss && ttValue < valueWin {
@@ -305,7 +305,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 
 		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck {
 			// late-move pruning
-			if !(isNoisy ||
+			if options.Lmp && !(isNoisy ||
 				move == mi.killer1 ||
 				move == mi.killer2) &&
 				quietsSeen > lmp {
@@ -313,7 +313,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			}
 
 			// futility pruning
-			if !(isNoisy ||
+			if options.Futility && !(isNoisy ||
 				move == mi.killer1 ||
 				move == mi.killer2) &&
 				staticEval+100+pawnValue*depth <= alpha {
@@ -321,14 +321,16 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			}
 
 			// SEE pruning
-			var seeMargin int
-			if isNoisy {
-				seeMargin = Max(depth, (staticEval+pawnValue-alpha)/pawnValue)
-			} else {
-				seeMargin = depth / 2
-			}
-			if !SeeGE(position, move, -seeMargin) {
-				continue
+			if options.See {
+				var seeMargin int
+				if isNoisy {
+					seeMargin = Max(depth, (staticEval+pawnValue-alpha)/pawnValue)
+				} else {
+					seeMargin = depth / 2
+				}
+				if !SeeGE(position, move, -seeMargin) {
+					continue
+				}
 			}
 		}
 

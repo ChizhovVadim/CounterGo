@@ -42,7 +42,8 @@ func main() {
 		"GitRevision", gitRevision,
 		"RuntimeVersion", runtime.Version())
 
-	var eng = engine.NewEngine(evalbuilder.Get(flgEval))
+	var options = engine.NewMainOptions(evalbuilder.Get(flgEval))
+	var eng = engine.NewEngine(options)
 
 	var protocol = uci.New(name, author, versionName, eng,
 		[]uci.Option{

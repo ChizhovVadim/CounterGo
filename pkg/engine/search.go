@@ -176,11 +176,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
+	var probcutBeta = Min(valueWin-1, beta+150)
 	if options.Probcut && !pvNode && depth >= 5 && !isCheck &&
 		beta > valueLoss && beta < valueWin &&
-		!(ttHit && ttDepth >= depth-4 && ttValue < beta && (ttBound&boundUpper) != 0) {
-
-		var probcutBeta = Min(valueWin-1, beta+150)
+		!(ttHit && ttDepth >= depth-4 && ttValue < probcutBeta && (ttBound&boundUpper) != 0) {
 
 		var mi = moveIteratorQS{
 			position: position,

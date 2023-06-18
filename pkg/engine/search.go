@@ -210,16 +210,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		}
 	}
 
-	// Internal iterative deepening
-	if pvNode && depth >= 8 && ttMove == MoveEmpty {
-		var iidDepth = depth - depth/4 - 5
-		t.alphaBeta(alpha, beta, iidDepth, height)
-		if t.stack[height].pv.size != 0 {
-			ttMove = t.stack[height].pv.items[0]
-			t.stack[height].pv.clear()
-		}
-	}
-
 	var followUp Move
 	if height > 0 {
 		followUp = t.stack[height-1].position.LastMove

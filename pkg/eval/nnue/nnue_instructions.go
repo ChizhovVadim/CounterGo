@@ -3,6 +3,8 @@
 
 package eval
 
+const AvxInstructions = false
+
 func (e *EvaluationService) QuickFeed() float32 {
 	var output float32
 	for i, x := range e.hiddenOutputs[e.currentHidden][:] {

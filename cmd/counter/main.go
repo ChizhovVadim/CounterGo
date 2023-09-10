@@ -31,7 +31,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&flgEval, "eval", "nnue", "specifies evaluation function")
+	flag.StringVar(&flgEval, "eval", "", "specifies evaluation function")
 	flag.Parse()
 
 	var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
@@ -40,7 +40,11 @@ func main() {
 		"VersionName", versionName,
 		"BuildDate", buildDate,
 		"GitRevision", gitRevision,
-		"RuntimeVersion", runtime.Version())
+		"RuntimeVersion", runtime.Version(),
+		"GOARCH", runtime.GOARCH,
+		"GOOS", runtime.GOOS,
+		"NumCPU", runtime.NumCPU(),
+	)
 
 	var options = engine.NewMainOptions(evalbuilder.Get(flgEval))
 	var eng = engine.NewEngine(options)

@@ -15,6 +15,12 @@ import (
 func Get(key string) func() interface{} {
 	return func() interface{} {
 		switch key {
+		case "":
+			if nnue.AvxInstructions {
+				return nnue.NewDefaultEvaluationService()
+			} else {
+				return counter.NewEvaluationService()
+			}
 		case "counter":
 			return counter.NewEvaluationService()
 		case "weiss":

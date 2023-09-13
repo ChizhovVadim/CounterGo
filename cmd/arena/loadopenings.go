@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ChizhovVadim/CounterGo/internal/pgn"
+	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 //go:embed openings.txt
@@ -19,11 +20,10 @@ func loadOpenings(
 	var openings = getOpenings()
 
 	for i, opening := range openings {
-		var g, err = pgn.ParseGame(opening)
+		var fen, err = parseOpening(opening)
 		if err != nil {
 			return err
 		}
-		var fen = g.Items[len(g.Items)-1].Position.String()
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -37,6 +37,29 @@ func loadOpenings(
 	}
 
 	return nil
+}
+
+func parseOpening(opening string) (string, error) {
+	var g, err = pgn.ParseGame(pgn.GameRaw{
+		Tags: []pgn.Tag{
+			{Key: "Result", Value: "*"},
+		},
+		BodyRaw: opening,
+	})
+	if err != nil {
+		return "", err
+	}
+	pos, err := common.NewPositionFromFEN(common.InitialPositionFen)
+	if err != nil {
+		return "", err
+	}
+	for i := range g.Items {
+		var move = g.Items[i].Move
+		var child common.Position
+		pos.MakeMove(move, &child)
+		pos = child
+	}
+	return pos.String(), nil
 }
 
 func getOpenings() []string {

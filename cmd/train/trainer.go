@@ -90,9 +90,6 @@ func (t *Trainer) Train(epochs int, binFolderPath string) error {
 
 	t.initWeights()
 
-	var bestValidationCost float64
-	var bestEpoch int
-
 	for epoch := 1; epoch <= epochs; epoch++ {
 		t.startEpoch()
 		log.Printf("Finished Epoch %v\n", epoch)
@@ -100,17 +97,9 @@ func (t *Trainer) Train(epochs int, binFolderPath string) error {
 		validationCost := t.calcCost(t.validation)
 		log.Printf("Current validation cost is: %f\n", validationCost)
 
-		if bestEpoch == 0 ||
-			validationCost < bestValidationCost {
-			bestEpoch = epoch
-			bestValidationCost = validationCost
-
-			var err = t.saveNetwork(binFolderPath, epoch, validationCost)
-			if err != nil {
-				return err
-			}
-		} else {
-			log.Printf("Best validation cost: %f Best epoch: %v\n", bestValidationCost, bestEpoch)
+		var err = t.saveNetwork(binFolderPath, epoch, validationCost)
+		if err != nil {
+			return err
 		}
 	}
 

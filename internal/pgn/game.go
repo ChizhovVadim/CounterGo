@@ -2,11 +2,9 @@ package pgn
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -14,46 +12,50 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-const (
-	GameResultNone     = "*"
-	GameResultWhiteWin = "1-0"
-	GameResultBlackWin = "0-1"
-	GameResultDraw     = "1/2-1/2"
-)
+func WalkPgnFile(
+	filepath string,
+	onGame func(GameRaw) error,
+) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
 
-type Game struct {
-	Tags  []Tag
-	Items []Item
-}
+	var tags []string
+	var body = &strings.Builder{}
+	var hasBody bool
 
-type Tag struct {
-	Key   string
-	Value string
-}
-
-type Item struct {
-	SanMove    string //for debug
-	TxtComment string //for debug
-	Position   common.Position
-	Comment    Comment
-}
-
-func (item Item) String() string {
-	return fmt.Sprintln(item.SanMove, item.TxtComment, item.Comment)
-}
-
-type Comment struct {
-	Depth int
-	Score common.UciScore
-}
-
-func (g *Game) TagValue(key string) (string, bool) {
-	return tagValue(g.Tags, key)
-}
-
-func LoadPgnsManyFiles(ctx context.Context, files []string, pgns chan<- string) error {
-	for _, filepath := range files {
-		var err = LoadPgns(ctx, filepath, pgns)
+	var scanner = bufio.NewScanner(file)
+	for scanner.Scan() {
+		var line = scanner.Text()
+		if strings.HasPrefix(line, "[") {
+			if hasBody {
+				if len(tags) != 0 && body.Len() != 0 {
+					var err = onGame(GameRaw{
+						Tags:    parseTags(tags),
+						BodyRaw: body.String(),
+					})
+					if err != nil {
+						return err
+					}
+				}
+				hasBody = false
+				tags = nil
+				body.Reset()
+			}
+			tags = append(tags, line)
+		} else {
+			hasBody = true
+			body.WriteString(line)
+			body.WriteString(" ")
+		}
+	}
+	if hasBody && len(tags) != 0 && body.Len() != 0 {
+		var err = onGame(GameRaw{
+			Tags:    parseTags(tags),
+			BodyRaw: body.String(),
+		})
 		if err != nil {
 			return err
 		}
@@ -61,113 +63,66 @@ func LoadPgnsManyFiles(ctx context.Context, files []string, pgns chan<- string) 
 	return nil
 }
 
-func LoadPgns(ctx context.Context, filepath string, pgns chan<- string) error {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var sb = &strings.Builder{}
-	var isEmptyPrevLine bool
-
-	var scanner = bufio.NewScanner(file)
-	for scanner.Scan() {
-		var line = scanner.Text()
-		if strings.HasPrefix(line, "[") && isEmptyPrevLine && sb.Len() != 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case pgns <- sb.String():
-				sb = &strings.Builder{}
-			}
+func parseTags(tags []string) []Tag {
+	var result []Tag
+	for _, tag := range tags {
+		tag = strings.TrimLeft(tag, "[")
+		tag = strings.TrimRight(tag, "]")
+		var i0 = strings.Index(tag, "\"")
+		var i1 = strings.LastIndex(tag, "\"")
+		if i0 == -1 || i1 == -1 {
+			continue
 		}
-		sb.WriteString(line)
-		sb.WriteString("\n")
-		isEmptyPrevLine = strings.TrimSpace(line) == ""
+		var name = strings.TrimSpace(tag[:i0])
+		var val = tag[i0+1 : i1]
+		result = append(result, Tag{Key: name, Value: val})
 	}
-
-	if sb.Len() != 0 {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case pgns <- sb.String():
-		}
-	}
-
-	return scanner.Err()
+	return result
 }
 
-func ParseGame(pgn string) (Game, error) {
-	var tags = parseTags(pgn)
+func ParseGame(gameRaw GameRaw) (Game, error) {
+	var result Game
+	var ok bool
+	result.Result, ok = TagValue(gameRaw.Tags, "Result")
+	if !ok {
+		return Game{}, fmt.Errorf("no game result")
+	}
+	result.Fen, _ = TagValue(gameRaw.Tags, "FEN")
 
-	var curPosition = startPosition
-	if fen, fenFound := tagValue(tags, "FEN"); fenFound {
-		var err error
-		curPosition, err = common.NewPositionFromFEN(fen)
-		if err != nil {
-			return Game{}, fmt.Errorf("parse FEN tag failed")
-		}
+	var startFen = result.Fen
+	if startFen == "" {
+		startFen = common.InitialPositionFen
+	}
+	var pos, err = common.NewPositionFromFEN(startFen)
+	if err != nil {
+		return Game{}, err
 	}
 
-	var tokens = parsePgnTokens(pgn)
-	var items = make([]Item, 0, len(tokens))
-	var addLastPos = false
+	var tokens = parsePgnBody(gameRaw.BodyRaw)
 
 	for i := range tokens {
-		addLastPos = false
-
 		var san = tokens[i].Value
-		var move = common.ParseMoveSAN(&curPosition, san)
+		var move = common.ParseMoveSAN(&pos, san)
 		if move == common.MoveEmpty {
 			break
 		}
 		var child common.Position
-		if !curPosition.MakeMove(move, &child) {
+		if !pos.MakeMove(move, &child) {
 			break
 		}
+		pos = child
 
-		var comment = Comment{}
-		var txtComment = tokens[i].Comment
-		if txtComment != "" {
-			//var err error
-			comment, _ = parseComment(txtComment)
-			//if err != nil {
-			//	log.Printf("'%v' %v", txtComment, err)
-			//}
-		}
-
-		items = append(items, Item{
-			SanMove:    san,
-			TxtComment: txtComment,
-			Position:   curPosition,
-			Comment:    comment,
+		var comment, _ = parseComment(tokens[i].Comment)
+		result.Items = append(result.Items, Item{
+			Move:    move,
+			Comment: comment,
 		})
-
-		curPosition = child
-		addLastPos = true
 	}
 
-	if addLastPos {
-		items = append(items, Item{Position: curPosition})
-	}
-
-	return Game{
-		Tags:  tags,
-		Items: items,
-	}, nil
+	return result, nil
 }
 
-func parseTags(pgn string) []Tag {
-	var tags = make([]Tag, 0, 16)
-	tagMatches := tagPairRegex.FindAllStringSubmatch(pgn, -1)
-	for i := range tagMatches {
-		tags = append(tags, Tag{Key: tagMatches[i][1], Value: tagMatches[i][2]})
-	}
-	return tags
-}
-
-func tagValue(tags []Tag, key string) (string, bool) {
+func TagValue(tags []Tag, key string) (string, bool) {
 	for _, tag := range tags {
 		if tag.Key == key {
 			return tag.Value, true
@@ -176,18 +131,16 @@ func tagValue(tags []Tag, key string) (string, bool) {
 	return "", false
 }
 
-type Token struct {
+type token struct {
 	Value   string
 	Comment string
 }
 
-func parsePgnTokens(pgn string) []Token {
-	pgn = tagsRegex.ReplaceAllString(pgn, "")
-	pgn = strings.ReplaceAll(pgn, "\n", " ")
-	var result []Token
+func parsePgnBody(bodyRaw string) []token {
+	var result []token
 	var inComment = false
 	var body string
-	for _, rune := range pgn {
+	for _, rune := range bodyRaw {
 		if inComment {
 			if rune == '}' {
 				if len(result) != 0 {
@@ -202,12 +155,12 @@ func parsePgnTokens(pgn string) []Token {
 			body = ""
 		} else if unicode.IsSpace(rune) {
 			if body != "" {
-				result = append(result, Token{Value: body})
+				result = append(result, token{Value: body})
 				body = ""
 			}
 		} else if rune == '{' {
 			if body != "" {
-				result = append(result, Token{Value: body})
+				result = append(result, token{Value: body})
 				body = ""
 			}
 			inComment = true
@@ -217,12 +170,15 @@ func parsePgnTokens(pgn string) []Token {
 		}
 	}
 	if body != "" {
-		result = append(result, Token{Value: body})
+		result = append(result, token{Value: body})
 	}
 	return result
 }
 
-//TODO парсить без ошибок '0s'
+// Примеры комментариев:
+// {-1.46/10 0.004s}
+// {-12.05/10 0.014s, Black wins by adjudication}
+// TODO парсить без ошибок '0s'
 func parseComment(comment string) (Comment, error) {
 	comment = strings.TrimLeft(comment, "{")
 	comment = strings.TrimRight(comment, "}")
@@ -276,11 +232,3 @@ func parseComment(comment string) (Comment, error) {
 }
 
 var errParseComment = errors.New("parse comment failed")
-var startPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
-
-//TODO В идеале парсить и такие теги
-//[Variation "Abbazia defence (classical defence, modern defence[!])"]
-var (
-	tagsRegex    = regexp.MustCompile(`\[[^\]]+\]`)
-	tagPairRegex = regexp.MustCompile(`\[(.*)\s\"(.*)\"\]`)
-)

@@ -12,7 +12,6 @@ type Config struct {
 	netFolderPath  string
 	threads        int
 	epochs         int
-	searchWeight   float64
 	datasetMaxSize int
 }
 
@@ -24,10 +23,9 @@ func main() {
 	flag.StringVar(&config.trainingPath, "td", "", "Path to training dataset")
 	flag.StringVar(&config.validationPath, "vd", "", "Path to validation dataset")
 	flag.StringVar(&config.netFolderPath, "net", "", "Final NNUE path directory")
-	flag.IntVar(&config.threads, "threads", 1, "Number of threads")
+	flag.IntVar(&config.threads, "threads", runtime.NumCPU(), "Number of threads")
 	flag.IntVar(&config.epochs, "epochs", 30, "Number of epochs")
-	flag.Float64Var(&config.searchWeight, "sw", 0.5, "Weight of search result in training dataset")
-	flag.IntVar(&config.datasetMaxSize, "dms", 1000000, "Max size of dataset")
+	flag.IntVar(&config.datasetMaxSize, "dms", 5_000_000, "Max size of dataset")
 	flag.Parse()
 
 	log.Printf("%+v", config)
@@ -39,7 +37,7 @@ func main() {
 }
 
 func run() error {
-	dataset, err := LoadDataset2(config.trainingPath)
+	dataset, err := LoadDataset(config.trainingPath)
 	if err != nil {
 		return err
 	}
@@ -52,7 +50,7 @@ func run() error {
 		validation = dataset[:validationSize]
 		training = dataset[validationSize:]
 	} else {
-		validation, err = LoadDataset(config.validationPath, zurichessParser)
+		validation, err = LoadZurichessDataset(config.validationPath)
 		if err != nil {
 			return err
 		}

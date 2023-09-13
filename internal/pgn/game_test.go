@@ -5,27 +5,21 @@ import (
 )
 
 func TestPgn(t *testing.T) {
-	var game, err = ParseGame(testPgn)
+	var game, err = ParseGame(testGame)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(game)
 }
 
-const testPgn = `[Event "CCRL 40/15"]
-[Site "CCRL"]
-[Date "2021.10.06"]
-[Round "792.1.311"]
-[White "Demolito 2021-07-09 64-bit"]
-[Black "Counter 4.0 64-bit"]
-[Result "1/2-1/2"]
-[ECO "B36"]
-[Opening "Sicilian"]
-[Variation "accelerated fianchetto, Maroczy bind"]
-[PlyCount "195"]
-[WhiteElo "3101"]
-[BlackElo "3091"]
+var testGame = GameRaw{
+	Tags: []Tag{
+		{"Result", "1/2-1/2"},
+	},
+	BodyRaw: testBodyRaw,
+}
 
+const testBodyRaw = `
 1. e4 {+0.00/1 0s} c5 {+0.00/1 0s} 2. Nf3 {+0.00/1 0s} Nc6 {+0.00/1 0s} 3. d4
 {+0.00/1 0s} cxd4 {+0.00/1 0s} 4. Nxd4 {+0.00/1 0s} g6 {+0.00/1 0s} 5. c4
 {+0.00/1 0s} Nf6 {+0.00/1 0s} 6. Nc3 {+0.00/1 0s} d6 {+0.00/1 0s} 7. Be2

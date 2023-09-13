@@ -52,7 +52,8 @@ func (t *Trainer) computeOutput(sample *Sample) float64 {
 }
 
 func (t *Trainer) computeOutput2(sample *Sample) (output, strongScale float64) {
-	var mg, eg float64
+	var mg = float64(sample.MiddleFree)
+	var eg = float64(sample.EndgameFree)
 	for _, f := range sample.Features {
 		var val = float64(f.Value)
 		mg += val * t.weights[2*f.Index]

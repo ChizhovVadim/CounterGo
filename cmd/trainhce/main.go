@@ -24,7 +24,6 @@ type Config struct {
 	validationPath string
 	threads        int
 	epochs         int
-	searchWeight   float64
 	datasetMaxSize int
 }
 
@@ -36,10 +35,9 @@ func main() {
 	flag.StringVar(&config.eval, "eval", "", "Eval function to train")
 	flag.StringVar(&config.trainingPath, "td", "", "Path to training dataset")
 	flag.StringVar(&config.validationPath, "vd", "", "Path to validation dataset")
-	flag.IntVar(&config.threads, "threads", 1, "Number of threads")
-	flag.IntVar(&config.epochs, "epochs", 5, "Number of epochs")
-	flag.Float64Var(&config.searchWeight, "sw", 0.5, "Weight of search result in training dataset")
-	flag.IntVar(&config.datasetMaxSize, "dms", 1000000, "Max size of dataset")
+	flag.IntVar(&config.threads, "threads", runtime.NumCPU(), "Number of threads")
+	flag.IntVar(&config.epochs, "epochs", 100, "Number of epochs")
+	flag.IntVar(&config.datasetMaxSize, "dms", 5_000_000, "Max size of dataset")
 	flag.Parse()
 
 	log.Printf("%+v", config)
@@ -54,7 +52,7 @@ func main() {
 }
 
 func run(evaluator ITunableEvaluator) error {
-	dataset, err := LoadDataset(config.trainingPath, evaluator, parseTrainingSample)
+	dataset, err := LoadDataset(config.trainingPath, evaluator, mainParser)
 	if err != nil {
 		return err
 	}
@@ -67,7 +65,7 @@ func run(evaluator ITunableEvaluator) error {
 		validation = dataset[:validationSize]
 		training = dataset[validationSize:]
 	} else {
-		validation, err = LoadDataset(config.validationPath, evaluator, parseValidationSample)
+		validation, err = LoadDataset(config.validationPath, evaluator, zurichessParser)
 		if err != nil {
 			return err
 		}

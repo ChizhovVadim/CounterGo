@@ -1,6 +1,8 @@
 package domain
 
 type TuneEntry struct {
+	MiddleFree       float32
+	EndgameFree      float32
 	Features         []FeatureInfo
 	MgPhase          float32
 	EgPhase          float32

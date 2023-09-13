@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -12,13 +13,18 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
+type Data struct {
+	fen    string
+	target float64
+}
+
 type Sample struct {
 	Target float32
 	domain.TuneEntry
 }
 
 func LoadDataset(filepath string, e ITunableEvaluator,
-	parser func(string, ITunableEvaluator) (Sample, error)) ([]Sample, error) {
+	parser func(string) (Data, error)) ([]Sample, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
@@ -30,14 +36,23 @@ func LoadDataset(filepath string, e ITunableEvaluator,
 	var scanner = bufio.NewScanner(file)
 	for scanner.Scan() {
 		var s = scanner.Text()
-		var sample, err = parser(s, e)
+		var data, err = parser(s)
 		if err != nil {
 			return nil, fmt.Errorf("parse fail %v %w", s, err)
 		}
-		result = append(result, sample)
 
-		//  prevent swap RAM
+		pos, err := common.NewPositionFromFEN(data.fen)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, Sample{
+			Target:    float32(data.target),
+			TuneEntry: e.ComputeFeatures(&pos),
+		})
+
 		if config.datasetMaxSize != 0 && len(result) >= config.datasetMaxSize {
+			log.Println("Limit dataset to prevent swap RAM")
 			break
 		}
 	}
@@ -49,24 +64,35 @@ func LoadDataset(filepath string, e ITunableEvaluator,
 	return result, nil
 }
 
-func parseValidationSample(s string, e ITunableEvaluator) (Sample, error) {
-	var sample Sample
+func mainParser(line string) (Data, error) {
+	var fileds = strings.SplitN(line, ";", 2)
+	if len(fileds) < 2 {
+		return Data{}, fmt.Errorf("bad line")
+	}
 
+	var fen = fileds[0]
+	var sResult = fileds[1]
+	gameResult, err := strconv.ParseFloat(sResult, 64)
+	if err != nil {
+		return Data{}, err
+	}
+
+	return Data{
+		fen:    fen,
+		target: gameResult,
+	}, nil
+}
+
+func zurichessParser(s string) (Data, error) {
 	var index = strings.Index(s, "\"")
 	if index < 0 {
-		return Sample{}, fmt.Errorf("bad separator")
+		return Data{}, fmt.Errorf("bad separator")
 	}
 
 	var fen = s[:index]
 	var strScore = s[index+1:]
 
-	var pos, err = common.NewPositionFromFEN(fen)
-	if err != nil {
-		return Sample{}, err
-	}
-	sample.TuneEntry = e.ComputeFeatures(&pos)
-
-	var prob float32
+	var prob float64
 	if strings.HasPrefix(strScore, "1/2-1/2") {
 		prob = 0.5
 	} else if strings.HasPrefix(strScore, "1-0") {
@@ -74,43 +100,11 @@ func parseValidationSample(s string, e ITunableEvaluator) (Sample, error) {
 	} else if strings.HasPrefix(strScore, "0-1") {
 		prob = 0.0
 	} else {
-		return Sample{}, fmt.Errorf("bad game result")
-	}
-	sample.Target = prob
-
-	return sample, nil
-}
-
-func parseTrainingSample(line string, e ITunableEvaluator) (Sample, error) {
-	var sample Sample
-
-	var fileds = strings.SplitN(line, ";", 3)
-	if len(fileds) < 3 {
-		return Sample{}, fmt.Errorf("bad line")
+		return Data{}, fmt.Errorf("bad game result")
 	}
 
-	var fen = fileds[0]
-	var pos, err = common.NewPositionFromFEN(fen)
-	if err != nil {
-		return Sample{}, err
-	}
-	sample.TuneEntry = e.ComputeFeatures(&pos)
-
-	var sScore = fileds[1]
-	score, err := strconv.Atoi(sScore)
-	if err != nil {
-		return Sample{}, err
-	}
-
-	var sResult = fileds[2]
-	gameResult, err := strconv.ParseFloat(sResult, 64)
-	if err != nil {
-		return Sample{}, err
-	}
-
-	var prob = config.searchWeight*Sigmoid(float64(score)) +
-		(1-config.searchWeight)*gameResult
-	sample.Target = float32(prob)
-
-	return sample, nil
+	return Data{
+		fen:    fen,
+		target: prob,
+	}, nil
 }

@@ -1,5 +1,10 @@
 package domain
 
+type DatasetItem struct {
+	Fen    string
+	Target float64
+}
+
 type TuneEntry struct {
 	MiddleFree       float32
 	EndgameFree      float32

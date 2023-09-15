@@ -28,6 +28,8 @@ func run() error {
 	)
 
 	var cli = NewCli()
+	cli.AddCommand("tuner", tunerHandler)
+	cli.AddCommand("train", trainHandler)
 	cli.AddCommand("benchmark", func() error {
 		var path = cli.Params().GetString("testpath", tacticTestsFilepath)
 		var evalName = cli.Params().GetString("eval", evalName)

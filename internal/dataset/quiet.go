@@ -1,4 +1,4 @@
-package main
+package dataset
 
 import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
@@ -32,7 +32,7 @@ func hasGoodCapture(p *common.Position) bool {
 	var ml = p.GenerateCaptures(buffer[:])
 	for i := range ml {
 		var move = ml[i].Move
-		if engine.SeeGE(p, move, 0) {
+		if engine.SeeGE(p, move, 1) {
 			return true
 		}
 	}

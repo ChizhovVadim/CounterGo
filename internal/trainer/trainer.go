@@ -1,4 +1,4 @@
-package main
+package trainer
 
 import (
 	"fmt"
@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	SigmoidScale = 3.5 / 512
 	LearningRate = 0.01
 	BatchSize    = 16384
 )
@@ -39,7 +38,8 @@ type Trainer struct {
 	threadData  []ThreadData
 }
 
-func NewTrainer(training, validation []Sample, topology []int, threads int, seed int64) *Trainer {
+func NewTrainer(training, validation []Sample,
+	topology []int, threads int, seed int64, sigmoidScale float64) *Trainer {
 	var t = &Trainer{}
 	t.topology = topology
 	t.training = training
@@ -53,7 +53,7 @@ func NewTrainer(training, validation []Sample, topology []int, threads int, seed
 	t.bGradients = make([]Gradients, layerSize)
 	for layerIndex := 0; layerIndex < layerSize; layerIndex++ {
 		if layerIndex == len(t.activations)-1 {
-			t.activations[layerIndex] = &Sigmoid{SigmoidScale: SigmoidScale}
+			t.activations[layerIndex] = &Sigmoid{SigmoidScale: sigmoidScale}
 		} else {
 			t.activations[layerIndex] = &ReLu{}
 		}

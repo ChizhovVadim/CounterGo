@@ -1,7 +1,8 @@
-package main
+package tuner
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -12,26 +13,33 @@ const (
 )
 
 type Trainer struct {
-	weights    []float64
-	gradients  []Gradient
-	training   []Sample
-	validation []Sample
-	rnd        *rand.Rand
-	threadData []ThreadData
+	sigmoidScale float64
+	weights      []float64
+	gradients    []Gradient
+	training     []Sample
+	validation   []Sample
+	rnd          *rand.Rand
+	threadData   []ThreadData
 }
 
 type ThreadData struct {
 	gradients []float64
 }
 
-func NewTrainer(training, validation []Sample, startingWeights []float64, threads int) *Trainer {
+func NewTrainer(
+	training, validation []Sample,
+	startingWeights []float64,
+	threads int,
+	sigmoidScale float64,
+) *Trainer {
 	var t = &Trainer{
-		weights:    startingWeights,
-		gradients:  make([]Gradient, len(startingWeights)),
-		training:   training,
-		validation: validation,
-		rnd:        rand.New(rand.NewSource(0)),
-		threadData: make([]ThreadData, threads),
+		sigmoidScale: sigmoidScale,
+		weights:      startingWeights,
+		gradients:    make([]Gradient, len(startingWeights)),
+		training:     training,
+		validation:   validation,
+		rnd:          rand.New(rand.NewSource(0)),
+		threadData:   make([]ThreadData, threads),
 	}
 	for threadIndex := range t.threadData {
 		var td = &t.threadData[threadIndex]
@@ -65,7 +73,7 @@ func (t *Trainer) computeOutput2(sample *Sample) (output, strongScale float64) {
 	} else {
 		strongScale = float64(sample.BlackStrongScale)
 	}
-	output = Sigmoid(strongScale * mix)
+	output = t.Sigmoid(strongScale * mix)
 	return
 }
 
@@ -163,7 +171,7 @@ func (t *Trainer) trainBatch(batch []Sample) {
 
 func trainSample(t *Trainer, td *ThreadData, sample *Sample) {
 	var output, strongScale = t.computeOutput2(sample)
-	outputGradient := strongScale * CalculateCostGradient(output, float64(sample.Target)) * SigmoidPrime(output)
+	outputGradient := strongScale * CalculateCostGradient(output, float64(sample.Target)) * t.SigmoidPrime(output)
 	var mgOutputGradient = outputGradient * float64(sample.MgPhase)
 	var egOutputGradient = outputGradient * float64(sample.EgPhase)
 	for _, f := range sample.Features {
@@ -171,4 +179,12 @@ func trainSample(t *Trainer, td *ThreadData, sample *Sample) {
 		td.gradients[2*f.Index] += mgOutputGradient * val
 		td.gradients[2*f.Index+1] += egOutputGradient * val
 	}
+}
+
+func (t *Trainer) Sigmoid(x float64) float64 {
+	return 1.0 / (1.0 + math.Exp(t.sigmoidScale*(-x)))
+}
+
+func (t *Trainer) SigmoidPrime(x float64) float64 {
+	return x * (1 - x) * t.sigmoidScale
 }

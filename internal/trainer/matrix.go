@@ -1,4 +1,4 @@
-package main
+package trainer
 
 type Matrix struct {
 	Data []float64

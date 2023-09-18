@@ -39,7 +39,7 @@ func newEngineB() IEngine {
 
 func newEngine(experiment bool) IEngine {
 	var options = engine.Options{
-		EvalBuilder:        evalbuilder.Get("weiss"),
+		EvalBuilder:        evalbuilder.Get(""),
 		Hash:               128,
 		Threads:            1,
 		ReverseFutility:    true,

@@ -5,8 +5,6 @@ import (
 	"log"
 	"math/rand"
 
-	eval "github.com/ChizhovVadim/CounterGo/pkg/eval/material"
-
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
@@ -15,9 +13,8 @@ import (
 const maxHeight = 128
 
 type searchStack struct {
-	rand      *rand.Rand
-	evaluator *eval.EvaluationService
-	stack     [maxHeight]struct {
+	rand  *rand.Rand
+	stack [maxHeight]struct {
 		positon common.Position
 		buffer  [common.MaxMoves]common.OrderedMove
 	}
@@ -40,7 +37,6 @@ func generateOpeningsRandomPipeline(
 		const height = 0
 		var ss = &searchStack{}
 		ss.rand = rand.New(rand.NewSource(int64(config.seed)))
-		ss.evaluator = eval.NewEvaluationService()
 		ss.stack[height].positon = startPosition
 		for {
 			var err = search(ctx, ss, ply, height, positions)
@@ -60,7 +56,7 @@ func generateOpeningsRandomPipeline(
 func search(ctx context.Context, searchStack *searchStack, depth, height int, positions chan<- common.Position) error {
 	var position = &searchStack.stack[height].positon
 	if depth <= 0 {
-		var eval = searchStack.evaluator.Evaluate(position)
+		var eval = evaluateMaterial(position)
 		const EvalBound = 700
 		if -EvalBound < eval && eval < EvalBound {
 			select {
@@ -90,3 +86,15 @@ func search(ctx context.Context, searchStack *searchStack, depth, height int, po
 }
 
 var startPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
+
+func evaluateMaterial(p *common.Position) int {
+	var eval = 100*(common.PopCount(p.Pawns&p.White)-common.PopCount(p.Pawns&p.Black)) +
+		400*(common.PopCount(p.Knights&p.White)-common.PopCount(p.Knights&p.Black)) +
+		400*(common.PopCount(p.Bishops&p.White)-common.PopCount(p.Bishops&p.Black)) +
+		600*(common.PopCount(p.Rooks&p.White)-common.PopCount(p.Rooks&p.Black)) +
+		1200*(common.PopCount(p.Queens&p.White)-common.PopCount(p.Queens&p.Black))
+	if !p.WhiteMove {
+		eval = -eval
+	}
+	return eval
+}

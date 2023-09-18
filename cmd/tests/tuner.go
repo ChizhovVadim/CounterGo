@@ -10,7 +10,7 @@ import (
 )
 
 func tunerHandler() error {
-	const evalName = "linear"
+	const evalName = "counter"
 	const sigmoidScale = 3.5 / 512
 	var datasetProvider = &dataset.DatasetProvider{
 		SigmoidScale:                sigmoidScale,

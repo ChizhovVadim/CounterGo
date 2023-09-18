@@ -24,7 +24,7 @@ func run() error {
 	var (
 		tacticTestsFilepath = mapPath("~/chess/tests/tests.epd")
 		validationPath      = mapPath("~/chess/tuner/quiet-labeled.epd")
-		evalName            = "weiss"
+		evalName            = "counter"
 	)
 
 	var cli = NewCli()

@@ -1,46 +1,21 @@
 package eval
 
-import (
-	"fmt"
-	"math"
-)
+import "fmt"
 
-type Score struct {
-	Mg int
-	Eg int
+type Score int64
+
+func (s Score) Mg() int {
+	return int(int32((s + 1<<31) >> 32))
+}
+
+func (s Score) Eg() int {
+	return int(int32(s))
+}
+
+func S(middle, end int) Score {
+	return Score(middle)<<32 + Score(end)
 }
 
 func (s Score) String() string {
-	return fmt.Sprintf("Score(%d, %d)", s.Mg, s.Eg)
-}
-
-func (s *Score) add(v Score) {
-	s.Mg += v.Mg
-	s.Eg += v.Eg
-}
-
-func (s *Score) sub(v Score) {
-	s.Mg -= v.Mg
-	s.Eg -= v.Eg
-}
-
-func (s *Score) addN(v Score, n int) {
-	s.Mg += v.Mg * n
-	s.Eg += v.Eg * n
-}
-
-func (s *Score) addRatio(v Score, n, d int) {
-	s.Mg += v.Mg * n / d
-	s.Eg += v.Eg * n / d
-}
-
-func negScore(s Score) Score {
-	return Score{-s.Mg, -s.Eg}
-}
-
-func makeScore(mg, eg float64) Score {
-	return Score{
-		Mg: int(math.Round(mg)),
-		Eg: int(math.Round(eg)),
-	}
+	return fmt.Sprintf("Score(%d, %d)", s.Mg(), s.Eg())
 }

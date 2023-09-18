@@ -18,6 +18,10 @@ func trainHandler() error {
 		SearchRatio:                 1.0,
 		CheckNoisyOnlyForSideToMove: true,
 	}
+	var validationProvider = &dataset.ZurichessDatasetProvider{
+		FilePath: mapPath("~/chess/tuner/quiet-labeled.epd"),
+	}
 	return trainer.Run(context.Background(),
-		datasetProvider, runtime.NumCPU(), 30, sigmoidScale, mapPath("~/chess/net"))
+		datasetProvider, validationProvider,
+		runtime.NumCPU(), 30, sigmoidScale, mapPath("~/chess/net"))
 }

@@ -54,6 +54,7 @@ func (e *EvaluationService) EvaluateQuick(p *Position) int {
 	output := int(e.QuickFeed())
 	const MaxEval = 25000
 	output = Max(-MaxEval, Min(MaxEval, output))
+	output = output * (200 - p.Rule50) / 200
 	if !p.WhiteMove {
 		output = -output
 	}

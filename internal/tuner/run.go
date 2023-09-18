@@ -24,6 +24,7 @@ type ITunableEvaluator interface {
 func Run(
 	ctx context.Context,
 	datasetProvider IDatasetProvider,
+	validationProvider IDatasetProvider,
 	tunableEvaluator ITunableEvaluator,
 	threads int,
 	epochs int,
@@ -37,12 +38,22 @@ func Run(
 	log.Println("Loaded dataset", len(dataset))
 	runtime.GC()
 
+	var training, validation []Sample
+	if validationProvider != nil {
+		validation, err = loadDataset(ctx, validationProvider, tunableEvaluator)
+		if err != nil {
+			return err
+		}
+		log.Println("Loaded validation dataset", len(validation))
+		training = dataset
+	} else {
+		var validationSize = min(500_000, len(dataset)/5)
+		validation = dataset[:validationSize]
+		training = dataset[validationSize:]
+	}
+
 	var weights = tunableEvaluator.StartingWeights()
 	log.Println("Num of weights", len(weights))
-
-	var validationSize = min(500_000, len(dataset)/5)
-	var validation = dataset[:validationSize]
-	var training = dataset[validationSize:]
 
 	var trainer = NewTrainer(training, validation, weights, threads, sigmoidScale)
 	err = trainer.Train(epochs)

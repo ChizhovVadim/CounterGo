@@ -1,4 +1,4 @@
-package main
+package arena
 
 import (
 	"context"
@@ -44,7 +44,7 @@ type GameStatistics struct {
 	los             float64
 }
 
-//https://chessprogramming.wikispaces.com/Match%20Statistics
+// https://chessprogramming.wikispaces.com/Match%20Statistics
 func computeStat(wins, losses, draws int) GameStatistics {
 	var games = wins + losses + draws
 	var winning_fraction = (float64(wins) + 0.5*float64(draws)) / float64(games)

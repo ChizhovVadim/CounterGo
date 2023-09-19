@@ -28,6 +28,7 @@ func run() error {
 	cli.Add("benchmark", benchmarkHandler)
 	cli.Add("tactic", tacticHandler)
 	cli.Add("quality", qualityHandler)
+	cli.Add("arena", arenaHandler)
 	cli.Add("perft", perftHandler)
 	return cli.Execute(cliArgs.CommandName())
 }

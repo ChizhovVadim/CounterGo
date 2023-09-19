@@ -1,4 +1,4 @@
-package main
+package arena
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func run(
+func Run(
 	ctx context.Context,
 	gameConcurrency int,
-	tc timeControl,
+	tc TimeControl,
+	engineBuilder func(experiment bool) IEngine,
 ) error {
 	log.Println("arena started")
 	defer log.Println("arena finished")
@@ -43,7 +44,7 @@ func run(
 		wg.Add(1)
 		g.Go(func() error {
 			defer wg.Done()
-			return playGames(ctx, tc, gameInfos, gameResults)
+			return playGames(ctx, tc, gameInfos, gameResults, engineBuilder(false), engineBuilder(true))
 		})
 	}
 
@@ -58,12 +59,11 @@ func run(
 
 func playGames(
 	ctx context.Context,
-	tc timeControl,
+	tc TimeControl,
 	gameInfos <-chan gameInfo,
 	gameResults chan<- gameResult,
+	engineA, engineB IEngine,
 ) error {
-	var engineA = newEngineA()
-	var engineB = newEngineB()
 	for gameInfo := range gameInfos {
 		var res, err = playGame(ctx, engineA, engineB, tc, gameInfo)
 		if err != nil {

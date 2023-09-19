@@ -1,4 +1,4 @@
-package main
+package arena
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 func playGame(
 	ctx context.Context,
 	engineA, engineB IEngine,
-	tc timeControl,
+	tc TimeControl,
 	info gameInfo,
 ) (gameResult, error) {
 

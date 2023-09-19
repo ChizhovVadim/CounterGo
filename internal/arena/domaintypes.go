@@ -1,4 +1,4 @@
-package main
+package arena
 
 import (
 	"context"
@@ -18,7 +18,7 @@ type IEngine interface {
 	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
 }
 
-type timeControl struct {
+type TimeControl struct {
 	FixedNodes int
 	FixedTime  time.Duration
 }

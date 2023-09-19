@@ -2,52 +2,16 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
-type CommandParams struct {
-	name   string
-	params map[string]string
+type CommandArgs struct {
+	commandName string
+	params      map[string]string
 }
 
-func (params *CommandParams) CommandName() string {
-	return params.name
-}
-
-func (params *CommandParams) GetString(name string, defaultVal string) string {
-	var val, ok = params.params[name]
-	if !ok {
-		return defaultVal
-	}
-	return val
-}
-
-func (params *CommandParams) GetInt(name string, defaultVal int) int {
-	var val, ok = params.params[name]
-	if !ok {
-		return defaultVal
-	}
-	var v, err = strconv.Atoi(val)
-	if err != nil {
-		return defaultVal
-	}
-	return v
-}
-
-func (params *CommandParams) GetDate(name string, defaultVal time.Time) time.Time {
-	return defaultVal
-}
-
-type Cli struct {
-	params   *CommandParams
-	handlers map[string]func() error
-}
-
-func NewCli() *Cli {
-	var args = os.Args
+func NewCommandArgs(args []string) *CommandArgs {
 	var cmdName = ""
 	var flags = make(map[string]string)
 	for i := 1; i < len(args); i++ {
@@ -62,29 +26,54 @@ func NewCli() *Cli {
 			cmdName = arg
 		}
 	}
-	var cmdParams = &CommandParams{
-		name:   cmdName,
-		params: flags,
-	}
-	return &Cli{
-		params:   cmdParams,
-		handlers: map[string]func() error{},
+	return &CommandArgs{
+		commandName: cmdName,
+		params:      flags,
 	}
 }
 
-func (cli *Cli) Params() *CommandParams {
-	return cli.params
+func (ca *CommandArgs) CommandName() string {
+	return ca.commandName
 }
 
-func (cli *Cli) AddCommand(name string, handler func() error) {
-	cli.handlers[name] = handler
+func (ca *CommandArgs) GetString(name string, defaultVal string) string {
+	var val, ok = ca.params[name]
+	if !ok {
+		return defaultVal
+	}
+	return val
 }
 
-func (cli *Cli) Execute() error {
-	var cmdName = cli.Params().CommandName()
-	handler, found := cli.handlers[cmdName]
+func (ca *CommandArgs) GetInt(name string, defaultVal int) int {
+	var val, ok = ca.params[name]
+	if !ok {
+		return defaultVal
+	}
+	var v, err = strconv.Atoi(val)
+	if err != nil {
+		return defaultVal
+	}
+	return v
+}
+
+type CommandHandler struct {
+	items map[string]func() error
+}
+
+func NewCommandHandler() *CommandHandler {
+	return &CommandHandler{
+		items: make(map[string]func() error),
+	}
+}
+
+func (ch *CommandHandler) Add(name string, handler func() error) {
+	ch.items[name] = handler
+}
+
+func (ch *CommandHandler) Execute(commandName string) error {
+	handler, found := ch.items[commandName]
 	if !found {
-		return fmt.Errorf("command not found %v", cmdName)
+		return fmt.Errorf("command not found %v", commandName)
 	}
 	return handler()
 }

@@ -3,18 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-func runBenchmark(filepath string, evalName string) error {
-	logger.Println("benchmark started",
-		"filepath", filepath,
-		"evalName", evalName)
-	defer logger.Println("benchmark finished")
+func benchmarkHandler() error {
+	var evalName = cliArgs.GetString("eval", "")
 
-	var tests, err = loadEpd(filepath)
+	log.Println("benchmark started",
+		"evalName", evalName)
+	defer log.Println("benchmark finished")
+
+	var tests, err = loadEpd(tacticTestsPath)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,7 @@ func trainHandler() error {
 		CheckNoisyOnlyForSideToMove: true,
 	}
 	var validationProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: mapPath("~/chess/tuner/quiet-labeled.epd"),
+		FilePath: validationDatasetPath,
 	}
 	return trainer.Run(context.Background(),
 		datasetProvider, validationProvider,

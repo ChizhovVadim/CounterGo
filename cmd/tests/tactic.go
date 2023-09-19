@@ -3,17 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-func runSolveTactic(filepath string, evalName string, moveTime time.Duration) error {
-	logger.Println("solveTactic started",
+func tacticHandler() error {
+	var filepath = cliArgs.GetString("testpath", tacticTestsPath)
+	var evalName = cliArgs.GetString("eval", "")
+	var moveTime = time.Duration(cliArgs.GetInt("movetime", 3)) * time.Second
+
+	log.Println("solveTactic started",
 		"filepath", filepath,
 		"evalName", evalName,
 		"moveTime", moveTime)
-	defer logger.Println("solveTactic finished")
+	defer log.Println("solveTactic finished")
 
 	var tests, err = loadEpd(filepath)
 	if err != nil {
@@ -43,7 +48,7 @@ func solveTactic(tests []epdItem, eng UciEngine, moveTime time.Duration) error {
 		fmt.Printf("Solved: %v, Total: %v\n", solved, total)
 		fmt.Println()
 	}
-	logger.Printf("Test finished. Elapsed: %v\n", time.Since(start))
+	log.Printf("Test finished. Elapsed: %v\n", time.Since(start))
 	return nil
 }
 

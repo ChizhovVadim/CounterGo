@@ -4,14 +4,15 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
 
 	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
+var cliArgs = NewCommandArgs(os.Args)
+var validationDatasetPath = mapPath("~/chess/tuner/quiet-labeled.epd")
+var tacticTestsPath = mapPath("~/chess/tests/tests.epd")
 
 func main() {
 	var err = run()
@@ -21,43 +22,14 @@ func main() {
 }
 
 func run() error {
-	var (
-		tacticTestsFilepath = mapPath("~/chess/tests/tests.epd")
-		validationPath      = mapPath("~/chess/tuner/quiet-labeled.epd")
-		evalName            = "counter"
-	)
-
-	var cli = NewCli()
-	cli.AddCommand("tuner", tunerHandler)
-	cli.AddCommand("train", trainHandler)
-	cli.AddCommand("benchmark", func() error {
-		var path = cli.Params().GetString("testpath", tacticTestsFilepath)
-		var evalName = cli.Params().GetString("eval", evalName)
-		return runBenchmark(path, evalName)
-	})
-	cli.AddCommand("tactic", func() error {
-		var path = cli.Params().GetString("testpath", tacticTestsFilepath)
-		var evalName = cli.Params().GetString("eval", evalName)
-		var moveTime = cli.Params().GetInt("movetime", 3)
-		return runSolveTactic(path, evalName, time.Duration(moveTime)*time.Second)
-	})
-	cli.AddCommand("quality", func() error {
-		var evalName = cli.Params().GetString("eval", evalName)
-		var validationPath = cli.Params().GetString("vd", validationPath)
-		return runCheckEvalQuality(evalName, validationPath)
-	})
-	cli.AddCommand("see", func() error {
-		var validationPath = cli.Params().GetString("vd", validationPath)
-		return runTestSee(validationPath)
-	})
-	cli.AddCommand("perft", func() error {
-		return runPerft()
-	})
-	cli.AddCommand("profile", func() error {
-		var evalName = cli.Params().GetString("eval", evalName)
-		return runProfile(mapPath("~/cpu.prof"), evalName)
-	})
-	return cli.Execute()
+	var cli = NewCommandHandler()
+	cli.Add("tuner", tunerHandler)
+	cli.Add("train", trainHandler)
+	cli.Add("benchmark", benchmarkHandler)
+	cli.Add("tactic", tacticHandler)
+	cli.Add("quality", qualityHandler)
+	cli.Add("perft", perftHandler)
+	return cli.Execute(cliArgs.CommandName())
 }
 
 type Evaluator interface {

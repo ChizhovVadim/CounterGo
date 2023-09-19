@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -28,7 +29,7 @@ func loadEpd(filePath string) ([]epdItem, error) {
 		var line = scanner.Text()
 		var test, err = parseEpdTest(line)
 		if err != nil {
-			logger.Println(err)
+			log.Println(err)
 			continue
 		}
 		result = append(result, test)

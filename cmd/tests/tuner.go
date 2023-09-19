@@ -21,7 +21,7 @@ func tunerHandler() error {
 		CheckNoisyOnlyForSideToMove: true,
 	}
 	var validationProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: mapPath("~/chess/tuner/quiet-labeled.epd"),
+		FilePath: validationDatasetPath,
 	}
 	var evaluator = evalbuilder.Get(evalName)().(tuner.ITunableEvaluator)
 	return tuner.Run(context.Background(), datasetProvider, validationProvider,

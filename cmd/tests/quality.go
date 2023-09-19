@@ -16,15 +16,15 @@ type IDatasetProvider interface {
 	Load(ctx context.Context, dataset chan<- domain.DatasetItem) error
 }
 
-func runCheckEvalQuality(evalName string, datasetPath string) error {
-	logger.Println("checkEvalQuality started",
-		"evalName", evalName,
-		"datasetPath", datasetPath)
-	defer logger.Println("checkEvalQuality finished")
+func qualityHandler() error {
+	var evalName = cliArgs.GetString("eval", "")
+	log.Println("checkEvalQuality started",
+		"evalName", evalName)
+	defer log.Println("checkEvalQuality finished")
 
 	var evaluator = evalbuilder.Get(evalName)().(Evaluator)
 	var datasetProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: datasetPath,
+		FilePath: validationDatasetPath,
 	}
 	return checkEvalQuality(context.Background(), evaluator, datasetProvider)
 }

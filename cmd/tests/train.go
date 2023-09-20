@@ -18,10 +18,8 @@ func trainHandler() error {
 		SearchRatio:                 1.0,
 		CheckNoisyOnlyForSideToMove: true,
 	}
-	var validationProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: validationDatasetPath,
-	}
 	return trainer.Run(context.Background(),
-		datasetProvider, validationProvider,
+		datasetProvider,
+		newValidationDatasetProvider(),
 		runtime.NumCPU(), 30, sigmoidScale, mapPath("~/chess/net"))
 }

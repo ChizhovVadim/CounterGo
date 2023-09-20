@@ -11,7 +11,6 @@ import (
 )
 
 var cliArgs = NewCommandArgs(os.Args)
-var validationDatasetPath = mapPath("~/chess/tuner/quiet-labeled.epd")
 var tacticTestsPath = mapPath("~/chess/tests/tests.epd")
 
 func main() {

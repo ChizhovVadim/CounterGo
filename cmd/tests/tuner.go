@@ -20,10 +20,8 @@ func tunerHandler() error {
 		SearchRatio:                 1.0,
 		CheckNoisyOnlyForSideToMove: true,
 	}
-	var validationProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: validationDatasetPath,
-	}
 	var evaluator = evalbuilder.Get(evalName)().(tuner.ITunableEvaluator)
-	return tuner.Run(context.Background(), datasetProvider, validationProvider,
+	return tuner.Run(context.Background(), datasetProvider,
+		newValidationDatasetProvider(),
 		evaluator, runtime.NumCPU(), 100, sigmoidScale)
 }

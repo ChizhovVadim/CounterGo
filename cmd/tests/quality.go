@@ -23,10 +23,7 @@ func qualityHandler() error {
 	defer log.Println("checkEvalQuality finished")
 
 	var evaluator = evalbuilder.Get(evalName)().(Evaluator)
-	var datasetProvider = &dataset.ZurichessDatasetProvider{
-		FilePath: validationDatasetPath,
-	}
-	return checkEvalQuality(context.Background(), evaluator, datasetProvider)
+	return checkEvalQuality(context.Background(), evaluator, newValidationDatasetProvider())
 }
 
 func checkEvalQuality(
@@ -78,4 +75,10 @@ func checkEvalQuality(
 func Sigmoid(x float64) float64 {
 	const SigmoidScale = 3.5 / 512
 	return 1.0 / (1.0 + math.Exp(SigmoidScale*(-x)))
+}
+
+func newValidationDatasetProvider() *dataset.ZurichessDatasetProvider {
+	return &dataset.ZurichessDatasetProvider{
+		FilePath: mapPath("~/chess/tuner/quiet-labeled.epd"),
+	}
 }

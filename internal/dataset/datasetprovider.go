@@ -18,12 +18,11 @@ type datasetInfo struct {
 }
 
 type DatasetProvider struct {
-	SigmoidScale                float64
-	MaxPosCount                 int
-	GamesFolder                 string
-	Threads                     int
-	SearchRatio                 float64
-	CheckNoisyOnlyForSideToMove bool
+	SigmoidScale float64
+	MaxPosCount  int
+	GamesFolder  string
+	Threads      int
+	SearchRatio  float64
 }
 
 func (dp *DatasetProvider) Load(
@@ -37,14 +36,15 @@ func (dp *DatasetProvider) Load(
 
 	var games = make(chan pgn.GameRaw, 128)
 	var results = make(chan datasetInfo, 128)
+	var datasetReady = make(chan struct{})
 
 	g.Go(func() error {
 		defer close(games)
-		return dp.loadGames(ctx, games)
+		return dp.loadGames(ctx, games, datasetReady)
 	})
 
 	g.Go(func() error {
-		return dp.mergeDataset(ctx, results, dataset)
+		return dp.mergeDataset(ctx, results, dataset, datasetReady)
 	})
 
 	var wg = &sync.WaitGroup{}

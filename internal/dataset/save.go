@@ -11,6 +11,7 @@ func (dp *DatasetProvider) mergeDataset(
 	ctx context.Context,
 	input <-chan datasetInfo,
 	output chan<- domain.DatasetItem,
+	datasetReady chan<- struct{},
 ) error {
 	var repeats = make(map[uint64]struct{})
 	var positionCount int
@@ -18,6 +19,10 @@ func (dp *DatasetProvider) mergeDataset(
 
 	for info := range input {
 		if dp.MaxPosCount != 0 && positionCount >= dp.MaxPosCount {
+			if datasetReady != nil {
+				close(datasetReady)
+				datasetReady = nil
+			}
 			continue
 		}
 

@@ -144,7 +144,7 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 	}
 	e.phase = phase
 
-	var result = (score.Mg()*phase + score.Eg()*(totalPhase-phase)) / (totalPhase * 100)
+	var result = (score.Mg()*phase + score.Eg()*(totalPhase-phase)) / totalPhase
 
 	var strongSide int
 	if result > 0 {
@@ -153,6 +153,8 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 		strongSide = SideBlack
 	}
 	result = result * e.computeFactor(strongSide, p) / scaleFactorNormal
+
+	result /= 100
 
 	if !p.WhiteMove {
 		result = -result

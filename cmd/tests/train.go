@@ -11,12 +11,11 @@ import (
 func trainHandler() error {
 	const sigmoidScale = 3.5 / 512
 	var datasetProvider = &dataset.DatasetProvider{
-		SigmoidScale:                sigmoidScale,
-		MaxPosCount:                 8_000_000,
-		GamesFolder:                 mapPath("~/chess/Dataset2023"),
-		Threads:                     runtime.NumCPU(),
-		SearchRatio:                 1.0,
-		CheckNoisyOnlyForSideToMove: true,
+		SigmoidScale: sigmoidScale,
+		MaxPosCount:  8_000_000,
+		GamesFolder:  mapPath("~/chess/Dataset2023"),
+		Threads:      runtime.NumCPU(),
+		SearchRatio:  1.0,
 	}
 	return trainer.Run(context.Background(),
 		datasetProvider,

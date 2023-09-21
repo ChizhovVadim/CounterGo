@@ -52,8 +52,10 @@ func NewEvaluationService(weights *Weights) *EvaluationService {
 
 func (e *EvaluationService) EvaluateQuick(p *Position) int {
 	output := int(e.QuickFeed())
-	const MaxEval = 25000
+	const MaxEval = 15_000
 	output = Max(-MaxEval, Min(MaxEval, output))
+	var npMaterial = 4*PopCount(p.Knights|p.Bishops) + 6*PopCount(p.Rooks) + 12*PopCount(p.Queens)
+	output = output * (160 + npMaterial) / 160
 	output = output * (200 - p.Rule50) / 200
 	if !p.WhiteMove {
 		output = -output

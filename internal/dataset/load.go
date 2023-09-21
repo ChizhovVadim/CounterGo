@@ -2,6 +2,7 @@ package dataset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,7 @@ import (
 func (dp *DatasetProvider) loadGames(
 	ctx context.Context,
 	games chan<- pgn.GameRaw,
+	datasetReady <-chan struct{},
 ) error {
 	pgnFiles, err := pgnFiles(dp.GamesFolder)
 	if err != nil {
@@ -22,6 +24,7 @@ func (dp *DatasetProvider) loadGames(
 		return fmt.Errorf("at least one PGN file is expected")
 	}
 	var gamesCount int
+	var errDatasetReady = errors.New("dataset ready")
 	for _, filepath := range pgnFiles {
 		log.Println("loadGames",
 			"filepath", filepath)
@@ -29,12 +32,17 @@ func (dp *DatasetProvider) loadGames(
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
+			case <-datasetReady:
+				return errDatasetReady
 			case games <- gr:
 				gamesCount++
 				return nil
 			}
 		})
 		if err != nil {
+			if errors.Is(err, errDatasetReady) {
+				break
+			}
 			return err
 		}
 	}

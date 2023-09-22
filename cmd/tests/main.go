@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
+	"github.com/ChizhovVadim/CounterGo/internal/utils"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
@@ -29,6 +30,9 @@ func run() error {
 	cli.Add("quality", qualityHandler)
 	cli.Add("arena", arenaHandler)
 	cli.Add("perft", perftHandler)
+	cli.Add("play", func() error {
+		return utils.PlayCli(newEngine(""))
+	})
 	return cli.Execute(cliArgs.CommandName())
 }
 

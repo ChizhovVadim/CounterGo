@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -9,34 +8,26 @@ import (
 	"sync"
 )
 
-var once sync.Once
-var weights *Weights
+func loadWeightsСached(loadFunc func() (*Weights, error)) func() (*Weights, error) {
+	var once sync.Once
+	var weights *Weights
+	var err error
+	return func() (*Weights, error) {
+		once.Do(func() {
+			weights, err = loadFunc()
+		})
+		return weights, err
+	}
+}
+
+var loadDefaultWeightsСached = loadWeightsСached(loadDefaultWeights)
 
 // TODO return err
 func NewDefaultEvaluationService() *EvaluationService {
-	once.Do(func() {
-		var w, err = loadEmbedWeights()
-		if err == nil {
-			weights = w
-			log.Println("loaded embed nnue weights")
-			return
-		}
-		var path = mapPath("./n-30-5094.nn")
-		w, err = loadFileWeights(path)
-		if err == nil {
-			weights = w
-			log.Println("loaded nnue weights", "path", path)
-			return
-		}
-		path = mapPath("~/chess/n-30-5094.nn")
-		w, err = loadFileWeights(path)
-		if err == nil {
-			weights = w
-			log.Println("loaded nnue weights", "path", path)
-			return
-		}
+	var weights, err = loadDefaultWeightsСached()
+	if err != nil {
 		panic(err)
-	})
+	}
 	return NewEvaluationService(weights)
 }
 

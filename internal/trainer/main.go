@@ -21,7 +21,7 @@ func Run(
 	sigmoidScale float64,
 	netFolderPath string,
 ) error {
-	dataset, err := loadDataset(ctx, datasetProvider)
+	dataset, err := loadDataset(ctx, datasetProvider, true)
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func Run(
 
 	var training, validation []Sample
 	if validationProvider != nil {
-		validation, err = loadDataset(ctx, validationProvider)
+		validation, err = loadDataset(ctx, validationProvider, false)
 		if err != nil {
 			return err
 		}

@@ -16,6 +16,7 @@ type Sample struct {
 func loadDataset(
 	ctx context.Context,
 	datasetProvider IDatasetProvider,
+	mirror bool,
 ) ([]Sample, error) {
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -29,7 +30,7 @@ func loadDataset(
 	var result []Sample
 
 	g.Go(func() error {
-		var samples, err = processDataset(ctx, dataset)
+		var samples, err = processDataset(ctx, dataset, mirror)
 		if err != nil {
 			return err
 		}
@@ -48,6 +49,7 @@ func loadDataset(
 func processDataset(
 	ctx context.Context,
 	dataset <-chan domain.DatasetItem,
+	mirror bool,
 ) ([]Sample, error) {
 	var result []Sample
 	for item := range dataset {
@@ -55,23 +57,17 @@ func processDataset(
 		if err != nil {
 			return nil, err
 		}
-		input, err := FromFen(item.Fen)
-		if err != nil {
-			return nil, err
-		}
+		input := toFeatures(&pos)
 		result = append(result, Sample{
 			Input:  input,
 			Target: float32(item.Target),
 		})
-		var mirrorPos = common.MirrorPosition(&pos)
-		mirrorInput, err := FromFen(mirrorPos.String())
-		if err != nil {
-			return nil, err
+		if mirror {
+			result = append(result, Sample{
+				Input:  mirrorInput(input),
+				Target: float32(1 - item.Target),
+			})
 		}
-		result = append(result, Sample{
-			Input:  mirrorInput,
-			Target: 1 - float32(item.Target),
-		})
 	}
 	return result, nil
 }

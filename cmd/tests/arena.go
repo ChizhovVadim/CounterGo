@@ -12,7 +12,7 @@ import (
 func arenaHandler() error {
 	var tc = arena.TimeControl{
 		//FixedTime:  1 * time.Second,
-		FixedNodes: 1_500_000,
+		FixedNodes: 2_000_000,
 	}
 
 	var gameConcurrency int

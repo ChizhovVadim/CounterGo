@@ -7,6 +7,7 @@ import (
 const pawnValue = 100
 
 func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
+	t.rootDepth = depth
 	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
 		const Window = 25
 		var alpha = Max(-valueInfinity, prevScore-Window)
@@ -31,95 +32,52 @@ func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
 
 func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
 	const height = 0
-	t.stack[height].pv.clear()
 	var p = &t.stack[height].position
 	t.evaluator.Init(p)
-	t.stack[height].staticEval = t.evaluator.EvaluateQuick(p)
-	var child = &t.stack[height+1].position
-	var bestMoveIndex = 0
-	var options = &t.engine.Options
-	for i, move := range ml {
-		p.MakeMove(move, child)
-		t.evaluator.MakeMove(p, move)
-		var extension, reduction int
-		extension = t.extend(depth, height)
-		if depth >= 3 && i > 0 &&
-			!(isCaptureOrPromotion(move)) {
-			reduction = options.Lmr(depth, i+1)
-			reduction -= 2
-			if p.IsCheck() || child.IsCheck() {
-				reduction--
-			}
-			reduction = Max(reduction, 0) + extension
-			reduction = Max(0, Min(depth-2, reduction))
-		}
-		var newDepth = depth - 1 + extension
-		var score = alpha + 1
-		// LMR
-		if reduction > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
-		}
-		// PVS
-		if score > alpha && beta != alpha+1 && i > 0 && newDepth > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
-		}
-		// full search
-		if score > alpha {
-			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
-		}
-		t.evaluator.UnmakeMove()
-		if score > alpha {
-			alpha = score
-			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
-			bestMoveIndex = i
-			if alpha >= beta {
-				break
-			}
-		}
-	}
-	moveToBegin(ml, bestMoveIndex)
-	return alpha
+	return t.alphaBeta(alpha, beta, depth, height, 0)
 }
 
 // main search method
-func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
-	var oldAlpha = alpha
-	var pvNode = beta != oldAlpha+1
-	var newDepth int
-	t.stack[height].pv.clear()
-
-	var position = &t.stack[height].position
-
-	if height >= maxHeight {
-		return t.evaluator.EvaluateQuick(position)
-	}
-
-	if t.isRepeat(height) {
-		return valueDraw
-	}
-
+func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 	if depth <= 0 {
 		return t.quiescence(alpha, beta, height)
 	}
+	t.stack[height].pv.clear()
 
-	t.incNodes()
-
-	if isDraw(position) {
-		return valueDraw
-	}
-
+	var rootNode = height == 0
+	var pvNode = beta != alpha+1
+	var position = &t.stack[height].position
 	var isCheck = position.IsCheck()
+	var ttMoveIsSingular = false
 
-	// mate distance pruning
-	if winIn(height+1) <= alpha {
-		return alpha
-	}
-	if lossIn(height+2) >= beta && !isCheck {
-		return beta
+	if !rootNode {
+		if height >= maxHeight {
+			return t.evaluator.EvaluateQuick(position)
+		}
+		if t.isRepeat(height) {
+			return valueDraw
+		}
+		if isDraw(position) {
+			return valueDraw
+		}
+		// mate distance pruning
+		if winIn(height+1) <= alpha {
+			return alpha
+		}
+		if lossIn(height+2) >= beta && !isCheck {
+			return beta
+		}
 	}
 
 	// transposition table
-	var ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
+	var (
+		ttDepth, ttValue, ttBound int
+		ttMove                    Move
+		ttHit                     bool
+	)
+	if skipMove == 0 {
+		ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
+	}
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
 		if ttDepth >= depth && !pvNode && !(position.LastMove == MoveEmpty) {
@@ -140,73 +98,83 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	var improving = height < 2 || staticEval > t.stack[height-2].staticEval
 
 	var options = &t.engine.Options
-
-	// reverse futility pruning
-	if options.ReverseFutility && !pvNode && depth <= 8 && !isCheck {
-		var score = staticEval - pawnValue*depth
-		if score >= beta {
-			return staticEval
-		}
-	}
-
 	if height+2 <= maxHeight {
 		t.stack[height+2].killer1 = MoveEmpty
 		t.stack[height+2].killer2 = MoveEmpty
 	}
-
-	// null-move pruning
 	var child = &t.stack[height+1].position
-	if options.NullMovePruning && !pvNode && depth >= 2 && !isCheck &&
-		position.LastMove != MoveEmpty &&
-		(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
-		beta < valueWin &&
-		!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
-		!isLateEndgame(position, position.WhiteMove) &&
-		staticEval >= beta {
-		var reduction = 4 + depth/6 + Min(2, (staticEval-beta)/200)
-		position.MakeNullMove(child)
-		t.evaluator.MakeMove(position, MoveEmpty)
-		var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1)
-		t.evaluator.UnmakeMove()
-		if score >= beta {
-			if score >= valueWin {
-				score = beta
+
+	if !rootNode && skipMove == 0 {
+
+		// reverse futility pruning
+		if options.ReverseFutility && !pvNode && depth <= 8 && !isCheck {
+			var score = staticEval - pawnValue*depth
+			if score >= beta {
+				return staticEval
 			}
-			return score
 		}
-	}
 
-	var probcutBeta = Min(valueWin-1, beta+150)
-	if options.Probcut && !pvNode && depth >= 5 && !isCheck &&
-		beta > valueLoss && beta < valueWin &&
-		!(ttHit && ttDepth >= depth-4 && ttValue < probcutBeta && (ttBound&boundUpper) != 0) {
-
-		var mi = moveIteratorQS{
-			position: position,
-			buffer:   t.stack[height].moveList[:],
-		}
-		mi.Init()
-
-		for mi.Reset(); ; {
-			var move = mi.Next()
-			if move == MoveEmpty {
-				break
-			}
-			if !seeGEZero(position, move) {
-				continue
-			}
-			if !position.MakeMove(move, child) {
-				continue
-			}
-			t.evaluator.MakeMove(position, move)
-			var score = -t.quiescence(-probcutBeta, -probcutBeta+1, height+1)
-			if score >= probcutBeta {
-				score = -t.alphaBeta(-probcutBeta, -probcutBeta+1, depth-4, height+1)
-			}
-			t.evaluator.UnmakeMove()
-			if score >= probcutBeta {
+		// null-move pruning
+		if options.NullMovePruning && !pvNode && depth >= 2 && !isCheck &&
+			position.LastMove != MoveEmpty &&
+			(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
+			beta < valueWin &&
+			!(ttHit && ttValue < beta && (ttBound&boundUpper) != 0) &&
+			!isLateEndgame(position, position.WhiteMove) &&
+			staticEval >= beta {
+			var reduction = 4 + depth/6 + Min(2, (staticEval-beta)/200)
+			t.MakeMove(MoveEmpty, height)
+			var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, 0)
+			t.UnmakeMove()
+			if score >= beta {
+				if score >= valueWin {
+					score = beta
+				}
 				return score
 			}
+		}
+
+		var probcutBeta = Min(valueWin-1, beta+150)
+		if options.Probcut && !pvNode && depth >= 5 && !isCheck &&
+			beta > valueLoss && beta < valueWin &&
+			!(ttHit && ttDepth >= depth-4 && ttValue < probcutBeta && (ttBound&boundUpper) != 0) {
+
+			var mi = moveIteratorQS{
+				position: position,
+				buffer:   t.stack[height].moveList[:],
+			}
+			mi.Init()
+
+			for mi.Reset(); ; {
+				var move = mi.Next()
+				if move == MoveEmpty {
+					break
+				}
+				if !seeGEZero(position, move) {
+					continue
+				}
+				if !t.MakeMove(move, height) {
+					continue
+				}
+				var score = -t.quiescence(-probcutBeta, -probcutBeta+1, height+1)
+				if score >= probcutBeta {
+					score = -t.alphaBeta(-probcutBeta, -probcutBeta+1, depth-4, height+1, 0)
+				}
+				t.UnmakeMove()
+				if score >= probcutBeta {
+					return score
+				}
+			}
+		}
+
+		// singular extension
+		if options.SingularExt && depth >= 8 &&
+			ttHit && ttMove != MoveEmpty &&
+			(ttBound&boundLower) != 0 && ttDepth >= depth-3 &&
+			ttValue > valueLoss && ttValue < valueWin {
+			var singularBeta = Max(-valueInfinity, ttValue-depth)
+			var score = t.alphaBeta(singularBeta-1, singularBeta, depth/2, height, ttMove)
+			ttMoveIsSingular = score < singularBeta
 		}
 	}
 
@@ -226,48 +194,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 	mi.Init()
 
-	// singular extension
-	var ttMoveIsSingular = false
-	if options.SingularExt && depth >= 8 &&
-		ttHit && ttMove != MoveEmpty &&
-		(ttBound&boundLower) != 0 && ttDepth >= depth-3 &&
-		ttValue > valueLoss && ttValue < valueWin {
-
-		ttMoveIsSingular = true
-		var singularBeta = Max(-valueInfinity, ttValue-depth)
-		newDepth = depth/2 - 1
-		var quietsPlayed = 0
-		for mi.Reset(); ; {
-			var move = mi.Next()
-			if move == MoveEmpty {
-				break
-			}
-			if quietsPlayed >= 6 && !isCaptureOrPromotion(move) {
-				continue
-			}
-			if !position.MakeMove(move, child) {
-				continue
-			}
-			if move == ttMove {
-				if t.extend(depth, height) == 1 {
-					ttMoveIsSingular = false
-					break
-				}
-				continue
-			}
-			t.evaluator.MakeMove(position, move)
-			if !isCaptureOrPromotion(move) {
-				quietsPlayed++
-			}
-			var score = -t.alphaBeta(-singularBeta, -singularBeta+1, newDepth, height+1)
-			t.evaluator.UnmakeMove()
-			if score >= singularBeta {
-				ttMoveIsSingular = false
-				break
-			}
-		}
-	}
-
 	var movesSearched = 0
 	var hasLegalMove = false
 	var quietsSeen = 0
@@ -281,18 +207,22 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	var best = -valueInfinity
+	var oldAlpha = alpha
 
 	for mi.Reset(); ; {
 		var move = mi.Next()
 		if move == MoveEmpty {
 			break
 		}
+		if move == skipMove {
+			continue
+		}
 		var isNoisy = isCaptureOrPromotion(move)
 		if !isNoisy {
 			quietsSeen++
 		}
 
-		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck {
+		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck && !rootNode {
 			// late-move pruning
 			if options.Lmp && !(isNoisy ||
 				move == mi.killer1 ||
@@ -323,10 +253,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			}
 		}
 
-		if !position.MakeMove(move, child) {
+		if !t.MakeMove(move, height) {
 			continue
 		}
-		t.evaluator.MakeMove(position, move)
 		hasLegalMove = true
 
 		movesSearched++
@@ -366,23 +295,23 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 			quietsSearched = append(quietsSearched, move)
 		}
 
-		newDepth = depth - 1 + extension
+		var newDepth = depth - 1 + extension
 
 		var score = alpha + 1
 		// LMR
 		if reduction > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1)
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth-reduction, height+1, 0)
 		}
 		// PVS
 		if score > alpha && beta != alpha+1 && movesSearched > 1 && newDepth > 0 {
-			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1)
+			score = -t.alphaBeta(-(alpha + 1), -alpha, newDepth, height+1, 0)
 		}
 		// full search
 		if score > alpha {
-			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1)
+			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, 0)
 		}
 
-		t.evaluator.UnmakeMove()
+		t.UnmakeMove()
 
 		if score > best {
 			best = score
@@ -398,10 +327,10 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 	}
 
 	if !hasLegalMove {
-		if isCheck {
-			return lossIn(height)
+		if !isCheck && skipMove == 0 {
+			return valueDraw
 		}
-		return valueDraw
+		return lossIn(height)
 	}
 
 	if alpha > oldAlpha && bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
@@ -409,27 +338,33 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int) int {
 		t.updateKiller(bestMove, height)
 	}
 
-	ttBound = 0
-	if best > oldAlpha {
-		ttBound |= boundLower
+	if skipMove == 0 {
+		ttBound = 0
+		if best > oldAlpha {
+			ttBound |= boundLower
+		}
+		if best < beta {
+			ttBound |= boundUpper
+		}
+		if !(rootNode && ttBound == boundUpper) {
+			t.engine.transTable.Update(position.Key, depth, valueToTT(best, height), ttBound, bestMove)
+		}
 	}
-	if best < beta {
-		ttBound |= boundUpper
-	}
-	t.engine.transTable.Update(position.Key, depth, valueToTT(best, height), ttBound, bestMove)
 
 	return best
 }
 
 func (t *thread) quiescence(alpha, beta, height int) int {
 	t.stack[height].pv.clear()
-	t.incNodes()
 	var position = &t.stack[height].position
 	if isDraw(position) {
 		return valueDraw
 	}
 	if height >= maxHeight {
 		return t.evaluator.EvaluateQuick(position)
+	}
+	if t.isRepeat(height) {
+		return valueDraw
 	}
 
 	var _, ttValue, ttBound, _, ttHit = t.engine.transTable.Read(position.Key)
@@ -460,7 +395,6 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	}
 	mi.Init()
 	var hasLegalMove = false
-	var child = &t.stack[height+1].position
 	for mi.Reset(); ; {
 		var move = mi.Next()
 		if move == MoveEmpty {
@@ -469,13 +403,12 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		if !isCheck && !seeGEZero(position, move) {
 			continue
 		}
-		if !position.MakeMove(move, child) {
+		if !t.MakeMove(move, height) {
 			continue
 		}
-		t.evaluator.MakeMove(position, move)
 		hasLegalMove = true
 		var score = -t.quiescence(-beta, -alpha, height+1)
-		t.evaluator.UnmakeMove()
+		t.UnmakeMove()
 		best = Max(best, score)
 		if score > alpha {
 			alpha = score
@@ -608,4 +541,23 @@ func (t *thread) updateKiller(move Move, height int) {
 		t.stack[height].killer2 = t.stack[height].killer1
 		t.stack[height].killer1 = move
 	}
+}
+
+func (t *thread) MakeMove(move Move, height int) bool {
+	var pos = &t.stack[height].position
+	var child = &t.stack[height+1].position
+	if move == MoveEmpty {
+		pos.MakeNullMove(child)
+	} else {
+		if !pos.MakeMove(move, child) {
+			return false
+		}
+	}
+	t.evaluator.MakeMove(pos, move)
+	t.incNodes()
+	return true
+}
+
+func (t *thread) UnmakeMove() {
+	t.evaluator.UnmakeMove()
 }

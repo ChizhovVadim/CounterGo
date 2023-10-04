@@ -24,6 +24,7 @@ type thread struct {
 	history   historyService
 	evaluator IUpdatableEvaluator
 	nodes     int64
+	rootDepth int
 	stack     [stackSize]struct {
 		position       Position
 		moveList       [MaxMoves]OrderedMove

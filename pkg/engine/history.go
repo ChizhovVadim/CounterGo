@@ -4,85 +4,97 @@ import . "github.com/ChizhovVadim/CounterGo/pkg/common"
 
 const historyMax = 1 << 14
 
-type historyService struct {
-	ButterflyHistory [8192]int16
-	FollowUpHistory  [1024][1024]int16
-	CounterHistory   [1024][1024]int16
-}
-
 type historyContext struct {
-	Butterfly *[8192]int16
-	FollowUp  *[1024]int16
-	Counter   *[1024]int16
+	thread     *thread
+	sideToMove bool
+	cont1      int
+	cont2      int
 }
 
-func (h *historyContext) ReadTotal(sideToMove bool, m Move) int {
+func (h *historyContext) ReadTotal(m Move) int {
+	var sideToMove = h.sideToMove
 	var score int
-	if h.Butterfly != nil {
-		score += int(h.Butterfly[sideFromToIndex(sideToMove, m)])
-	}
+	score += int(h.thread.mainHistory[sideFromToIndex(sideToMove, m)])
 	var pieceToIndex = pieceSquareIndex(sideToMove, m)
-	if h.Counter != nil {
-		score += int(h.Counter[pieceToIndex])
+	if h.cont1 != -1 {
+		score += int(h.thread.continuationHistory[h.cont1][pieceToIndex])
 	}
-	if h.FollowUp != nil {
-		score += int(h.FollowUp[pieceToIndex])
+	if h.cont2 != -1 {
+		score += int(h.thread.continuationHistory[h.cont2][pieceToIndex])
 	}
 	return score
 }
 
-func (h *historyContext) Update(sideToMove bool, quietsSearched []Move, bestMove Move, depth int) {
+func (h *historyContext) Update(quietsSearched []Move, bestMove Move, depth int) {
 	var bonus = Min(depth*depth, 400)
+	var t = h.thread
+	var sideToMove = h.sideToMove
+	var cont1 = h.cont1
+	var cont2 = h.cont2
 
 	for _, m := range quietsSearched {
-		var newVal int
-		if m == bestMove {
-			newVal = historyMax
-		} else {
-			newVal = -historyMax
-		}
+		var good = m == bestMove
 
-		// Exponential moving average
-		if h.Butterfly != nil {
-			var fromToIndex = sideFromToIndex(sideToMove, m)
-			h.Butterfly[fromToIndex] += int16((newVal - int(h.Butterfly[fromToIndex])) * bonus / 512)
-		}
+		var fromToIndex = sideFromToIndex(sideToMove, m)
+		updateHistory(&t.mainHistory[fromToIndex], bonus, good)
 		var pieceToIndex = pieceSquareIndex(sideToMove, m)
-		if h.Counter != nil {
-			h.Counter[pieceToIndex] += int16((newVal - int(h.Counter[pieceToIndex])) * bonus / 512)
+		if cont1 != -1 {
+			updateHistory(&t.continuationHistory[cont1][pieceToIndex], bonus, good)
 		}
-		if h.FollowUp != nil {
-			h.FollowUp[pieceToIndex] += int16((newVal - int(h.FollowUp[pieceToIndex])) * bonus / 512)
+		if cont2 != -1 {
+			updateHistory(&t.continuationHistory[cont2][pieceToIndex], bonus, good)
 		}
 
-		if m == bestMove {
+		if good {
 			break
 		}
 	}
 }
 
-func (h *historyService) Clear() {
-	for i := range h.ButterflyHistory {
-		h.ButterflyHistory[i] = 0
+// Exponential moving average
+func updateHistory(v *int16, bonus int, good bool) {
+	var newVal int
+	if good {
+		newVal = historyMax
+	} else {
+		newVal = -historyMax
 	}
-	for i := 0; i < 1024; i++ {
-		for j := 0; j < 1024; j++ {
-			h.FollowUpHistory[i][j] = 0
-			h.CounterHistory[i][j] = 0
+	*v += int16((newVal - int(*v)) * bonus / 512)
+}
+
+func (t *thread) clearHistory() {
+	for i := range t.mainHistory {
+		t.mainHistory[i] = 0
+	}
+	for i := range t.continuationHistory {
+		for j := range t.continuationHistory[i] {
+			t.continuationHistory[i][j] = 0
 		}
 	}
 }
 
-func (h *historyService) getContext(sideToMove bool, counter, followUp Move) historyContext {
-	var result historyContext
-	result.Butterfly = &h.ButterflyHistory
-	if counter != MoveEmpty {
-		result.Counter = &h.CounterHistory[pieceSquareIndex(sideToMove, counter)]
+func (t *thread) getHistoryContext(height int) historyContext {
+	var sideToMove = t.stack[height].position.WhiteMove
+	var cont1 = -1
+	{
+		var prev1 = t.stack[height].position.LastMove
+		if prev1 != MoveEmpty {
+			cont1 = pieceSquareIndex(!sideToMove, prev1)
+		}
 	}
-	if followUp != MoveEmpty {
-		result.FollowUp = &h.FollowUpHistory[pieceSquareIndex(sideToMove, followUp)]
+	var cont2 = -1
+	if height > 0 {
+		var prev2 = t.stack[height-1].position.LastMove
+		if prev2 != MoveEmpty {
+			cont2 = pieceSquareIndex(sideToMove, prev2)
+		}
 	}
-	return result
+	return historyContext{
+		thread:     t,
+		sideToMove: sideToMove,
+		cont1:      cont1,
+		cont2:      cont2,
+	}
 }
 
 func pieceSquareIndex(side bool, move Move) int {

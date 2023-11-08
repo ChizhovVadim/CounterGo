@@ -42,7 +42,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 	if depth <= 0 {
 		return t.quiescence(alpha, beta, height)
 	}
-	t.stack[height].pv.clear()
+	t.clearPV(height)
 
 	var rootNode = height == 0
 	var pvNode = beta != alpha+1
@@ -178,21 +178,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		}
 	}
 
-	var followUp Move
-	if height > 0 {
-		followUp = t.stack[height-1].position.LastMove
-	}
-	var historyContext = t.history.getContext(position.WhiteMove, position.LastMove, followUp)
+	var historyContext = t.getHistoryContext(height)
 
-	var mi = moveIterator{
-		position:  position,
-		buffer:    t.stack[height].moveList[:],
-		history:   historyContext,
-		transMove: ttMove,
-		killer1:   t.stack[height].killer1,
-		killer2:   t.stack[height].killer2,
-	}
-	mi.Init()
+	var mi = t.initMoveIterator(height, ttMove)
+	var killer1 = t.stack[height].killer1
+	var killer2 = t.stack[height].killer2
 
 	var movesSearched = 0
 	var hasLegalMove = false
@@ -225,16 +215,16 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck && !rootNode {
 			// late-move pruning
 			if options.Lmp && !(isNoisy ||
-				move == mi.killer1 ||
-				move == mi.killer2) &&
+				move == killer1 ||
+				move == killer2) &&
 				quietsSeen > lmp {
 				continue
 			}
 
 			// futility pruning
 			if options.Futility && !(isNoisy ||
-				move == mi.killer1 ||
-				move == mi.killer2) &&
+				move == killer1 ||
+				move == killer2) &&
 				staticEval+100+pawnValue*depth <= alpha {
 				continue
 			}
@@ -270,11 +260,11 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		if depth >= 3 && movesSearched > 1 &&
 			!(isNoisy) {
 			reduction = options.Lmr(depth, movesSearched)
-			if move == mi.killer1 || move == mi.killer2 {
+			if move == killer1 || move == killer2 {
 				reduction--
 			}
 			if !isCheck {
-				var history = historyContext.ReadTotal(position.WhiteMove, move)
+				var history = historyContext.ReadTotal(move)
 				reduction -= Max(-2, Min(2, history/5000))
 
 				if !improving {
@@ -319,7 +309,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		}
 		if score > alpha {
 			alpha = score
-			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
+			t.assignPV(height, move)
 			if alpha >= beta {
 				break
 			}
@@ -334,7 +324,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 	}
 
 	if alpha > oldAlpha && bestMove != MoveEmpty && !isCaptureOrPromotion(bestMove) {
-		historyContext.Update(position.WhiteMove, quietsSearched, bestMove, depth)
+		historyContext.Update(quietsSearched, bestMove, depth)
 		t.updateKiller(bestMove, height)
 	}
 
@@ -355,7 +345,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 }
 
 func (t *thread) quiescence(alpha, beta, height int) int {
-	t.stack[height].pv.clear()
+	t.clearPV(height)
 	var position = &t.stack[height].position
 	if isDraw(position) {
 		return valueDraw
@@ -412,7 +402,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		best = Max(best, score)
 		if score > alpha {
 			alpha = score
-			t.stack[height].pv.assign(move, &t.stack[height+1].pv)
+			t.assignPV(height, move)
 			if alpha >= beta {
 				break
 			}
@@ -513,14 +503,7 @@ func (e *Engine) genRootMoves() []Move {
 	var p = &t.stack[height].position
 	_, _, _, transMove, _ := e.transTable.Read(p.Key)
 
-	var historyContext = t.history.getContext(p.WhiteMove, p.LastMove, MoveEmpty)
-	var mi = moveIterator{
-		position:  p,
-		buffer:    t.stack[height].moveList[:],
-		history:   historyContext,
-		transMove: transMove,
-	}
-	mi.Init()
+	var mi = t.initMoveIterator(height, transMove)
 
 	var result []Move
 	var child = &t.stack[height+1].position

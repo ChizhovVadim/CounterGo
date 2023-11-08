@@ -21,7 +21,6 @@ type Engine struct {
 
 type thread struct {
 	engine    *Engine
-	history   historyService
 	evaluator IUpdatableEvaluator
 	nodes     int64
 	rootDepth int
@@ -34,6 +33,8 @@ type thread struct {
 		killer1        Move
 		killer2        Move
 	}
+	mainHistory         [8192]int16
+	continuationHistory [1024][1024]int16
 }
 
 type pv struct {
@@ -140,7 +141,7 @@ func (e *Engine) Clear() {
 	}
 	for i := range e.threads {
 		var t = &e.threads[i]
-		t.history.Clear()
+		t.clearHistory()
 	}
 }
 
@@ -154,11 +155,13 @@ func (e *Engine) currentSearchResult() SearchInfo {
 	}
 }
 
-func (pv *pv) clear() {
-	pv.size = 0
+func (t *thread) clearPV(height int) {
+	t.stack[height].pv.size = 0
 }
 
-func (pv *pv) assign(m Move, child *pv) {
+func (t *thread) assignPV(height int, m Move) {
+	var pv = &t.stack[height].pv
+	var child = &t.stack[height+1].pv
 	pv.size = 1
 	pv.items[0] = m
 	if child.size > 0 {

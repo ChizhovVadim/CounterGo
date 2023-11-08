@@ -46,40 +46,44 @@ func (mi *moveIteratorQS) Next() Move {
 }
 
 type moveIterator struct {
-	position  *Position
-	buffer    []OrderedMove
-	history   historyContext
-	transMove Move
-	killer1   Move
-	killer2   Move
-	count     int
-	index     int
+	buffer []OrderedMove
+	count  int
+	index  int
 }
 
-func (mi *moveIterator) Init() {
-	mi.count = len(mi.position.GenerateMoves(mi.buffer))
+func (t *thread) initMoveIterator(height int, transMove Move) moveIterator {
+	var position = &t.stack[height].position
+	var killer1 = t.stack[height].killer1
+	var killer2 = t.stack[height].killer2
+	var buffer = t.stack[height].moveList[:]
+	var count = len(position.GenerateMoves(buffer))
+	var history = t.getHistoryContext(height)
 
-	var side = mi.position.WhiteMove
-	for i := 0; i < mi.count; i++ {
-		var m = mi.buffer[i].Move
+	for i := 0; i < count; i++ {
+		var m = buffer[i].Move
 		var score int
-		if m == mi.transMove {
+		if m == transMove {
 			score = sortTableKeyImportant + 2000
 		} else if isCaptureOrPromotion(m) {
-			if seeGEZero(mi.position, m) {
+			if seeGEZero(position, m) {
 				score = sortTableKeyImportant + 1000 + mvvlva(m)
 			} else {
 				score = 0 + mvvlva(m)
 			}
-		} else if m == mi.killer1 {
+		} else if m == killer1 {
 			score = sortTableKeyImportant + 1
-		} else if m == mi.killer2 {
+		} else if m == killer2 {
 			score = sortTableKeyImportant
 		} else {
 			// ideally should be inlined. copy/paste?
-			score = mi.history.ReadTotal(side, m)
+			score = history.ReadTotal(m)
 		}
-		mi.buffer[i].Key = int32(score)
+		buffer[i].Key = int32(score)
+	}
+
+	return moveIterator{
+		buffer: buffer,
+		count:  count,
 	}
 }
 

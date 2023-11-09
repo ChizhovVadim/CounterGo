@@ -12,14 +12,27 @@ type Options struct {
 	Threads            int
 	ExperimentSettings bool
 	ProgressMinNodes   int
+	AspirationWindows  bool
 	ReverseFutility    bool
 	NullMovePruning    bool
 	Probcut            bool
+	CheckExt           bool
 	SingularExt        bool
 	Lmp                bool
 	Futility           bool
 	See                bool
 	reductions         [64][64]int
+}
+
+func NewBaseOptions(evalBuilder func() interface{}) Options {
+	var result = Options{
+		EvalBuilder:      evalBuilder,
+		Hash:             16,
+		Threads:          1,
+		ProgressMinNodes: 1_000_000,
+	}
+	result.InitLmr(LmrMult)
+	return result
 }
 
 func NewMainOptions(evalBuilder func() interface{}) Options {
@@ -29,9 +42,11 @@ func NewMainOptions(evalBuilder func() interface{}) Options {
 		Threads:            1,
 		ExperimentSettings: false,
 		ProgressMinNodes:   1_000_000,
+		AspirationWindows:  true,
 		ReverseFutility:    true,
 		NullMovePruning:    true,
 		Probcut:            true,
+		CheckExt:           true,
 		SingularExt:        true,
 		Lmp:                true,
 		Futility:           true,

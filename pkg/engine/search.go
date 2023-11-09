@@ -8,7 +8,8 @@ const pawnValue = 100
 
 func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
 	t.rootDepth = depth
-	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
+	if t.engine.Options.AspirationWindows &&
+		depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
 		const Window = 25
 		var alpha = Max(-valueInfinity, prevScore-Window)
 		var beta = Min(valueInfinity, prevScore+Window)
@@ -252,7 +253,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 
 		var extension, reduction int
 
-		extension = t.extend(depth, height)
+		if options.CheckExt && child.IsCheck() && depth >= 3 {
+			extension = 1
+		}
 		if move == ttMove && ttMoveIsSingular {
 			extension = 1
 		}
@@ -457,18 +460,6 @@ func (t *thread) isRepeat(height int) bool {
 	}
 
 	return t.engine.historyKeys[p.Key] >= 2
-}
-
-func (t *thread) extend(depth, height int) int {
-	//var p = &t.stack[height].position
-	var child = &t.stack[height+1].position
-	var givesCheck = child.IsCheck()
-
-	if givesCheck && depth >= 3 {
-		return 1
-	}
-
-	return 0
 }
 
 func findMoveIndex(ml []Move, move Move) int {

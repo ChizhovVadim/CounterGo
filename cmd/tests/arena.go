@@ -26,7 +26,8 @@ func arenaHandler() error {
 }
 
 func newArenaEngine(experiment bool) arena.IEngine {
-	var options = engine.NewMainOptions(evalbuilder.Get(""))
+	//var options = engine.NewMainOptions(evalbuilder.Get(""))
+	var options = engine.NewBaseOptions(evalbuilder.Get(""))
 	options.Hash = 128
 	options.ExperimentSettings = experiment
 	var eng = engine.NewEngine(options)

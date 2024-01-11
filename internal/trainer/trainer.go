@@ -245,10 +245,10 @@ func backward(t *Trainer, td *ThreadData, sample *Sample) {
 	// back propagation
 	for layerIndex := len(t.activations) - 1; layerIndex >= 0; layerIndex-- {
 		var neurons = td.neurons[layerIndex]
-		var weights = t.weights[layerIndex]
 		if layerIndex == len(t.activations)-1 {
 			neurons[0].E = neurons[0].A - float64(sample.Target)
 		} else {
+			var weights = t.weights[layerIndex+1]
 			var nextNeurons = td.neurons[layerIndex+1]
 			for i := range neurons {
 				neurons[i].E = 0

@@ -8,11 +8,11 @@ import (
 	"log"
 )
 
-//go:embed n-30-5094.nn
+//go:embed n-30-5268.nn
 var content embed.FS
 
 func loadDefaultWeights() (*Weights, error) {
-	const name = "n-30-5094.nn"
+	const name = "n-30-5268.nn"
 	var f, err = content.Open(name)
 	if err != nil {
 		return nil, err

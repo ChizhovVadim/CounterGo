@@ -42,6 +42,6 @@ func Run(
 		training = dataset[validationSize:]
 	}
 
-	var trainer = NewTrainer(training, validation, []int{769, 512, 1}, threads, 0, sigmoidScale)
+	var trainer = NewTrainer(training, validation, []int{768, 512, 1}, threads, 0, sigmoidScale)
 	return trainer.Train(epochs, netFolderPath)
 }

@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	InputSize  = 64*12 + 1
+	InputSize  = 64 * 12
 	HiddenSize = 512
 )
 
@@ -13,8 +13,6 @@ const (
 	Add    = 1
 	Remove = -Add
 )
-
-const sideToMoveWhiteInputIndex = 768
 
 const MaxHeight = 128
 
@@ -71,10 +69,6 @@ func (e *EvaluationService) Evaluate(p *Position) int {
 func (e *EvaluationService) Init(p *Position) {
 	input := make([]int, 0, 33)
 
-	if p.WhiteMove {
-		input = append(input, sideToMoveWhiteInputIndex)
-	}
-
 	for sq := 0; sq < 64; sq++ {
 		piece, side := p.GetPieceTypeAndSide(sq)
 		if piece != Empty {
@@ -106,12 +100,6 @@ func calculateNetInputIndex(whiteSide bool, pieceType, square int) int16 {
 
 func (e *EvaluationService) MakeMove(p *Position, m Move) {
 	e.updates.Size = 0
-
-	if !p.WhiteMove {
-		e.updates.Add(sideToMoveWhiteInputIndex, Add)
-	} else {
-		e.updates.Add(sideToMoveWhiteInputIndex, Remove)
-	}
 
 	// MakeNullMove
 	if m == MoveEmpty {

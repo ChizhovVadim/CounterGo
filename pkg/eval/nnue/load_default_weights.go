@@ -8,13 +8,13 @@ import (
 )
 
 func loadDefaultWeights() (*Weights, error) {
-	var path = mapPath("./n-30-5094.nn")
+	var path = mapPath("./n-30-5268.nn")
 	w, err := loadFileWeights(path)
 	if err == nil {
 		log.Println("loaded nnue weights", "path", path)
 		return w, nil
 	}
-	path = mapPath("~/chess/n-30-5094.nn")
+	path = mapPath("~/chess/n-30-5268.nn")
 	w, err = loadFileWeights(path)
 	if err == nil {
 		log.Println("loaded nnue weights", "path", path)

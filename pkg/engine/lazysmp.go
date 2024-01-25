@@ -16,19 +16,6 @@ type searchTask struct {
 }
 
 func lazySmp(e *Engine) {
-	var ml = e.genRootMoves()
-	if len(ml) != 0 {
-		e.mainLine = mainLine{
-			depth: 0,
-			score: 0,
-			nodes: 0,
-			moves: []common.Move{ml[0]},
-		}
-	}
-	if len(ml) <= 1 {
-		return
-	}
-
 	var tasks = make(chan searchTask)
 	var taskResults = make(chan mainLine)
 
@@ -36,10 +23,10 @@ func lazySmp(e *Engine) {
 
 	for i := 0; i < e.Options.Threads; i++ {
 		wg.Add(1)
-		go func(t *thread, ml []common.Move) {
+		go func(t *thread) {
 			defer wg.Done()
-			searchDepth(t, ml, tasks, taskResults)
-		}(&e.threads[i], cloneMoves(ml))
+			searchDepth(t, tasks, taskResults)
+		}(&e.threads[i])
 	}
 
 	go func() {
@@ -48,6 +35,12 @@ func lazySmp(e *Engine) {
 	}()
 
 	iterativeDeepening(e, tasks, taskResults)
+
+	for i := range e.threads {
+		var t = &e.threads[i]
+		e.mainLine.nodes += t.nodes
+		t.nodes = 0
+	}
 }
 
 func iterativeDeepening(
@@ -101,7 +94,6 @@ func iterativeDeepening(
 
 func searchDepth(
 	t *thread,
-	ml []common.Move,
 	tasks <-chan searchTask,
 	taskResults chan<- mainLine,
 ) {
@@ -121,13 +113,7 @@ func searchDepth(
 	}
 
 	for task := range tasks {
-		if task.startingMove != common.MoveEmpty {
-			var index = findMoveIndex(ml, task.startingMove)
-			if index >= 0 {
-				moveToBegin(ml, index)
-			}
-		}
-		var score = aspirationWindow(t, ml, task.depth, task.startingScore)
+		var score = aspirationWindow(t, task.depth, task.startingScore)
 		taskResults <- mainLine{
 			depth: task.depth,
 			score: score,

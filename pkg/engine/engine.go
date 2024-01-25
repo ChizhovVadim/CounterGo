@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
@@ -10,8 +11,8 @@ import (
 
 type Engine struct {
 	Options     Options
-	timeManager TimeManager
-	transTable  TransTable
+	timeManager ITimeManager
+	transTable  ITransTable
 	historyKeys map[uint64]int
 	threads     []thread
 	progress    func(SearchInfo)
@@ -49,7 +50,7 @@ type mainLine struct {
 	nodes int64
 }
 
-type TimeManager interface {
+type ITimeManager interface {
 	IsDone() bool
 	OnNodesChanged(nodes int)
 	OnIterationComplete(line mainLine)
@@ -67,7 +68,8 @@ type IUpdatableEvaluator interface {
 	EvaluateQuick(p *Position) int
 }
 
-type TransTable interface {
+type ITransTable interface {
+	IsThreadSafe() bool
 	Size() (megabytes int)
 	IncDate()
 	Clear()
@@ -82,14 +84,25 @@ func NewEngine(options Options) *Engine {
 }
 
 func (e *Engine) Prepare() {
-	if e.transTable == nil || e.transTable.Size() != e.Options.Hash {
+	if e.transTable == nil ||
+		e.transTable.Size() != e.Options.Hash ||
+		e.transTable.IsThreadSafe() != (e.Options.Threads > 1) {
 		if e.transTable != nil {
 			// GC can collect TT
 			e.transTable = nil
 		}
-		e.transTable = newTransTable(e.Options.Hash)
+		log.Println("init trans table",
+			"threadsafe", e.Options.Threads > 1,
+			"size", e.Options.Hash)
+		if e.Options.Threads > 1 {
+			e.transTable = newTransTable(e.Options.Hash)
+		} else {
+			e.transTable = newtransTableSecondMoveSignleThread(e.Options.Hash)
+		}
 	}
 	if len(e.threads) != e.Options.Threads {
+		log.Println("init threads",
+			"num", e.Options.Threads)
 		e.threads = make([]thread, e.Options.Threads)
 		for i := range e.threads {
 			var t = &e.threads[i]
@@ -107,18 +120,29 @@ func (e *Engine) Search(ctx context.Context, searchParams SearchParams) SearchIn
 	defer e.timeManager.Close()
 	e.transTable.IncDate()
 	e.historyKeys = getHistoryKeys(searchParams.Positions)
-	e.mainLine.nodes = 0
+	e.progress = searchParams.Progress
+
+	//init threads
 	for i := range e.threads {
 		var t = &e.threads[i]
 		t.nodes = 0
 		t.stack[0].position = *p
+		t.evaluator.Init(&t.stack[0].position)
 	}
-	e.progress = searchParams.Progress
-	lazySmp(e)
-	for i := range e.threads {
-		var t = &e.threads[i]
-		e.mainLine.nodes += t.nodes
-		t.nodes = 0
+
+	var rndMove, legalMoves = randomMove(p)
+	e.mainLine = mainLine{
+		moves: []Move{rndMove},
+		score: 0,
+		depth: 0,
+		nodes: 0,
+	}
+	if legalMoves >= 2 {
+		if e.Options.Threads == 1 {
+			e.iterativeDeepeningSingleThread()
+		} else {
+			lazySmp(e)
+		}
 	}
 	return e.currentSearchResult()
 }
@@ -205,4 +229,22 @@ func (e *Engine) buildEvaluator() IUpdatableEvaluator {
 		return &EvaluatorAdapter{evaluator: e}
 	}
 	panic(errors.New("bad eval builder"))
+}
+
+func randomMove(pos *Position) (rndMove Move, legalMoves int) {
+	var child Position
+	var buffer [MaxMoves]OrderedMove
+	var ml = pos.GenerateMoves(buffer[:])
+	for i := range ml {
+		var move = ml[i].Move
+		if !pos.MakeMove(move, &child) {
+			continue
+		}
+		rndMove = move
+		legalMoves += 1
+		if legalMoves >= 2 {
+			return
+		}
+	}
+	return
 }

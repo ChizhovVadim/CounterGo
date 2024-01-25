@@ -21,7 +21,7 @@ func roundPowerOfTwo(size int) int {
 	return x
 }
 
-//16 bytes
+// 16 bytes
 type transEntry struct {
 	gate     int32
 	key32    uint32
@@ -59,6 +59,10 @@ func newTransTable(megabytes int) *transTable {
 		entries:   make([]transEntry, size),
 		mask:      uint32(size - 1),
 	}
+}
+
+func (tt *transTable) IsThreadSafe() bool {
+	return true
 }
 
 func (tt *transTable) Size() int {

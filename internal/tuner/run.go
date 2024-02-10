@@ -5,58 +5,34 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/internal/domain"
-	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-type IDatasetProvider interface {
-	Load(ctx context.Context, dataset chan<- domain.DatasetItem) error
-}
-
-type ITunableEvaluator interface {
-	EnableTuning()
-	StartingWeights() []float64
-	ComputeFeatures(pos *common.Position) domain.TuneEntry
+type Sample struct {
+	domain.TuneEntry
+	Target float32
 }
 
 func Run(
 	ctx context.Context,
-	datasetProvider IDatasetProvider,
-	validationProvider IDatasetProvider,
-	tunableEvaluator ITunableEvaluator,
+	training, validation []Sample,
 	threads int,
 	epochs int,
 	sigmoidScale float64,
+	startingWeights []float64,
 ) error {
-
-	dataset, err := loadDataset(ctx, datasetProvider, tunableEvaluator)
-	if err != nil {
-		return err
-	}
-	log.Println("Loaded dataset", len(dataset))
-	runtime.GC()
-
-	var training, validation []Sample
-	if validationProvider != nil {
-		validation, err = loadDataset(ctx, validationProvider, tunableEvaluator)
-		if err != nil {
-			return err
-		}
-		log.Println("Loaded validation dataset", len(validation))
-		training = dataset
-	} else {
-		var validationSize = min(500_000, len(dataset)/5)
-		validation = dataset[:validationSize]
-		training = dataset[validationSize:]
+	if len(validation) == 0 {
+		var validationSize = min(500_000, len(training)/5)
+		validation = training[:validationSize]
+		training = training[validationSize:]
 	}
 
-	var weights = tunableEvaluator.StartingWeights()
+	var weights = startingWeights
 	log.Println("Num of weights", len(weights))
 
 	var trainer = NewTrainer(training, validation, weights, threads, sigmoidScale)
-	err = trainer.Train(epochs)
+	var err = trainer.Train(epochs)
 	if err != nil {
 		return err
 	}

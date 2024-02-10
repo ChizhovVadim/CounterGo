@@ -23,21 +23,14 @@ func main() {
 
 func run() error {
 	var cli = NewCommandHandler()
-	cli.Add("tuner", tunerHandler)
-	cli.Add("train", trainHandler)
 	cli.Add("benchmark", benchmarkHandler)
 	cli.Add("tactic", tacticHandler)
-	cli.Add("quality", qualityHandler)
 	cli.Add("arena", arenaHandler)
 	cli.Add("perft", perftHandler)
 	cli.Add("play", func() error {
 		return utils.PlayCli(newEngine(""))
 	})
 	return cli.Execute(cliArgs.CommandName())
-}
-
-type Evaluator interface {
-	Evaluate(p *common.Position) int
 }
 
 type UciEngine interface {

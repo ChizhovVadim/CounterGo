@@ -1,39 +1,30 @@
 package dataset
 
 import (
-	"context"
 	"fmt"
 	"math"
 
 	"github.com/ChizhovVadim/CounterGo/internal/pgn"
-
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-func (dp *DatasetProvider) analyzeGames(
-	ctx context.Context,
-	games <-chan pgn.GameRaw,
-	dataset chan<- datasetInfo,
-) error {
-	for game := range games {
-		var err = dp.analyzeGame(ctx, game, dataset)
-		if err != nil {
-			return fmt.Errorf("analyzeGame failed %v %w", game, err)
-		}
-	}
-	return nil
+type DatasetItem2 struct {
+	Pos          *common.Position
+	Target       float64
+	GameResult   float64
+	SearchResult common.UciScore
 }
 
-func (dp *DatasetProvider) analyzeGame(
-	ctx context.Context,
+func AnalyzeGame(
+	sigmoidScale float64,
+	searchRatio float64,
 	gameRaw pgn.GameRaw,
-	dataset chan<- datasetInfo,
+	onPosition func(DatasetItem2) error,
 ) error {
 	var game, err = pgn.ParseGame(gameRaw)
 	if err != nil {
 		return err
 	}
-
 	var gameResult, gameResOk = calcGameResult(game.Result)
 	if !gameResOk {
 		return fmt.Errorf("bad game result %v", game.Result)
@@ -63,6 +54,16 @@ func (dp *DatasetProvider) analyzeGame(
 			comment.Depth < 8 ||
 			isDraw(&pos)) {
 
+			var searchResult common.UciScore
+			if pos.WhiteMove {
+				searchResult = comment.Score
+			} else {
+				searchResult = common.UciScore{
+					Mate:       -comment.Score.Mate,
+					Centipawns: -comment.Score.Centipawns,
+				}
+			}
+
 			var targetBySearch float64
 			if comment.Score.Mate != 0 {
 				if comment.Score.Mate > 0 {
@@ -71,19 +72,21 @@ func (dp *DatasetProvider) analyzeGame(
 					targetBySearch = 0
 				}
 			} else {
-				targetBySearch = dp.sigmoid(float64(comment.Score.Centipawns))
+				targetBySearch = sigmoid(float64(comment.Score.Centipawns), sigmoidScale)
 			}
 			if !pos.WhiteMove {
 				targetBySearch = 1 - targetBySearch
 			}
 
-			var target = targetBySearch*dp.SearchRatio + gameResult*(1-dp.SearchRatio)
-
-			//save position
-			dataset <- datasetInfo{
-				fen:    pos.String(),
-				key:    pos.Key,
-				target: target,
+			var target = targetBySearch*searchRatio + gameResult*(1-searchRatio)
+			var err = onPosition(DatasetItem2{
+				Pos:          &pos,
+				Target:       target,
+				GameResult:   gameResult,
+				SearchResult: searchResult,
+			})
+			if err != nil {
+				return err
 			}
 		}
 
@@ -96,11 +99,8 @@ func (dp *DatasetProvider) analyzeGame(
 		}
 		pos = child
 	}
-	return nil
-}
 
-func (dp *DatasetProvider) sigmoid(x float64) float64 {
-	return 1.0 / (1.0 + math.Exp(dp.SigmoidScale*(-x)))
+	return nil
 }
 
 func calcGameResult(sGameResult string) (float64, bool) {
@@ -119,4 +119,16 @@ func calcGameResult(sGameResult string) (float64, bool) {
 func isCaptureOrPromotion(move common.Move) bool {
 	return move.CapturedPiece() != common.Empty ||
 		move.Promotion() != common.Empty
+}
+
+func isDraw(p *common.Position) bool {
+	if (p.Pawns|p.Rooks|p.Queens) == 0 &&
+		!common.MoreThanOne(p.Knights|p.Bishops) {
+		return true
+	}
+	return false
+}
+
+func sigmoid(x, sigmoidScale float64) float64 {
+	return 1.0 / (1.0 + math.Exp(sigmoidScale*(-x)))
 }

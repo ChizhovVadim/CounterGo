@@ -2,46 +2,29 @@ package trainer
 
 import (
 	"context"
-	"log"
-	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/internal/domain"
 )
 
-type IDatasetProvider interface {
-	Load(ctx context.Context, dataset chan<- domain.DatasetItem) error
+type Sample struct {
+	Input  []domain.FeatureInfo
+	Target float32
 }
 
 func Run(
 	ctx context.Context,
-	datasetProvider IDatasetProvider,
-	validationProvider IDatasetProvider,
+	training, validation []Sample,
+	topology []int,
 	threads int,
 	epochs int,
 	sigmoidScale float64,
 	netFolderPath string,
 ) error {
-	dataset, err := loadDataset(ctx, datasetProvider, true)
-	if err != nil {
-		return err
+	if len(validation) == 0 {
+		var validationSize = min(500_000, len(training)/5)
+		validation = training[:validationSize]
+		training = training[validationSize:]
 	}
-	log.Println("Loaded dataset", len(dataset))
-	runtime.GC()
-
-	var training, validation []Sample
-	if validationProvider != nil {
-		validation, err = loadDataset(ctx, validationProvider, false)
-		if err != nil {
-			return err
-		}
-		log.Println("Loaded validation dataset", len(validation))
-		training = dataset
-	} else {
-		var validationSize = min(500_000, len(dataset)/5)
-		validation = dataset[:validationSize]
-		training = dataset[validationSize:]
-	}
-
-	var trainer = NewTrainer(training, validation, []int{768, 512, 1}, threads, 0, sigmoidScale)
+	var trainer = NewTrainer(training, validation, topology, threads, 0, sigmoidScale)
 	return trainer.Train(epochs, netFolderPath)
 }

@@ -97,9 +97,11 @@ func (t *Trainer) Train(epochs int, binFolderPath string) error {
 		validationCost := t.calcCost(t.validation)
 		log.Printf("Current validation cost is: %f\n", validationCost)
 
-		var err = t.saveNetwork(binFolderPath, epoch, validationCost)
-		if err != nil {
-			return err
+		if epoch == epochs {
+			var err = t.saveNetwork(binFolderPath, epoch, validationCost)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -219,8 +221,8 @@ func forward(t *Trainer, td *ThreadData, sample *Sample) {
 		if layerIndex == 0 {
 			for outputIndex := range neurons {
 				var x = 1 * biases.Data[outputIndex]
-				for _, inputIndex := range sample.Input {
-					x += 1 * weights.Get(outputIndex, int(inputIndex))
+				for _, feature := range sample.Input {
+					x += float64(feature.Value) * weights.Get(outputIndex, int(feature.Index))
 				}
 				var n = &neurons[outputIndex]
 				n.A = activation.Sigma(x)
@@ -269,8 +271,8 @@ func backward(t *Trainer, td *ThreadData, sample *Sample) {
 				var n = &neurons[outputIndex]
 				var x = n.E * n.Prime
 				bGradients.Data[outputIndex] += x * 1
-				for _, inputIndex := range sample.Input {
-					wGradients.Add(outputIndex, int(inputIndex), x*1)
+				for _, feature := range sample.Input {
+					wGradients.Add(outputIndex, int(feature.Index), x*float64(feature.Value))
 				}
 			}
 		} else {

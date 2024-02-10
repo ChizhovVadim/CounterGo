@@ -2,28 +2,26 @@ package dataset
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/ChizhovVadim/CounterGo/internal/domain"
 )
 
-// Separate validation dataset gives us general "unit of measurement" for cost error
-type ZurichessDatasetProvider struct {
-	FilePath string
+type DatasetItem struct {
+	Fen    string
+	Target float64
 }
 
-func (dp *ZurichessDatasetProvider) Load(
-	ctx context.Context,
-	dataset chan<- domain.DatasetItem,
-) error {
-	file, err := os.Open(dp.FilePath)
+func LoadZurichessDataset(
+	filePath string,
+) ([]DatasetItem, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
+
+	var result []DatasetItem
 
 	var scanner = bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -31,7 +29,7 @@ func (dp *ZurichessDatasetProvider) Load(
 
 		var index = strings.Index(s, "\"")
 		if index < 0 {
-			return fmt.Errorf("zurichessParser failed %v", s)
+			return nil, fmt.Errorf("zurichessParser failed %v", s)
 		}
 
 		var fen = s[:index]
@@ -45,18 +43,14 @@ func (dp *ZurichessDatasetProvider) Load(
 		} else if strings.HasPrefix(strScore, "0-1") {
 			prob = 0.0
 		} else {
-			return fmt.Errorf("zurichessParser failed %v", s)
+			return nil, fmt.Errorf("zurichessParser failed %v", s)
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case dataset <- domain.DatasetItem{
+		result = append(result, DatasetItem{
 			Fen:    fen,
 			Target: prob,
-		}:
-		}
+		})
 	}
 
-	return nil
+	return result, nil
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-func arenaHandler() error {
+func arenaHandler(args []string) error {
 	var tc = arena.TimeControl{
 		//FixedTime:  1 * time.Second,
 		FixedNodes: 2_000_000,

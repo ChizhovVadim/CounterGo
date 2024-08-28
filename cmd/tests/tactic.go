@@ -1,18 +1,26 @@
 package main
 
 import (
-	"context"
-	"fmt"
+	"flag"
 	"log"
 	"time"
 
-	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
+	"github.com/ChizhovVadim/CounterGo/internal/tactic"
+	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-func tacticHandler() error {
-	var filepath = cliArgs.GetString("testpath", tacticTestsPath)
-	var evalName = cliArgs.GetString("eval", "")
-	var moveTime = time.Duration(cliArgs.GetInt("movetime", 3)) * time.Second
+func tacticHandler(args []string) error {
+	var (
+		filepath = mapPath("~/chess/tests/tests.epd")
+		evalName = ""
+		moveTime = 3 * time.Second
+	)
+
+	var flagset = flag.NewFlagSet("", flag.ExitOnError)
+	flagset.StringVar(&evalName, "eval", evalName, "")
+	//TODO rest flags
+	flagset.Parse(args)
 
 	log.Println("solveTactic started",
 		"filepath", filepath,
@@ -20,68 +28,19 @@ func tacticHandler() error {
 		"moveTime", moveTime)
 	defer log.Println("solveTactic finished")
 
-	var tests, err = loadEpd(filepath)
+	var tests, err = tactic.LoadEpd(filepath)
 	if err != nil {
 		return err
 	}
 	var eng = newEngine(evalName)
 	eng.Options.ProgressMinNodes = 0
 	eng.Prepare()
-	solveTactic(tests, eng, moveTime)
-	return nil
+	return tactic.SolveTactic(tests, eng, moveTime)
 }
 
-func solveTactic(tests []epdItem, eng UciEngine, moveTime time.Duration) error {
-	var start = time.Now()
-	var total, solved int
-	for _, test := range tests {
-		var searchResult = executeTest(test, eng, moveTime)
-		var passed = isTestPassed(test, searchResult.MainLine[0])
-
-		total++
-		if passed {
-			solved++
-		}
-
-		fmt.Println(test.content)
-		fmt.Printf("%+v\n", searchResult)
-		fmt.Printf("Solved: %v, Total: %v\n", solved, total)
-		fmt.Println()
-	}
-	log.Printf("Test finished. Elapsed: %v\n", time.Since(start))
-	return nil
-}
-
-func cancelSearch(test epdItem, cancel context.CancelFunc) func(si common.SearchInfo) {
-	var count = 0
-	return func(si common.SearchInfo) {
-		if isTestPassed(test, si.MainLine[0]) {
-			count++
-		} else {
-			count = 0
-		}
-		if count >= 3 {
-			cancel()
-		}
-	}
-}
-
-func isTestPassed(test epdItem, foundMove common.Move) bool {
-	for _, bm := range test.bestMoves {
-		if bm == foundMove {
-			return true
-		}
-	}
-	return false
-}
-
-func executeTest(test epdItem, uciEngine UciEngine, moveTime time.Duration) common.SearchInfo {
-	var ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
-	var searchParams = common.SearchParams{
-		Positions: []common.Position{test.position},
-		Limits:    common.LimitsType{MoveTime: int(moveTime.Milliseconds())},
-		Progress:  cancelSearch(test, cancel),
-	}
-	return uciEngine.Search(ctx, searchParams)
+func newEngine(evalName string) *engine.Engine {
+	var options = engine.NewMainOptions(evalbuilder.Get(evalName))
+	options.Hash = 128
+	var eng = engine.NewEngine(options)
+	return eng
 }

@@ -1,4 +1,4 @@
-package main
+package tactic
 
 import (
 	"bufio"
@@ -10,20 +10,14 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-type epdItem struct {
-	content   string
-	position  common.Position
-	bestMoves []common.Move
-}
-
-func loadEpd(filePath string) ([]epdItem, error) {
+func LoadEpd(filePath string) ([]EpdItem, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var result []epdItem
+	var result []EpdItem
 	var scanner = bufio.NewScanner(file)
 	for scanner.Scan() {
 		var line = scanner.Text()
@@ -38,7 +32,7 @@ func loadEpd(filePath string) ([]epdItem, error) {
 	return result, nil
 }
 
-func parseEpdTest(s string) (epdItem, error) {
+func parseEpdTest(s string) (EpdItem, error) {
 	var bmBegin = strings.Index(s, "bm")
 	var bmEnd = strings.Index(s, ";")
 	var fen = strings.TrimSpace(s[:bmBegin])
@@ -46,22 +40,22 @@ func parseEpdTest(s string) (epdItem, error) {
 
 	var p, err = common.NewPositionFromFEN(fen)
 	if err != nil {
-		return epdItem{}, err
+		return EpdItem{}, err
 	}
 
 	var bestMoves []common.Move
 	for _, sBestMove := range sBestMoves {
 		var move = common.ParseMoveSAN(&p, sBestMove)
 		if move == common.MoveEmpty {
-			return epdItem{}, fmt.Errorf("parse move failed %v", s)
+			return EpdItem{}, fmt.Errorf("parse move failed %v", s)
 		}
 		bestMoves = append(bestMoves, move)
 	}
 	if len(bestMoves) == 0 {
-		return epdItem{}, fmt.Errorf("empty best moves %v", s)
+		return EpdItem{}, fmt.Errorf("empty best moves %v", s)
 	}
 
-	return epdItem{
+	return EpdItem{
 		content:   s,
 		position:  p,
 		bestMoves: bestMoves,

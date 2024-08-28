@@ -6,7 +6,7 @@ import (
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
-func perftHandler() error {
+func perftHandler(args []string) error {
 	var tests = []struct {
 		fen   string
 		depth int

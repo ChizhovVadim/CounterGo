@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"github.com/ChizhovVadim/CounterGo/internal/math"
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
@@ -183,4 +184,12 @@ func unpackMove(p *Position, m Move) (from, to, movingPiece, capturedPiece, epCa
 		}
 	}
 	return
+}
+
+func (e *EvaluationService) EvaluateProb(p *Position) float64 {
+	var centipawns = e.Evaluate(p)
+	if !p.WhiteMove {
+		centipawns = -centipawns
+	}
+	return math.Sigmoid(3.5 / 512 * float64(centipawns))
 }

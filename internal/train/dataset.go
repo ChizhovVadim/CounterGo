@@ -1,4 +1,4 @@
-package tuner
+package train
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/ChizhovVadim/CounterGo/internal/dataset"
 	"github.com/ChizhovVadim/CounterGo/internal/math"
 	"github.com/ChizhovVadim/CounterGo/internal/pgn"
+	"github.com/ChizhovVadim/CounterGo/pkg/common"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -17,6 +18,7 @@ func LoadDataset(
 	searchRatio float64,
 	maxSize int,
 	concurrency int,
+	mirrorPos bool,
 ) ([]Sample, error) {
 	var datasetReady = make(chan struct{})
 	var games = make(chan pgn.GameRaw, 16)
@@ -41,7 +43,7 @@ func LoadDataset(
 		wg.Add(1)
 		g.Go(func() error {
 			defer wg.Done()
-			return analyzeGames(ctx, games, results, featureProvider(), sigmoidScale, searchRatio)
+			return analyzeGames(ctx, games, results, featureProvider(), sigmoidScale, searchRatio, mirrorPos)
 		})
 	}
 
@@ -79,6 +81,7 @@ func analyzeGames(
 	featureProvider IFeatureProvider,
 	sigmoidScale float64,
 	searchRatio float64,
+	mirrorPos bool,
 ) error {
 	for gameRaw := range games {
 		game, err := dataset.AnalyzeGame(gameRaw)
@@ -94,6 +97,15 @@ func analyzeGames(
 				Target:    float32(target),
 				TuneEntry: features,
 			})
+			if mirrorPos {
+				var mirror = common.MirrorPosition(&pos.Position)
+				var mirrorFeatures = featureProvider.ComputeFeatures(&mirror)
+				var mirrorTarget = 1 - target
+				chunk = append(chunk, Sample{
+					Target:    float32(mirrorTarget),
+					TuneEntry: mirrorFeatures,
+				})
+			}
 		}
 		if len(chunk) != 0 {
 			samples <- chunk

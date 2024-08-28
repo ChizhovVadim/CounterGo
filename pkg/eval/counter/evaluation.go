@@ -2,6 +2,7 @@ package eval
 
 import (
 	"github.com/ChizhovVadim/CounterGo/internal/domain"
+	"github.com/ChizhovVadim/CounterGo/internal/math"
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
@@ -482,18 +483,12 @@ func (e *EvaluationService) evalSecondPass(p *Position, side int) Score {
 	return s
 }
 
-func (e *EvaluationService) EnableTuning() {
-	e.tuning = true
-}
-
-func (e *EvaluationService) StartingWeights() []float64 {
-	var material = []float64{100, 100, 325, 325, 325, 325, 500, 500, 1000, 1000}
-	var result = make([]float64, 2*featureSize)
-	copy(result, material)
-	return result
+func (e *EvaluationService) FeatureSize() int {
+	return featureSize
 }
 
 func (e *EvaluationService) ComputeFeatures(pos *Position) domain.TuneEntry {
+	e.tuning = true
 	for i := range e.values {
 		e.values[i] = 0
 	}
@@ -506,4 +501,12 @@ func (e *EvaluationService) ComputeFeatures(pos *Position) domain.TuneEntry {
 	}
 	result.EgPhase = 1 - result.MgPhase
 	return result
+}
+
+func (e *EvaluationService) EvaluateProb(p *Position) float64 {
+	var centipawns = e.Evaluate(p)
+	if !p.WhiteMove {
+		centipawns = -centipawns
+	}
+	return math.Sigmoid(3.5 / 512 * float64(centipawns))
 }

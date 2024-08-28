@@ -1,52 +1,44 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"log"
 	"os"
 
-	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/internal/utils"
-	"github.com/ChizhovVadim/CounterGo/pkg/common"
-	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 )
 
-var cliArgs = NewCommandArgs(os.Args)
-var tacticTestsPath = mapPath("~/chess/tests/tests.epd")
-
 func main() {
-	var err = run()
+	var err = run(os.Args[1:])
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func run() error {
-	var cli = NewCommandHandler()
-	cli.Add("tuner", tunerHandler)
-	cli.Add("train", trainHandler)
-	cli.Add("benchmark", benchmarkHandler)
-	cli.Add("tactic", tacticHandler)
-	cli.Add("quality", qualityHandler)
-	cli.Add("arena", arenaHandler)
-	cli.Add("perft", perftHandler)
-	cli.Add("play", func() error {
+func run(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("command not specified")
+	}
+	var cmdName = args[0]
+	args = args[1:]
+	switch cmdName {
+	//case "datasetsigmoid":
+	//	return datasetSigmoidHandler(args)
+	case "quality":
+		return qualityHandler(args)
+	case "tactic":
+		return tacticHandler(args)
+	case "arena":
+		return arenaHandler(args)
+	case "tuner":
+		return tunerHandler(args)
+	case "train":
+		return trainHandler(args)
+	case "perft":
+		return perftHandler(args)
+	case "play":
 		return utils.PlayCli(newEngine(""))
-	})
-	return cli.Execute(cliArgs.CommandName())
-}
-
-type Evaluator interface {
-	Evaluate(p *common.Position) int
-}
-
-type UciEngine interface {
-	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
-}
-
-func newEngine(evalName string) *engine.Engine {
-	var options = engine.NewMainOptions(evalbuilder.Get(evalName))
-	options.Hash = 128
-	var eng = engine.NewEngine(options)
-	return eng
+	default:
+		return fmt.Errorf("bad command %v", cmdName)
+	}
 }

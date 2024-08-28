@@ -11,12 +11,13 @@ import (
 	"github.com/ChizhovVadim/CounterGo/internal/pgn"
 )
 
-func (dp *DatasetProvider) loadGames(
+func LoadGames(
 	ctx context.Context,
-	games chan<- pgn.GameRaw,
+	gamesFolder string,
 	datasetReady <-chan struct{},
+	games chan<- pgn.GameRaw,
 ) error {
-	pgnFiles, err := pgnFiles(dp.GamesFolder)
+	pgnFiles, err := pgnFiles(gamesFolder)
 	if err != nil {
 		return err
 	}

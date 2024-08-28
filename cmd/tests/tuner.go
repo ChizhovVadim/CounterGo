@@ -1,26 +1,32 @@
 package main
 
 import (
-	"context"
+	"log"
 	"runtime"
 
-	"github.com/ChizhovVadim/CounterGo/internal/dataset"
 	"github.com/ChizhovVadim/CounterGo/internal/evalbuilder"
 	"github.com/ChizhovVadim/CounterGo/internal/tuner"
 )
 
-func tunerHandler() error {
-	const evalName = "counter"
-	const sigmoidScale = 3.5 / 512
-	var datasetProvider = &dataset.DatasetProvider{
-		SigmoidScale: sigmoidScale,
-		MaxPosCount:  8_000_000,
-		GamesFolder:  mapPath("~/chess/Dataset2023"),
-		Threads:      runtime.NumCPU(),
-		SearchRatio:  1.0,
+func tunerHandler(args []string) error {
+	var (
+		evalName        = "counter"
+		gamesFolderPath = mapPath("~/chess/Dataset2023")
+		sigmoidScale    = 0.011
+		searchRatio     = 1.0
+		maxDatasetSize  = 6_000_000
+		epochs          = 15
+		concurrency     = runtime.NumCPU()
+	)
+	var buildEvalService = func() tuner.IFeatureProvider {
+		return evalbuilder.Get(evalName)().(tuner.IFeatureProvider)
 	}
-	var evaluator = evalbuilder.Get(evalName)().(tuner.ITunableEvaluator)
-	return tuner.Run(context.Background(), datasetProvider,
-		newValidationDatasetProvider(),
-		evaluator, runtime.NumCPU(), 100, sigmoidScale)
+	samples, err := tuner.LoadDataset(buildEvalService,
+		gamesFolderPath, sigmoidScale, searchRatio, maxDatasetSize, concurrency)
+	if err != nil {
+		return err
+	}
+	log.Println("Loaded dataset",
+		"size", len(samples))
+	return tuner.RunTuner(buildEvalService().FeatureSize(), samples, epochs, concurrency)
 }

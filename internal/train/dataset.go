@@ -94,16 +94,16 @@ func analyzeGames(
 			var features = featureProvider.ComputeFeatures(&pos.Position)
 			var target = computeTarget(pos.Position.WhiteMove, pos.ScoreMate, pos.ScoreCentipawns, sigmoidScale, searchRatio, game.GameResult)
 			chunk = append(chunk, Sample{
-				Target:    float32(target),
-				TuneEntry: features,
+				target: float32(target),
+				input:  features,
 			})
 			if mirrorPos {
 				var mirror = common.MirrorPosition(&pos.Position)
 				var mirrorFeatures = featureProvider.ComputeFeatures(&mirror)
 				var mirrorTarget = 1 - target
 				chunk = append(chunk, Sample{
-					Target:    float32(mirrorTarget),
-					TuneEntry: mirrorFeatures,
+					target: float32(mirrorTarget),
+					input:  mirrorFeatures,
 				})
 			}
 		}

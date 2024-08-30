@@ -1,6 +1,19 @@
 package ml
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
+
+func NewCost(name string) (IModelCost, error) {
+	switch name {
+	case "mse":
+		return &MSECost{}, nil
+	case "abs":
+		return &AbsCost{}, nil
+	}
+	return nil, fmt.Errorf("bad cost name %v", name)
+}
 
 type IModelCost interface {
 	Cost(predicted, target float64) float64

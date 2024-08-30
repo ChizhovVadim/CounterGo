@@ -10,7 +10,7 @@ type Feature768Provider struct{}
 // На самом деле признаков 736, тк пешки не могут быть на крайних горизонталях. Переделать?
 func (p *Feature768Provider) FeatureSize() int { return 768 }
 
-func (p *Feature768Provider) ComputeFeatures(pos *common.Position) TuneEntry {
+func (p *Feature768Provider) ComputeFeatures(pos *common.Position) Input {
 	var input = make([]domain.FeatureInfo, 0, common.PopCount(pos.AllPieces()))
 	for x := pos.AllPieces(); x != 0; x &= x - 1 {
 		var sq = common.FirstOne(x)
@@ -25,7 +25,7 @@ func (p *Feature768Provider) ComputeFeatures(pos *common.Position) TuneEntry {
 			Value: 1,
 		})
 	}
-	return TuneEntry{
+	return Input{
 		Features: input,
 	}
 }

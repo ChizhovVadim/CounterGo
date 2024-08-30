@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"runtime"
 
+	"github.com/ChizhovVadim/CounterGo/internal/ml"
 	"github.com/ChizhovVadim/CounterGo/internal/train"
 )
 
@@ -18,6 +19,8 @@ func trainHandler(args []string) error {
 		epochs          = 15
 		concurrency     = runtime.NumCPU()
 		mirrorPos       = true
+		costName        = "mse"
+		hiddenSize      = 512
 	)
 	var buildFeatureService = func() train.IFeatureProvider {
 		return &train.Feature768Provider{}
@@ -29,7 +32,11 @@ func trainHandler(args []string) error {
 	}
 	log.Println("Loaded dataset",
 		"size", len(samples))
-	var rnd = rand.New(rand.NewSource(0))
-	var model = train.NewModelNN(rnd)
-	return train.Train(samples, epochs, model, concurrency, netFolderPath)
+	var model = train.NewModel(buildFeatureService().FeatureSize(), hiddenSize)
+	model.InitWeights(rand.New(rand.NewSource(0)))
+	cost, err := ml.NewCost(costName)
+	if err != nil {
+		return err
+	}
+	return train.Train(samples, epochs, model, cost, concurrency, netFolderPath)
 }

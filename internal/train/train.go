@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+
+	"github.com/ChizhovVadim/CounterGo/internal/ml"
 )
 
 func Train(
 	samples []Sample,
 	epochs int,
-	mainModel *Model,
+	mainModel IModel,
+	cost ml.IModelCost,
 	concurrency int,
 	netFolderPath string,
 ) error {
@@ -30,10 +33,10 @@ func Train(
 	var training = samples[validationSize:]
 
 	const BatchSize = 16384
-	var models = make([]*Model, concurrency)
+	var models = make([]IModel, concurrency)
 	models[0] = mainModel
 	for i := 1; i < len(models); i++ {
-		models[i] = mainModel.ThreadCopy()
+		models[i] = mainModel.Clone()
 	}
 
 	var rnd = rand.New(rand.NewSource(0))
@@ -41,14 +44,14 @@ func Train(
 		shuffle(rnd, training)
 		for i := 0; i+BatchSize <= len(training); i += BatchSize {
 			var batch = training[i : i+BatchSize]
-			trainBatch(batch, models)
+			trainBatch(batch, models, cost)
 			applyGradients(models)
 		}
 		log.Printf("Finished Epoch %v\n", epoch)
-		validationCost := calcAverageCost(validation, models)
+		validationCost := calcAverageCost(validation, models, cost)
 		log.Printf("Current validation cost is: %f\n", validationCost)
 		if netFolderPath != "" {
-			var err = models[0].Save(buildNetPath(netFolderPath, epoch, validationCost))
+			var err = mainModel.SaveWeights(buildNetPath(netFolderPath, epoch, validationCost))
 			if err != nil {
 				return err
 			}
@@ -64,12 +67,12 @@ func shuffle(rnd *rand.Rand, training []Sample) {
 	})
 }
 
-func trainBatch(samples []Sample, models []*Model) {
+func trainBatch(samples []Sample, models []IModel, cost ml.IModelCost) {
 	var index int32 = -1
 	var wg = &sync.WaitGroup{}
 	for i := range models {
 		wg.Add(1)
-		go func(m *Model) {
+		go func(m IModel) {
 			defer wg.Done()
 			for {
 				var i = int(atomic.AddInt32(&index, 1))
@@ -77,28 +80,29 @@ func trainBatch(samples []Sample, models []*Model) {
 					break
 				}
 				sample := &samples[i]
-				m.Train(sample)
+				m.Train(sample, cost)
 			}
 		}(models[i])
 	}
 	wg.Wait()
 }
 
-func applyGradients(models []*Model) {
+func applyGradients(models []IModel) {
+	var mainModel = models[0]
 	for i := 1; i < len(models); i++ {
-		models[i].AddGradients(models[0])
+		models[i].AddGradients(mainModel)
 	}
-	models[0].ApplyGradients()
+	mainModel.ApplyGradients()
 }
 
-func calcAverageCost(samples []Sample, models []*Model) float64 {
+func calcAverageCost(samples []Sample, models []IModel, cost ml.IModelCost) float64 {
 	var index int32 = -1
 	var wg = &sync.WaitGroup{}
 	var totalCost float64
 	var mu = &sync.Mutex{}
 	for i := range models {
 		wg.Add(1)
-		go func(m *Model) {
+		go func(model IModel) {
 			defer wg.Done()
 			var localCost float64
 			for {
@@ -106,7 +110,8 @@ func calcAverageCost(samples []Sample, models []*Model) float64 {
 				if i >= len(samples) {
 					break
 				}
-				localCost += m.CalcCost(&samples[i])
+				var sample = &samples[i]
+				localCost += cost.Cost(model.Forward(&sample.input), float64(sample.target))
 			}
 			mu.Lock()
 			totalCost += localCost
@@ -126,7 +131,7 @@ func min(a, b int) int {
 }
 
 func buildNetPath(netFolderPath string, epoch int, validationCost float64) string {
-	var valCostInt = int(100000 * validationCost)
+	var valCostInt = int(100_000 * validationCost)
 	//TODO insert date
 	return filepath.Join(netFolderPath, fmt.Sprintf("n-%2d-%v.nn", epoch, valCostInt))
 }

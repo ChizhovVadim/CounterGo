@@ -1,6 +1,5 @@
 ![logo](https://raw.githubusercontent.com/ChizhovVadim/CounterGo/master/logo.png)
 # Counter
-[русский](./docs/readme_ru.md)
 
 Counter is a chess engine.
 + free
@@ -19,18 +18,10 @@ Chess Rating lists:
 + [CEGT](http://www.cegt.net/)
 + [Gambit Rating List](http://rebel13.nl/grl-best-40-2.html)
 
-|Version|GRL  |CCRL 40/15|FastGM 60+0.6|CEGT 40/4|
-|-------|-----|----------|-------------|---------|
-|4.0    |3115 |3101      |2935         |2997     |
-|3.9    |3065 |3075      |             |2959     |
-|3.8    |2994 |3012      |2817         |2887     |
-|3.7    |2972 |2970      |2784         |2854     |
-|3.6    |     |          |2757         |2820     |
-|3.5    |     |2907      |2718         |2777     |
-|3.4    |     |2881      |2679         |2742     |
-|3.3    |     |2847      |2647         |2700     |
-|3.2    |     |2834      |2624         |2692     |
-|3.1    |     |2784      |             |         |
+|Version|CCRL 40/15|
+|-------|----------|
+|Counter 5.0 64-bit 4CPU|3373|
+|Counter 5.5 64-bit|3333|
 
 ## TCEC
 Counter is participating in [TCEC](https://wiki.chessdom.org/Main_Page) tournament.
@@ -39,41 +30,8 @@ Counter is participating in [TCEC](https://wiki.chessdom.org/Main_Page) tourname
 + [Season 18](https://wiki.chessdom.org/TCEC_Season_18_Engines)
 + [Season 17](https://wiki.chessdom.org/TCEC_Season_17_Engines)
 
-## Technical description
-Currently Counter is an alpha beta engine with Hand Crafted Eval. Counter uses bitboards for board representation and Magic bitboards for move generation. Multithreading implemented with LazySMP method. Counter written in the [go](https://golang.org/) programming language. I think programming should be fun. And C/C++ is not funny at all.
-
-## How to write chess engine
-### Level0
-- able to generate legal moves and select random move
-- implement uci protocol
-- unit test for move generator
-### Level1 (only exact search methods)
-- PESTO eval
-- Iterative deepening
-- alphabeta, QS(good captures and check escapes)
-- Transposition table
-- Internal iterative deepening
-- move order: trans move, good captures, killers, bad captures and history
-- repeat detect
-- Aspiration window
-- PVS in root
-- simple time manager
-- mate distance pruning
-### Level2 (simple methods with maximum ELO increase)
-- NMP R=4+d/6, null move case in repeat detect
-- LMR R~log(d)log(m). In ideal case without lmr research, search tree will growth linear
-- Leaf prunings (reverse futility pruning, Late move pruning, SEE pruning)
-- Singular extension, check extension
-- eval (Material, King safety, passed pawns, threats, PSQT, mobility). Texel tuning
-- LazySMP
-### Level3 (complex methods or methods with low ELO increase)
-- complicated time manager
-- NNUE eval
-- endgame TB
-- PVS
-- performance (increment staged move generator, store static eval in TT or cache static eval, pawn hash table in eval, other optimizations)
-- Probcut
-- ...
+## counterdev
+Auxiliary utilities (neural network training, etc.) are located in a separate [repository](https://github.com/ChizhovVadim/counterdev).
 
 ## References
 - [cutechess](https://github.com/cutechess/cutechess)

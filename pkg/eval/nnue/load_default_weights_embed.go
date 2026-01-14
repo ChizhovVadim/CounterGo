@@ -1,6 +1,3 @@
-//go:build embed
-// +build embed
-
 package eval
 
 import (

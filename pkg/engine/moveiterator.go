@@ -1,12 +1,12 @@
 package engine
 
-import . "github.com/ChizhovVadim/CounterGo/pkg/common"
+import "github.com/ChizhovVadim/CounterGo/pkg/common"
 
 const sortTableKeyImportant = 100000
 
 type moveIteratorQS struct {
-	position *Position
-	buffer   []OrderedMove
+	position *common.Position
+	buffer   []common.OrderedMove
 	count    int
 	index    int
 }
@@ -36,9 +36,9 @@ func (mi *moveIteratorQS) Reset() {
 	mi.index = 0
 }
 
-func (mi *moveIteratorQS) Next() Move {
+func (mi *moveIteratorQS) Next() common.Move {
 	if mi.index >= mi.count {
-		return MoveEmpty
+		return common.MoveEmpty
 	}
 	var m = mi.buffer[mi.index].Move
 	mi.index++
@@ -46,12 +46,12 @@ func (mi *moveIteratorQS) Next() Move {
 }
 
 type moveIterator struct {
-	buffer []OrderedMove
+	buffer []common.OrderedMove
 	count  int
 	index  int
 }
 
-func (t *thread) initMoveIterator(height int, transMove Move) moveIterator {
+func (t *thread) initMoveIterator(height int, transMove common.Move) moveIterator {
 	var position = &t.stack[height].position
 	var killer1 = t.stack[height].killer1
 	var killer2 = t.stack[height].killer2
@@ -91,9 +91,9 @@ func (mi *moveIterator) Reset() {
 	mi.index = 0
 }
 
-func (mi *moveIterator) Next() Move {
+func (mi *moveIterator) Next() common.Move {
 	if mi.index >= mi.count {
-		return MoveEmpty
+		return common.MoveEmpty
 	}
 	const SortMovesIndex = 1
 	if mi.index <= SortMovesIndex {
@@ -108,15 +108,15 @@ func (mi *moveIterator) Next() Move {
 	return m
 }
 
-var sortPieceValues = [...]int{Empty: 0, Pawn: 1, Knight: 2, Bishop: 3, Rook: 4, Queen: 5, King: 6}
+var sortPieceValues = [...]int{common.Empty: 0, common.Pawn: 1, common.Knight: 2, common.Bishop: 3, common.Rook: 4, common.Queen: 5, common.King: 6}
 
-func mvvlva(move Move) int {
+func mvvlva(move common.Move) int {
 	return 8*(sortPieceValues[move.CapturedPiece()]+
 		sortPieceValues[move.Promotion()]) -
 		sortPieceValues[move.MovingPiece()]
 }
 
-func sortMoves(moves []OrderedMove) {
+func sortMoves(moves []common.OrderedMove) {
 	for i := 1; i < len(moves); i++ {
 		j, t := i, moves[i]
 		for ; j > 0 && moves[j-1].Key < t.Key; j-- {
@@ -126,16 +126,7 @@ func sortMoves(moves []OrderedMove) {
 	}
 }
 
-func isSorted(moves []OrderedMove) bool {
-	for i := 1; i < len(moves); i++ {
-		if moves[i-1].Key < moves[i].Key {
-			return false
-		}
-	}
-	return true
-}
-
-func moveToTop(ml []OrderedMove) {
+func moveToTop(ml []common.OrderedMove) {
 	var bestIndex = 0
 	for i := 1; i < len(ml); i++ {
 		if ml[i].Key > ml[bestIndex].Key {
@@ -145,17 +136,4 @@ func moveToTop(ml []OrderedMove) {
 	if bestIndex != 0 {
 		ml[0], ml[bestIndex] = ml[bestIndex], ml[0]
 	}
-}
-
-func skipQuiets(ml []OrderedMove, startIndex, endIndex int) int {
-	var i = startIndex
-	for j := startIndex; j < endIndex; j++ {
-		if !isCaptureOrPromotion(ml[j].Move) {
-			if i != j {
-				ml[i], ml[j] = ml[j], ml[i]
-			}
-			i++
-		}
-	}
-	return i
 }

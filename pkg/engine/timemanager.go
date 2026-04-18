@@ -1,11 +1,10 @@
 package engine
 
 import (
-	"context"
 	"math"
 	"time"
 
-	. "github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 const (
@@ -16,70 +15,46 @@ const (
 
 type timeManager struct {
 	start        time.Time
-	limits       LimitsType
+	limits       common.LimitsType
 	side         bool
 	difficulty   float64
 	lastScore    int
-	lastBestMove Move
-	done         <-chan struct{}
-	cancel       context.CancelFunc
+	lastBestMove common.Move
 }
 
-func newTimeManager(ctx context.Context, start time.Time,
-	limits LimitsType, p *Position) *timeManager {
-
-	var tm = &timeManager{
+func newTimeManager(start time.Time, limits common.LimitsType, p *common.Position) *timeManager {
+	return &timeManager{
 		start:      start,
 		limits:     limits,
 		side:       p.WhiteMove,
 		difficulty: 1,
 	}
-
-	var cancel context.CancelFunc
-	if limits.MoveTime > 0 || limits.WhiteTime > 0 || limits.BlackTime > 0 {
-		var maximum time.Duration
-		if limits.MoveTime > 0 {
-			maximum = time.Duration(limits.MoveTime) * time.Millisecond
-		} else {
-			maximum = tm.calculateTimeLimit(maxDifficulty, maxBranchFactor)
-		}
-		ctx, cancel = context.WithDeadline(ctx, start.Add(maximum))
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-
-	tm.done = ctx.Done()
-	tm.cancel = cancel
-	return tm
 }
 
-func (tm *timeManager) IsDone() bool {
-	select {
-	case <-tm.done:
-		return true
-	default:
+func (tm *timeManager) HardLimit() time.Duration {
+	if tm.limits.MoveTime > 0 {
+		return time.Duration(tm.limits.MoveTime) * time.Millisecond
+	} else if tm.limits.WhiteTime > 0 || tm.limits.BlackTime > 0 {
+		return tm.calculateTimeLimit(maxDifficulty, maxBranchFactor)
+	} else {
+		return 0
+	}
+}
+
+func (tm *timeManager) IsFixedNodesInterruption(nodes int64) bool {
+	return tm.limits.Nodes > 0 && nodes >= int64(tm.limits.Nodes)
+}
+
+func (tm *timeManager) IsSoftInterruption(line mainLine) bool {
+	if tm.limits.Infinite {
 		return false
 	}
-}
-
-func (tm *timeManager) OnNodesChanged(nodes int) {
-	if tm.limits.Nodes > 0 && nodes >= tm.limits.Nodes {
-		tm.cancel()
-	}
-}
-
-func (tm *timeManager) OnIterationComplete(line mainLine) {
-	if tm.limits.Infinite {
-		return
-	}
 	if tm.limits.Depth != 0 && line.depth >= tm.limits.Depth {
-		tm.cancel()
-		return
+		return true
 	}
 	if line.score >= winIn(line.depth-5) ||
 		line.score <= lossIn(line.depth-5) {
-		tm.cancel()
-		return
+		return true
 	}
 	if tm.limits.WhiteTime > 0 || tm.limits.BlackTime > 0 {
 		if line.depth >= 5 {
@@ -95,14 +70,10 @@ func (tm *timeManager) OnIterationComplete(line mainLine) {
 		tm.lastBestMove = line.moves[0]
 		var optimum = tm.calculateTimeLimit(tm.difficulty, minBranchFactor)
 		if time.Since(tm.start) >= optimum {
-			tm.cancel()
-			return
+			return true
 		}
 	}
-}
-
-func (tm *timeManager) Close() {
-	tm.cancel()
+	return false
 }
 
 func (tm *timeManager) calculateTimeLimit(difficulty, branchFactor float64) time.Duration {

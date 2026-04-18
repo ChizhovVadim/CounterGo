@@ -1,19 +1,104 @@
 package engine
 
 import (
+	"errors"
+
 	. "github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 const pawnValue = 100
 
-func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
-	t.rootDepth = depth
-	if t.engine.Options.AspirationWindows &&
-		depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
+var errSearchTimeout = errors.New("search timeout")
+
+type thread struct {
+	idx           int
+	evaluator     IUpdatableEvaluator
+	sharedContext *SharedContext
+	nodes         int
+	rootDepth     int
+	stack         [stackSize]struct {
+		position       Position
+		moveList       [MaxMoves]OrderedMove
+		quietsSearched [MaxMoves]Move
+		pv             pv
+		staticEval     int
+		killer1        Move
+		killer2        Move
+	}
+	mainHistory         [8192]int16
+	continuationHistory [1024][1024]int16
+}
+
+type pv struct {
+	items [stackSize]Move
+	size  int
+}
+
+func (t *thread) Clear() {
+	t.clearHistory()
+}
+
+func (t *thread) iterativeDeepening(
+	sharedContext *SharedContext,
+) (result mainLine) {
+	t.sharedContext = sharedContext
+	defer func() {
+		t.sharedContext = nil
+	}()
+
+	t.nodes = 0
+	t.stack[0].position = sharedContext.position
+	t.evaluator.Init(&t.stack[0].position)
+	for h := 0; h <= 2; h++ {
+		t.stack[h].killer1 = MoveEmpty
+		t.stack[h].killer2 = MoveEmpty
+	}
+
+	var ml = sharedContext.position.GenerateLegalMoves()
+	if len(ml) == 0 {
+		return mainLine{}
+	}
+
+	// select random legal move
+	result = mainLine{
+		moves: []Move{ml[0]},
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if r == errSearchTimeout {
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	for depth := 1; depth <= maxHeight; depth += 1 {
+		var score = t.aspirationWindow(depth, result.score)
+		result = mainLine{
+			depth: depth,
+			score: score,
+			moves: t.stack[0].pv.clone(),
+		}
+		if len(result.moves) == 0 {
+			panic("empty best line")
+		}
+		if t.idx == 0 {
+			if depth >= 4 && len(ml) == 1 {
+				break
+			}
+			sharedContext.OnIterationComplete(result)
+		}
+	}
+	return result
+}
+
+func (t *thread) aspirationWindow(depth, prevScore int) int {
+	if depth >= 5 && !(prevScore <= valueLoss || prevScore >= valueWin) {
 		const Window = 25
 		var alpha = Max(-valueInfinity, prevScore-Window)
 		var beta = Min(valueInfinity, prevScore+Window)
-		var score = searchRoot(t, ml, alpha, beta, depth)
+		var score = t.searchRoot(alpha, beta, depth)
 		if score > alpha && score < beta {
 			return score
 		}
@@ -23,19 +108,17 @@ func aspirationWindow(t *thread, ml []Move, depth, prevScore int) int {
 		if score <= alpha {
 			alpha = -valueInfinity
 		}
-		score = searchRoot(t, ml, alpha, beta, depth)
+		score = t.searchRoot(alpha, beta, depth)
 		if score > alpha && score < beta {
 			return score
 		}
 	}
-	return searchRoot(t, ml, -valueInfinity, valueInfinity, depth)
+	return t.searchRoot(-valueInfinity, valueInfinity, depth)
 }
 
-func searchRoot(t *thread, ml []Move, alpha, beta, depth int) int {
-	const height = 0
-	var p = &t.stack[height].position
-	t.evaluator.Init(p)
-	return t.alphaBeta(alpha, beta, depth, height, 0)
+func (t *thread) searchRoot(alpha, beta, depth int) int {
+	t.rootDepth = depth
+	return t.alphaBeta(alpha, beta, depth, 0, 0)
 }
 
 // main search method
@@ -77,7 +160,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		ttHit                     bool
 	)
 	if skipMove == 0 {
-		ttDepth, ttValue, ttBound, ttMove, ttHit = t.engine.transTable.Read(position.Key)
+		ttDepth, ttValue, ttBound, ttMove, ttHit = t.sharedContext.transTable.Read(position.Key)
 	}
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
@@ -98,7 +181,6 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 	t.stack[height].staticEval = staticEval
 	var improving = height < 2 || staticEval > t.stack[height-2].staticEval
 
-	var options = &t.engine.Options
 	if height+2 <= maxHeight {
 		t.stack[height+2].killer1 = MoveEmpty
 		t.stack[height+2].killer2 = MoveEmpty
@@ -108,7 +190,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 	if !rootNode && skipMove == 0 {
 
 		// reverse futility pruning
-		if options.ReverseFutility && !pvNode && depth <= 8 && !isCheck {
+		if !pvNode && depth <= 8 && !isCheck {
 			var score = staticEval - pawnValue*depth
 			if score >= beta {
 				return staticEval
@@ -116,7 +198,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		}
 
 		// null-move pruning
-		if options.NullMovePruning && !pvNode && depth >= 2 && !isCheck &&
+		if !pvNode && depth >= 2 && !isCheck &&
 			position.LastMove != MoveEmpty &&
 			(height <= 1 || t.stack[height-1].position.LastMove != MoveEmpty) &&
 			beta < valueWin &&
@@ -124,9 +206,9 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			!isLateEndgame(position, position.WhiteMove) &&
 			staticEval >= beta {
 			var reduction = 4 + depth/6 + Min(2, (staticEval-beta)/200)
-			t.MakeMove(MoveEmpty, height)
+			t.makeMove(MoveEmpty, height)
 			var score = -t.alphaBeta(-beta, -(beta - 1), depth-reduction, height+1, 0)
-			t.UnmakeMove()
+			t.unmakeMove()
 			if score >= beta {
 				if score >= valueWin {
 					score = beta
@@ -136,7 +218,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		}
 
 		var probcutBeta = Min(valueWin-1, beta+150)
-		if options.Probcut && !pvNode && depth >= 5 && !isCheck &&
+		if !pvNode && depth >= 5 && !isCheck &&
 			beta > valueLoss && beta < valueWin &&
 			!(ttHit && ttDepth >= depth-4 && ttValue < probcutBeta && (ttBound&boundUpper) != 0) {
 
@@ -154,14 +236,14 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 				if !seeGEZero(position, move) {
 					continue
 				}
-				if !t.MakeMove(move, height) {
+				if !t.makeMove(move, height) {
 					continue
 				}
 				var score = -t.quiescence(-probcutBeta, -probcutBeta+1, height+1)
 				if score >= probcutBeta {
 					score = -t.alphaBeta(-probcutBeta, -probcutBeta+1, depth-4, height+1, 0)
 				}
-				t.UnmakeMove()
+				t.unmakeMove()
 				if score >= probcutBeta {
 					return score
 				}
@@ -169,7 +251,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 		}
 
 		// singular extension
-		if options.SingularExt && depth >= 8 &&
+		if depth >= 8 &&
 			ttHit && ttMove != MoveEmpty &&
 			(ttBound&boundLower) != 0 && ttDepth >= depth-3 &&
 			ttValue > valueLoss && ttValue < valueWin {
@@ -215,7 +297,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 
 		if depth <= 8 && best > valueLoss && hasLegalMove && !isCheck && !rootNode {
 			// late-move pruning
-			if options.Lmp && !(isNoisy ||
+			if !(isNoisy ||
 				move == killer1 ||
 				move == killer2) &&
 				quietsSeen > lmp {
@@ -223,7 +305,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			}
 
 			// futility pruning
-			if options.Futility && !(isNoisy ||
+			if !(isNoisy ||
 				move == killer1 ||
 				move == killer2) &&
 				staticEval+100+pawnValue*depth <= alpha {
@@ -231,7 +313,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			}
 
 			// SEE pruning
-			if options.See {
+			{
 				var seeMargin int
 				if isNoisy {
 					seeMargin = Max(depth, (staticEval+pawnValue-alpha)/pawnValue)
@@ -244,7 +326,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			}
 		}
 
-		if !t.MakeMove(move, height) {
+		if !t.makeMove(move, height) {
 			continue
 		}
 		hasLegalMove = true
@@ -253,7 +335,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 
 		var extension, reduction int
 
-		if options.CheckExt && child.IsCheck() && depth >= 3 {
+		if child.IsCheck() && depth >= 3 {
 			extension = 1
 		}
 		if move == ttMove && ttMoveIsSingular {
@@ -262,7 +344,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 
 		if depth >= 3 && movesSearched > 1 &&
 			!(isNoisy) {
-			reduction = options.Lmr(depth, movesSearched)
+			reduction = lmr(depth, movesSearched)
 			if move == killer1 || move == killer2 {
 				reduction--
 			}
@@ -304,7 +386,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			score = -t.alphaBeta(-beta, -alpha, newDepth, height+1, 0)
 		}
 
-		t.UnmakeMove()
+		t.unmakeMove()
 
 		if score > best {
 			best = score
@@ -340,7 +422,7 @@ func (t *thread) alphaBeta(alpha, beta, depth, height int, skipMove Move) int {
 			ttBound |= boundUpper
 		}
 		if !(rootNode && ttBound == boundUpper) {
-			t.engine.transTable.Update(position.Key, depth, valueToTT(best, height), ttBound, bestMove)
+			t.sharedContext.transTable.Update(position.Key, depth, valueToTT(best, height), ttBound, bestMove)
 		}
 	}
 
@@ -360,7 +442,7 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		return valueDraw
 	}
 
-	var _, ttValue, ttBound, _, ttHit = t.engine.transTable.Read(position.Key)
+	var _, ttValue, ttBound, _, ttHit = t.sharedContext.transTable.Read(position.Key)
 	if ttHit {
 		ttValue = valueFromTT(ttValue, height)
 		if ttBound == boundExact ||
@@ -396,12 +478,12 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 		if !isCheck && !seeGEZero(position, move) {
 			continue
 		}
-		if !t.MakeMove(move, height) {
+		if !t.makeMove(move, height) {
 			continue
 		}
 		hasLegalMove = true
 		var score = -t.quiescence(-beta, -alpha, height+1)
-		t.UnmakeMove()
+		t.unmakeMove()
 		best = Max(best, score)
 		if score > alpha {
 			alpha = score
@@ -417,16 +499,33 @@ func (t *thread) quiescence(alpha, beta, height int) int {
 	return best
 }
 
+func (t *thread) makeMove(move Move, height int) bool {
+	var pos = &t.stack[height].position
+	var child = &t.stack[height+1].position
+	if move == MoveEmpty {
+		pos.MakeNullMove(child)
+	} else {
+		if !pos.MakeMove(move, child) {
+			return false
+		}
+	}
+	t.evaluator.MakeMove(pos, move)
+	t.incNodes()
+	return true
+}
+
+func (t *thread) unmakeMove() {
+	t.evaluator.UnmakeMove()
+}
+
 func (t *thread) incNodes() {
-	t.nodes++
-	if t.nodes&255 == 0 {
-		//fixed nodes search only in single threaded mode
-		if t.engine.Options.Threads == 1 {
-			t.engine.timeManager.OnNodesChanged(int(t.engine.mainLine.nodes + t.nodes))
-		}
-		if t.engine.timeManager.IsDone() {
-			panic(errSearchTimeout)
-		}
+	const (
+		BATCH_SIZE = 1 << 8
+		BATCH_MASK = BATCH_SIZE - 1
+	)
+	t.nodes += 1
+	if t.nodes&BATCH_MASK == BATCH_MASK {
+		t.sharedContext.AddNodes(BATCH_SIZE)
 	}
 }
 
@@ -459,55 +558,7 @@ func (t *thread) isRepeat(height int) bool {
 		}
 	}
 
-	return t.engine.historyKeys[p.Key] >= 2
-}
-
-func findMoveIndex(ml []Move, move Move) int {
-	for i := range ml {
-		if ml[i] == move {
-			return i
-		}
-	}
-	return -1
-}
-
-func moveToBegin(ml []Move, index int) {
-	if index == 0 {
-		return
-	}
-	var item = ml[index]
-	for i := index; i > 0; i-- {
-		ml[i] = ml[i-1]
-	}
-	ml[0] = item
-}
-
-func cloneMoves(ml []Move) []Move {
-	var result = make([]Move, len(ml))
-	copy(result, ml)
-	return result
-}
-
-func (e *Engine) genRootMoves() []Move {
-	var t = &e.threads[0]
-	const height = 0
-	var p = &t.stack[height].position
-	_, _, _, transMove, _ := e.transTable.Read(p.Key)
-
-	var mi = t.initMoveIterator(height, transMove)
-
-	var result []Move
-	var child = &t.stack[height+1].position
-	for mi.Reset(); ; {
-		var move = mi.Next()
-		if move == MoveEmpty {
-			break
-		}
-		if p.MakeMove(move, child) {
-			result = append(result, move)
-		}
-	}
-	return result
+	return t.sharedContext.historyKeys[p.Key] >= 2
 }
 
 func (t *thread) updateKiller(move Move, height int) {
@@ -517,21 +568,40 @@ func (t *thread) updateKiller(move Move, height int) {
 	}
 }
 
-func (t *thread) MakeMove(move Move, height int) bool {
-	var pos = &t.stack[height].position
-	var child = &t.stack[height+1].position
-	if move == MoveEmpty {
-		pos.MakeNullMove(child)
-	} else {
-		if !pos.MakeMove(move, child) {
-			return false
-		}
-	}
-	t.evaluator.MakeMove(pos, move)
-	t.incNodes()
-	return true
+func (t *thread) clearPV(height int) {
+	t.stack[height].pv.size = 0
 }
 
-func (t *thread) UnmakeMove() {
-	t.evaluator.UnmakeMove()
+func (t *thread) assignPV(height int, m Move) {
+	var pv = &t.stack[height].pv
+	var child = &t.stack[height+1].pv
+	pv.size = 1
+	pv.items[0] = m
+	if child.size > 0 {
+		pv.size += child.size
+		copy(pv.items[1:], child.items[:child.size])
+	}
+}
+
+func (pv *pv) clone() []Move {
+	var result = make([]Move, pv.size)
+	copy(result, pv.items[:pv.size])
+	return result
+}
+
+var reductions [64][64]int = initLmr(LmrMult)
+
+func initLmr(f func(d, m float64) float64) [64][64]int {
+	var res [64][64]int
+	for d := 1; d < 64; d++ {
+		for m := 1; m < 64; m++ {
+			var r = f(float64(d), float64(m))
+			res[d][m] = int(r)
+		}
+	}
+	return res
+}
+
+func lmr(d, m int) int {
+	return reductions[min(d, 63)][min(m, 63)]
 }

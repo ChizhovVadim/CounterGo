@@ -3,7 +3,7 @@ package engine
 import (
 	"sync/atomic"
 
-	. "github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 const (
@@ -21,7 +21,7 @@ func roundPowerOfTwo(size int) int {
 	return x
 }
 
-//16 bytes
+// 16 bytes
 type transEntry struct {
 	gate     int32
 	key32    uint32
@@ -31,15 +31,15 @@ type transEntry struct {
 	bound    uint8
 }
 
-func (entry *transEntry) Move() Move {
-	return Move(entry.moveDate & 0x1fffff)
+func (entry *transEntry) Move() common.Move {
+	return common.Move(entry.moveDate & 0x1fffff)
 }
 
 func (entry *transEntry) Date() uint16 {
 	return uint16(entry.moveDate >> 21)
 }
 
-func (entry *transEntry) SetMoveAndDate(move Move, date uint16) {
+func (entry *transEntry) SetMoveAndDate(move common.Move, date uint16) {
 	entry.moveDate = uint32(move) + uint32(date)<<21
 }
 
@@ -76,7 +76,7 @@ func (tt *transTable) Clear() {
 	}
 }
 
-func (tt *transTable) Read(key uint64) (depth, score, bound int, move Move, ok bool) {
+func (tt *transTable) Read(key uint64) (depth, score, bound int, move common.Move, ok bool) {
 	var entry = &tt.entries[uint32(key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		if entry.key32 == uint32(key>>32) {
@@ -92,7 +92,7 @@ func (tt *transTable) Read(key uint64) (depth, score, bound int, move Move, ok b
 	return
 }
 
-func (tt *transTable) Update(key uint64, depth, score, bound int, move Move) {
+func (tt *transTable) Update(key uint64, depth, score, bound int, move common.Move) {
 	var entry = &tt.entries[uint32(key)&tt.mask]
 	if atomic.CompareAndSwapInt32(&entry.gate, 0, 1) {
 		var replace bool

@@ -1,6 +1,6 @@
 package engine
 
-import . "github.com/ChizhovVadim/CounterGo/pkg/common"
+import "github.com/ChizhovVadim/CounterGo/pkg/common"
 
 const historyMax = 1 << 14
 
@@ -11,7 +11,7 @@ type historyContext struct {
 	cont2      int
 }
 
-func (h *historyContext) ReadTotal(m Move) int {
+func (h *historyContext) ReadTotal(m common.Move) int {
 	var sideToMove = h.sideToMove
 	var score int
 	score += int(h.thread.mainHistory[sideFromToIndex(sideToMove, m)])
@@ -25,8 +25,8 @@ func (h *historyContext) ReadTotal(m Move) int {
 	return score
 }
 
-func (h *historyContext) Update(quietsSearched []Move, bestMove Move, depth int) {
-	var bonus = Min(depth*depth, 400)
+func (h *historyContext) Update(quietsSearched []common.Move, bestMove common.Move, depth int) {
+	var bonus = min(depth*depth, 400)
 	var t = h.thread
 	var sideToMove = h.sideToMove
 	var cont1 = h.cont1
@@ -78,14 +78,14 @@ func (t *thread) getHistoryContext(height int) historyContext {
 	var cont1 = -1
 	{
 		var prev1 = t.stack[height].position.LastMove
-		if prev1 != MoveEmpty {
+		if prev1 != common.MoveEmpty {
 			cont1 = pieceSquareIndex(!sideToMove, prev1)
 		}
 	}
 	var cont2 = -1
 	if height > 0 {
 		var prev2 = t.stack[height-1].position.LastMove
-		if prev2 != MoveEmpty {
+		if prev2 != common.MoveEmpty {
 			cont2 = pieceSquareIndex(sideToMove, prev2)
 		}
 	}
@@ -97,7 +97,7 @@ func (t *thread) getHistoryContext(height int) historyContext {
 	}
 }
 
-func pieceSquareIndex(side bool, move Move) int {
+func pieceSquareIndex(side bool, move common.Move) int {
 	var result = (move.MovingPiece() << 6) | move.To()
 	if side {
 		result |= 1 << 9
@@ -105,7 +105,7 @@ func pieceSquareIndex(side bool, move Move) int {
 	return result
 }
 
-func sideFromToIndex(side bool, move Move) int {
+func sideFromToIndex(side bool, move common.Move) int {
 	var result = (move.From() << 6) | move.To()
 	if side {
 		result |= 1 << 12

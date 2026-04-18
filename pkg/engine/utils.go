@@ -1,7 +1,9 @@
 package engine
 
 import (
-	. "github.com/ChizhovVadim/CounterGo/pkg/common"
+	"math"
+
+	"github.com/ChizhovVadim/CounterGo/pkg/common"
 )
 
 const (
@@ -46,52 +48,32 @@ func valueFromTT(v, height int) int {
 	return v
 }
 
-func newUciScore(v int) UciScore {
+func newUciScore(v int) common.UciScore {
 	if v >= valueWin {
-		return UciScore{Mate: (valueMate - v + 1) / 2}
+		return common.UciScore{Mate: (valueMate - v + 1) / 2}
 	} else if v <= valueLoss {
-		return UciScore{Mate: (-valueMate - v) / 2}
+		return common.UciScore{Mate: (-valueMate - v) / 2}
 	} else {
-		return UciScore{Centipawns: v}
+		return common.UciScore{Centipawns: v}
 	}
 }
 
-func isLateEndgame(p *Position, side bool) bool {
+func isLateEndgame(p *common.Position, side bool) bool {
 	//sample: position fen 8/8/6p1/1p2pk1p/1Pp1p2P/2PbP1P1/3N1P2/4K3 w - - 12 58
 	var ownPieces = p.PiecesByColor(side)
 	return ((p.Rooks|p.Queens)&ownPieces) == 0 &&
-		!MoreThanOne((p.Knights|p.Bishops)&ownPieces)
+		!common.MoreThanOne((p.Knights|p.Bishops)&ownPieces)
 }
 
-func isCaptureOrPromotion(move Move) bool {
-	return move.CapturedPiece() != Empty ||
-		move.Promotion() != Empty
+func isCaptureOrPromotion(move common.Move) bool {
+	return move.CapturedPiece() != common.Empty ||
+		move.Promotion() != common.Empty
 }
 
-func isPawnPush7th(move Move, side bool) bool {
-	if move.MovingPiece() != Pawn {
-		return false
-	}
-	var rank = Rank(move.To())
-	if side {
-		return rank == Rank7
-	} else {
-		return rank == Rank2
-	}
+func LmrMult(d, m float64) float64 {
+	return lirp(math.Log(d)*math.Log(m), math.Log(5)*math.Log(22), math.Log(63)*math.Log(63), 3, 8)
 }
 
-func isPawnAdvance(move Move, side bool) bool {
-	if move.MovingPiece() != Pawn {
-		return false
-	}
-	var rank = Rank(move.To())
-	if side {
-		return rank >= Rank6
-	} else {
-		return rank <= Rank3
-	}
-}
-
-func isRecapture(prev, move Move) bool {
-	return prev != MoveEmpty && isCaptureOrPromotion(prev) && move.To() == prev.To()
+func lirp(x, x1, x2, y1, y2 float64) float64 {
+	return y1 + (y2-y1)*(x-x1)/(x2-x1)
 }

@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
-	nnue "github.com/ChizhovVadim/CounterGo/pkg/eval/nnue"
+	"github.com/ChizhovVadim/CounterGo/pkg/evalnn"
 	"github.com/ChizhovVadim/CounterGo/pkg/uci"
 )
 
@@ -26,8 +26,13 @@ const (
 func main() {
 	var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
 
+	var weights, err = evalnn.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Loaded nnue weights")
 	var config = engine.NewConfig(func() engine.IUpdatableEvaluator {
-		return nnue.NewDefaultEvaluationService()
+		return evalnn.NewEvaluationService(weights, 1.0)
 	})
 	var eng = engine.New(config)
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"runtime"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
@@ -24,8 +23,6 @@ const (
 )
 
 func main() {
-	var logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
-
 	var weights, err = evalnn.Load()
 	if err != nil {
 		log.Fatal(err)
@@ -35,13 +32,12 @@ func main() {
 		return evalnn.NewEvaluationService(weights, 1.0)
 	})
 	var eng = engine.New(config)
-
-	var protocol = uci.New(name, author, versionName, eng,
+	var engAgent = uci.NewEngineAgent(name, author, versionName, eng,
 		[]uci.Option{
 			&uci.IntOption{Name: "Hash", Min: 4, Max: 1 << 16, Value: &eng.Config.Hash},
 			&uci.IntOption{Name: "Threads", Min: 1, Max: runtime.NumCPU(), Value: &eng.Config.Threads},
 			&uci.BoolOption{Name: "ExperimentSettings", Value: &eng.Config.ExperimentSettings},
 		},
 	)
-	protocol.Run(logger)
+	uci.Run(engAgent)
 }

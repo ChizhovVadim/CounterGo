@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"runtime"
+	"runtime/debug"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/engine"
 	"github.com/ChizhovVadim/CounterGo/pkg/evalnn"
@@ -23,6 +24,14 @@ const (
 )
 
 func main() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		log.Println("BuildInfo",
+			"Path", info.Main.Path,
+			"Version", info.Main.Version,
+			"GoVersion", info.GoVersion,
+		)
+	}
+
 	var weights, err = evalnn.Load()
 	if err != nil {
 		log.Fatal(err)

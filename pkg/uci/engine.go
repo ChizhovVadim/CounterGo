@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/model"
 )
 
 type IEngine interface {
 	Prepare()
 	Clear()
-	Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo
+	Search(ctx context.Context, searchParams model.SearchParams) model.SearchInfo
 }
 
 type UciMessage struct{}
@@ -21,8 +21,8 @@ type IsReadyMessage struct{}
 
 type GoMessage struct {
 	Ctx    context.Context
-	Game   []common.Position
-	Limits common.LimitsType
+	Game   model.Game
+	Limits model.LimitsType
 }
 
 type EngineAgent struct {
@@ -44,8 +44,8 @@ func NewEngineAgent(
 		name:    name,
 		author:  author,
 		version: version,
-		options: options,
 		eng:     eng,
+		options: options,
 	}
 }
 
@@ -74,10 +74,10 @@ func (agent *EngineAgent) Run(
 				}
 			}
 		case GoMessage:
-			var searchResult = agent.eng.Search(msg.Ctx, common.SearchParams{
-				Positions: msg.Game,
-				Limits:    msg.Limits,
-				Progress: func(si common.SearchInfo) {
+			var searchResult = agent.eng.Search(msg.Ctx, model.SearchParams{
+				Game:   msg.Game,
+				Limits: msg.Limits,
+				Progress: func(si model.SearchInfo) {
 					fmt.Println(searchInfoToUci(si))
 				},
 			})
@@ -90,7 +90,7 @@ func (agent *EngineAgent) Run(
 	return nil
 }
 
-func searchInfoToUci(si common.SearchInfo) string {
+func searchInfoToUci(si model.SearchInfo) string {
 	var sb = &strings.Builder{}
 	fmt.Fprintf(sb, "info depth %v", si.Depth)
 	if si.Score.Mate != 0 {

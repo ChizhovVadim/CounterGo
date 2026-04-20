@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/model"
 )
 
 const (
@@ -15,14 +16,14 @@ const (
 
 type timeManager struct {
 	start        time.Time
-	limits       common.LimitsType
+	limits       model.LimitsType
 	side         bool
 	difficulty   float64
 	lastScore    int
 	lastBestMove common.Move
 }
 
-func newTimeManager(start time.Time, limits common.LimitsType, p *common.Position) *timeManager {
+func newTimeManager(start time.Time, limits model.LimitsType, p *common.Position) *timeManager {
 	return &timeManager{
 		start:      start,
 		limits:     limits,

@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/model"
 )
 
 const (
@@ -48,13 +49,13 @@ func valueFromTT(v, height int) int {
 	return v
 }
 
-func newUciScore(v int) common.UciScore {
+func newUciScore(v int) model.UciScore {
 	if v >= valueWin {
-		return common.UciScore{Mate: (valueMate - v + 1) / 2}
+		return model.UciScore{Mate: (valueMate - v + 1) / 2}
 	} else if v <= valueLoss {
-		return common.UciScore{Mate: (-valueMate - v) / 2}
+		return model.UciScore{Mate: (-valueMate - v) / 2}
 	} else {
-		return common.UciScore{Centipawns: v}
+		return model.UciScore{Centipawns: v}
 	}
 }
 

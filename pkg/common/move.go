@@ -134,3 +134,20 @@ func ParseMoveSAN(pos *Position, san string) Move {
 	}
 	return MoveEmpty
 }
+
+func (p *Position) ParseMoveLAN(lan string) Move {
+	var buffer [MaxMoves]OrderedMove
+	var ml = p.GenerateMoves(buffer[:])
+	for i := range ml {
+		var mv = ml[i].Move
+		if strings.EqualFold(mv.String(), lan) {
+			var child Position
+			if p.MakeMove(mv, &child) {
+				return mv
+			} else {
+				return MoveEmpty
+			}
+		}
+	}
+	return MoveEmpty
+}

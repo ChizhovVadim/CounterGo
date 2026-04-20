@@ -1,7 +1,5 @@
 package common
 
-import "time"
-
 const (
 	SQUARE_NB = 64
 	RANK_NB   = 8
@@ -49,37 +47,4 @@ const (
 type OrderedMove struct {
 	Move Move
 	Key  int32
-}
-
-type LimitsType struct {
-	Ponder         bool
-	Infinite       bool
-	WhiteTime      int
-	BlackTime      int
-	WhiteIncrement int
-	BlackIncrement int
-	MoveTime       int
-	MovesToGo      int
-	Depth          int
-	Nodes          int
-	Mate           int
-}
-
-type SearchParams struct {
-	Positions []Position
-	Limits    LimitsType
-	Progress  func(si SearchInfo)
-}
-
-type SearchInfo struct {
-	Score    UciScore
-	Depth    int
-	Nodes    int64
-	Time     time.Duration
-	MainLine []Move
-}
-
-type UciScore struct {
-	Centipawns int
-	Mate       int
 }

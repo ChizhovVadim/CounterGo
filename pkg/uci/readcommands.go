@@ -9,18 +9,16 @@ import (
 	"strings"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/model"
 )
 
 func ReadCommands(
 	r io.Reader,
 	cmds chan<- any,
 ) error {
-	var initPosition, _ = common.NewPositionFromFEN(common.InitialPositionFen)
 
-	var (
-		positions = []common.Position{initPosition}
-		cancel    context.CancelFunc
-	)
+	var game, _ = model.NewGame("")
+	var cancel context.CancelFunc
 
 	var scanner = bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -53,11 +51,10 @@ func ReadCommands(
 		case "isready":
 			cmds <- IsReadyMessage{}
 		case "position":
-			var game = parsePositionCommand(fields)
-			if game == nil {
-				log.Println("parse position failed")
+			if g, ok := parsePositionCommand(fields); ok {
+				game = g
 			} else {
-				positions = game
+				log.Println("parse position failed")
 			}
 		case "go":
 			var limits = parseLimits(fields)
@@ -65,7 +62,7 @@ func ReadCommands(
 			ctx, cancel = context.WithCancel(context.Background())
 			cmds <- GoMessage{
 				Ctx:    ctx,
-				Game:   positions,
+				Game:   game.Clone(),
 				Limits: limits,
 			}
 		}
@@ -84,8 +81,7 @@ func getCommand(commandLine string) (string, []string) {
 	return fields[0], fields[1:]
 }
 
-func parsePositionCommand(fields []string) []common.Position {
-	var args = fields
+func parsePositionCommand(args []string) (model.Game, bool) {
 	var token = args[0]
 	var fen string
 	var movesIndex = findIndexString(args, "moves")
@@ -98,23 +94,22 @@ func parsePositionCommand(fields []string) []common.Position {
 			fen = strings.Join(args[1:movesIndex], " ")
 		}
 	} else {
-		return nil
+		return model.Game{}, false
 	}
-	var p, err = common.NewPositionFromFEN(fen)
+	var g, err = model.NewGame(fen)
 	if err != nil {
-		return nil
+		return model.Game{}, false
 	}
-	var positions = []common.Position{p}
 	if movesIndex >= 0 && movesIndex+1 < len(args) {
 		for _, smove := range args[movesIndex+1:] {
-			var newPos, ok = positions[len(positions)-1].MakeMoveLAN(smove)
-			if !ok {
-				return nil
+			var mv = g.Position.ParseMoveLAN(smove)
+			if mv == common.MoveEmpty {
+				return model.Game{}, false
 			}
-			positions = append(positions, newPos)
+			g.MakeMove(mv)
 		}
 	}
-	return positions
+	return g, true
 }
 
 func findIndexString(slice []string, value string) int {
@@ -126,7 +121,7 @@ func findIndexString(slice []string, value string) int {
 	return -1
 }
 
-func parseLimits(args []string) (result common.LimitsType) {
+func parseLimits(args []string) (result model.LimitsType) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "ponder":

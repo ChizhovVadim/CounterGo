@@ -47,14 +47,14 @@ func (t *thread) iterativeDeepening(
 	}()
 
 	t.nodes = 0
-	t.stack[0].position = sharedContext.position
+	t.stack[0].position = sharedContext.game.Position
 	t.evaluator.Init(&t.stack[0].position)
 	for h := 0; h <= 2; h++ {
 		t.stack[h].killer1 = MoveEmpty
 		t.stack[h].killer2 = MoveEmpty
 	}
 
-	var ml = sharedContext.position.GenerateLegalMoves()
+	var ml = sharedContext.game.Position.GenerateLegalMoves()
 	if len(ml) == 0 {
 		return mainLine{}
 	}
@@ -558,7 +558,7 @@ func (t *thread) isRepeat(height int) bool {
 		}
 	}
 
-	return t.sharedContext.historyKeys[p.Key] >= 2
+	return t.sharedContext.game.IsTwoTimeRepeats(p.Key)
 }
 
 func (t *thread) updateKiller(move Move, height int) {

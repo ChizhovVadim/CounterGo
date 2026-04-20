@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/model"
 )
 
 type Engine struct {
@@ -34,11 +35,10 @@ func NewConfig(evalBuilder func() IUpdatableEvaluator) Config {
 
 type SharedContext struct {
 	done        <-chan struct{}
-	progress    func(common.SearchInfo)
+	progress    func(model.SearchInfo)
 	config      Config
 	transTable  TransTable
-	position    common.Position
-	historyKeys map[uint64]int
+	game        model.Game
 	timeManager TimeManager
 	start       time.Time
 	nodes       atomic.Int64
@@ -53,8 +53,8 @@ func (c *SharedContext) isDone() bool {
 	}
 }
 
-func (c *SharedContext) ToSearchInfo(result mainLine) common.SearchInfo {
-	return common.SearchInfo{
+func (c *SharedContext) ToSearchInfo(result mainLine) model.SearchInfo {
+	return model.SearchInfo{
 		Depth:    result.depth,
 		MainLine: result.moves,
 		Score:    newUciScore(result.score),
@@ -142,11 +142,10 @@ func (e *Engine) Prepare() {
 	}
 }
 
-func (e *Engine) Search(ctx context.Context, searchParams common.SearchParams) common.SearchInfo {
+func (e *Engine) Search(ctx context.Context, searchParams model.SearchParams) model.SearchInfo {
 	var start = time.Now()
 	e.Prepare()
-	var p = &searchParams.Positions[len(searchParams.Positions)-1]
-	var timeManager = newTimeManager(start, searchParams.Limits, p)
+	var timeManager = newTimeManager(start, searchParams.Limits, &searchParams.Game.Position)
 
 	var cancel context.CancelFunc
 	if hardLimit := timeManager.HardLimit(); hardLimit > 0 {
@@ -157,15 +156,13 @@ func (e *Engine) Search(ctx context.Context, searchParams common.SearchParams) c
 	defer cancel()
 
 	e.transTable.IncDate()
-	var historyKeys = getHistoryKeys(searchParams.Positions)
 
 	var sharedContext = &SharedContext{
 		done:        ctx.Done(),
 		progress:    searchParams.Progress,
 		config:      e.Config,
 		transTable:  e.transTable,
-		position:    *p,
-		historyKeys: historyKeys,
+		game:        searchParams.Game,
 		timeManager: timeManager,
 		start:       start,
 	}
@@ -177,16 +174,4 @@ func (e *Engine) Search(ctx context.Context, searchParams common.SearchParams) c
 		var mainLine = e.lazySmp(ctx, sharedContext)
 		return sharedContext.ToSearchInfo(mainLine)
 	}
-}
-
-func getHistoryKeys(positions []common.Position) map[uint64]int {
-	var result = make(map[uint64]int)
-	for i := len(positions) - 1; i >= 0; i-- {
-		var p = &positions[i]
-		result[p.Key]++
-		if p.Rule50 == 0 {
-			break
-		}
-	}
-	return result
 }

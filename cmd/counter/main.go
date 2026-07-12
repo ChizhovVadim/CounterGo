@@ -1,6 +1,8 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
 	"runtime"
 	"runtime/debug"
@@ -23,6 +25,9 @@ const (
 	versionName = "5.5"
 )
 
+//go:embed *.nn
+var content embed.FS
+
 func main() {
 	if info, ok := debug.ReadBuildInfo(); ok {
 		log.Println("BuildInfo",
@@ -32,14 +37,7 @@ func main() {
 		)
 	}
 
-	var weights, err = evalnn.Load()
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Loaded nnue weights")
-	var config = engine.NewConfig(func() engine.IUpdatableEvaluator {
-		return evalnn.NewEvaluationService(weights, 1.0)
-	})
+	var config = engine.NewConfig(evalBuilder(content))
 	var eng = engine.New(config)
 	var engAgent = uci.NewEngineAgent(name, author, versionName, eng,
 		[]uci.Option{
@@ -48,5 +46,27 @@ func main() {
 			&uci.BoolOption{Name: "ExperimentSettings", Value: &eng.Config.ExperimentSettings},
 		},
 	)
-	uci.Run(engAgent)
+	if err := uci.Run(engAgent); err != nil {
+		log.Println("Application error.",
+			"err", err)
+		return
+	}
+}
+
+func evalBuilder(fs fs.FS) func() engine.IUpdatableEvaluator {
+	var weights, err = func() (*evalnn.Weights, error) {
+		var file, err = fs.Open("n-30-5268.nn")
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+		return evalnn.LoadWeights(file, true)
+	}()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Loaded nnue weights")
+	return func() engine.IUpdatableEvaluator {
+		return evalnn.NewEvaluationService(weights, 1.0)
+	}
 }

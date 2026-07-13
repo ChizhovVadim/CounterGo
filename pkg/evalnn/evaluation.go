@@ -3,8 +3,8 @@ package evalnn
 import (
 	"math"
 
-	"github.com/ChizhovVadim/CounterGo/internal/simd"
 	"github.com/ChizhovVadim/CounterGo/pkg/common"
+	"github.com/ChizhovVadim/CounterGo/pkg/evalnn/internal/simd"
 )
 
 const (

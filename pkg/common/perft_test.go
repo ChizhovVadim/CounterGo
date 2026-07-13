@@ -1,11 +1,18 @@
 package common
 
 import (
+	"os"
+	"strconv"
 	"testing"
 )
 
-//https://www.chessprogramming.org/Perft_Results
+// https://www.chessprogramming.org/Perft_Results
 func TestPerft(t *testing.T) {
+	slowTestFlag, _ := strconv.ParseBool(os.Getenv("SLOW_TEST"))
+	if !slowTestFlag {
+		t.Skip("Skipping long-running TestPerft")
+	}
+
 	var tests = []struct {
 		fen   string
 		depth int
